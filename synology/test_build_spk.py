@@ -1,8 +1,7 @@
-"""Offline tests for the Synology SPK layout and installer lifecycle."""
+"""Offline smoke tests for the native (Docker-free) Synology packaging."""
 import io
-import json
 import os
-import re
+import struct
 import subprocess
 import tarfile
 import tempfile
@@ -12,72 +11,64 @@ from pathlib import Path
 from build_spk import build
 
 
-IMAGE = "ghcr.io/floppy69/torrentlinker:sha-012345abcdef"
+class NativeSPK(unittest.TestCase):
+    def sample(self, root: Path, machine: int = 62) -> Path:
+        runtime = root / "runtime"
+        exe = runtime / "bin" / "python3.12"
+        exe.parent.mkdir(parents=True)
+        exe.write_bytes(b"\x7fELF\x02\x01" + b"\x00" * 12 + struct.pack("<H", machine))
+        exe.chmod(0o755)
+        server = runtime / "lib/python3.12/site-packages/torrentlinker/web/server.py"
+        server.parent.mkdir(parents=True)
+        server.write_text('print("sample")\n')
+        return runtime
 
-
-class SynologySPKTests(unittest.TestCase):
-    def test_spk_contains_required_dsm_files(self):
+    def test_native_package_layout(self):
         with tempfile.TemporaryDirectory() as folder:
-            output = Path(folder) / "demo.spk"
-            build("1.0.0-42", IMAGE, output)
-            with tarfile.open(output) as spk:
-                names = set(spk.getnames())
-                self.assertIn("INFO", names)
-                self.assertIn("conf/resource", names)
-                self.assertIn("conf/privilege", names)
-                self.assertIn("package.tgz", names)
-                self.assertEqual(spk.extractfile("PACKAGE_ICON.PNG").read()[1:4], b"PNG")
+            root = Path(folder)
+            runtime = self.sample(root)
+            out = root / "native.spk"
+            build("1.0.0-2", "x86_64", runtime, out)
+            with tarfile.open(out) as spk:
                 info = spk.extractfile("INFO").read().decode()
-                self.assertIn('version="1.0.0-42"', info)
-                self.assertIn('arch="noarch"', info)
-                resource = json.load(spk.extractfile("conf/resource"))
-                self.assertEqual(resource["docker-project"]["projects"][0]["name"], "torrentlinker")
-                self.assertEqual(json.load(spk.extractfile("conf/privilege"))["defaults"]["run-as"], "package")
+                self.assertIn('arch="x86_64"', info)
+                self.assertNotIn("ContainerManager", info)
+                self.assertEqual(spk.extractfile("conf/resource").read(), b"{}\n")
+                self.assertIn('"run-as": "package"', spk.extractfile("conf/privilege").read().decode())
+                self.assertEqual(spk.extractfile("PACKAGE_ICON.PNG").read()[:8], b"\x89PNG\r\n\x1a\n")
                 payload = io.BytesIO(spk.extractfile("package.tgz").read())
-                with tarfile.open(fileobj=payload, mode="r:gz") as inner:
-                    compose = inner.extractfile("project/compose.yaml").read().decode()
-                    self.assertIn(IMAGE, compose)
-                    self.assertIn('TL_WEB_PASSWORD:', compose)
-                    self.assertIn(':/data:ro', compose)
+                with tarfile.open(fileobj=payload) as files:
+                    self.assertIn("runtime/bin/python3.12", files.getnames())
+                    self.assertIn("runtime/lib/python3.12/site-packages/torrentlinker/web/server.py", files.getnames())
+                self.assertIn("torrentlinker.web.server", spk.extractfile("scripts/start-stop-status").read().decode())
+                self.assertIn("web-password", spk.extractfile("scripts/postinst").read().decode())
+                script = root / "postinst"
+                script.write_bytes(spk.extractfile("scripts/postinst").read())
+                service = root / "service"
+                service.write_bytes(spk.extractfile("scripts/start-stop-status").read())
+                subprocess.run(["sh", "-n", str(script)], check=True)
+                subprocess.run(["sh", "-n", str(service)], check=True)
+            env = os.environ | {"SYNOPKG_PKGVAR": str(root / "var"), "SYNOPKG_PKGDEST": str(root)}
+            subprocess.run(["sh", str(script)], check=True, env=env)
+            password = root / "var/web-password"
+            self.assertEqual(len(password.read_text()), 64)
+            self.assertEqual(password.stat().st_mode & 0o777, 0o600)
+            saved = password.read_text()
+            subprocess.run(["sh", str(script)], check=True, env=env)
+            self.assertEqual(password.read_text(), saved)
+            self.assertEqual(subprocess.run(["sh", str(service), "status"], env=env).returncode, 3)
 
-    def test_installer_generates_private_password_and_preserves_it(self):
+    def test_arm_architecture_and_mismatch(self):
         with tempfile.TemporaryDirectory() as folder:
-            folder = Path(folder)
-            output = folder / "demo.spk"
-            build("1.0.0-42", IMAGE, output)
-            root = folder / "installed"
-            root.mkdir()
-            with tarfile.open(output) as spk:
-                (folder / "package.tgz").write_bytes(spk.extractfile("package.tgz").read())
-                postinst = spk.extractfile("scripts/postinst").read()
-            with tarfile.open(folder / "package.tgz") as inner:
-                inner.extractall(root, filter="data")
-            script = folder / "postinst.sh"
-            script.write_bytes(postinst)
-            script.chmod(0o755)
-            data = folder / "var"
-            env = os.environ | {
-                "SYNOPKG_PKGDEST": str(root),
-                "SYNOPKG_PKGVAR": str(data),
-            }
-            subprocess.run(["sh", str(script)], env=env, check=True)
-            config = data / "config.env"
-            self.assertEqual(config.stat().st_mode & 0o777, 0o600)
-            original = config.read_text()
-            self.assertRegex(original, r"TL_WEB_PASSWORD=[a-f0-9]{64}\n")
-            self.assertIn(f"TL_UID={os.getuid()}\n", original)
-            self.assertIn(f"TL_GID={os.getgid()}\n", original)
-            self.assertEqual((root / "project/.env").read_text(), original)
-            subprocess.run(["sh", str(script)], env=env, check=True)
-            self.assertEqual(config.read_text(), original)
-
-    def test_rejects_wrong_image_or_version(self):
-        with tempfile.TemporaryDirectory() as folder:
-            output = Path(folder) / "bad.spk"
+            root = Path(folder)
+            runtime = self.sample(root, machine=183)
+            build("1.0.0-3", "aarch64", runtime, root / "arm.spk")
+            with tarfile.open(root / "arm.spk") as archive:
+                self.assertIn('arch="armv8"', archive.extractfile("INFO").read().decode())
             with self.assertRaises(ValueError):
-                build("1.0.0-beta.25", IMAGE, output)
+                build("1.0.0-3", "x86_64", runtime, root / "bad.spk")
             with self.assertRaises(ValueError):
-                build("1.0.0-2", "ghcr.io/someone/other:latest", output)
+                build("1.0.0-beta.25", "aarch64", runtime, root / "bad.spk")
 
 
 if __name__ == "__main__":
