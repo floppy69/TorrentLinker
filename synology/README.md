@@ -1,116 +1,104 @@
-# TorrentLinker pour Synology (DSM 7.2.1+)
+# TorrentLinker natif pour Synology DSM 7
 
-Ce dossier construit un vrai paquet `.spk` installable dans le Centre de paquets.
-Il exploite la ressource officielle **docker-project** de Synology, fournie par
-**Container Manager >= 1432**. Il **ne** modifie **pas** le logiciel amont : le
-conteneur contient l'interface web existante de TorrentLinker.
+**Aucun Docker / Container Manager / Python à installer sur le NAS.** Le
+paquet SPK contient Python 3.12, TorrentLinker, ses bibliothèques et un
+service contrôlé par le Centre de paquets. L'interface utilisée est le
+**serveur Web** de TorrentLinker, et non son application de bureau Qt.
 
-## Compatibilité et installation
+## Compatibilité
 
-- DSM **7.2.1 ou plus récent**, sur un NAS disposant de Container Manager.
-- Image multiarchitecture `linux/amd64` et `linux/arm64`. Le fichier SPK
-  est `noarch`, mais le NAS doit effectivement prendre en charge l'image.
-- Sur le fork, ouvrir **Releases**, choisir la version `synology-…`, télécharger
-  `TorrentLinker-…-noarch.spk`, puis **Centre de paquets > Installation manuelle**.
-- Le paquet nécessite une connexion à GHCR et que l'image
-  `ghcr.io/floppy69/torrentlinker` soit **publique**. Vérifier cette visibilité
-  lors de la première publication dans les paramètres du package GHCR.
-- Ouvrir `http://IP_DU_NAS:8787` sur un réseau de confiance. Pour un accès
-  depuis Internet, mettre un reverse proxy HTTPS et adapter `TL_SECURE_COOKIE`
-  dans Compose. **Ne pas exposer directement le port 8787 sur Internet.**
+- DSM 7.0 ou supérieur, sous réserve de validation sur le modèle cible.
+- Deux fichiers distincts :
+  - `TorrentLinker-<version>-x86_64.spk` pour les NAS Intel / AMD 64 bits ;
+  - `TorrentLinker-<version>-aarch64.spk` pour les NAS ARM 64 bits (famille
+    `armv8` dans les métadonnées DSM).
+- Les ARM 32 bits et les modèles non compatibles ne sont pas couverts.
+- Les dépendances ELF sont contrôlées contre la glibc 2.26 de DSM 7.
+  Cela ne remplace **pas** une vérification sur un vrai NAS.
+- Aucun logiciel supplémentaire ne doit être installé sur le NAS pour
+  démarrer le serveur Web. Certaines fonctions multimédias peuvent toutefois
+  nécessiter des bibliothèques qui restent à embarquer et à tester :
+  notamment la bibliothèque native MediaInfo ; le wrapper Python seul
+  ne suffit pas. L'extraction d'archives propre à l'interface de bureau
+  n'est pas exposée par l'interface Web.
 
-Le mot de passe de l'interface Web est créé aléatoirement lors de l'installation
-(64 caractères hexadécimaux). Pour le consulter avec un compte administrateur
-SSH sur le NAS :
+## Installation
 
-```sh
-sudo grep '^TL_WEB_PASSWORD=' /var/packages/TorrentLinker/var/config.env
-```
+Une fois le build et les tests validés, récupérer le fichier adapté à
+l'architecture dans les **Artifacts** de GitHub Actions ou dans **Releases**
+si la publication est activée. Dans DSM :
 
-Éviter de partager ou de committer ce fichier.
+1. **Centre de paquets > Installation manuelle** ; sélectionner le SPK.
+2. Démarrer TorrentLinker depuis le Centre de paquets.
+3. Ouvrir `http://IP_DU_NAS:8787` depuis le réseau local.
+4. Récupérer le mot de passe généré lors de l'installation avec SSH :
+   `sudo cat /var/packages/TorrentLinker/var/web-password`.
 
-## Données et médias
+Ne pas exposer le port 8787 directement sur Internet. Utiliser un reverse
+proxy HTTPS et activer les cookies sécurisés si vous rendez l'interface
+accessible à distance.
 
-Le paquet conserve les données hors du dossier d'installation :
+## Fonctionnement et données
 
-- `/var/packages/TorrentLinker/var/config` : catalogue, paramètres et secrets ;
-- `/var/packages/TorrentLinker/var/config.env` : mot de passe, identité du
-  compte Synology, dossier média ;
-- `/var/packages/TorrentLinker/var/media` : dossier média initial **vide**.
+Le script DSM `scripts/start-stop-status` exécute directement
+`runtime/bin/python3.12 -m torrentlinker.web.server` sous l'utilisateur
+restreint du paquet. Il gère les fonctions **Démarrer**, **Arrêter**,
+**État** et les arrêts propres.
 
-L'image lance une initialisation temporaire avec les capacités minimales
-`CHOWN`, `DAC_OVERRIDE`, `SETUID`, `SETGID`, puis se rabaisse à l'UID/GID
-dédiés au paquet. Les données ne sont pas rendues accessibles à tous par
-`chmod 777`. Le répertoire `/config` est persistant lors d'une mise à jour
-normale du SPK. **Sauvegardez-le avant une désinstallation**, car DSM peut
-supprimer les données propres au paquet.
+Les données sont conservées dans :
 
-Par défaut, aucun dossier partagé du NAS n'est exposé. Pour accéder aux fichiers :
+- `/var/packages/TorrentLinker/var/config` : paramètres, catalogue et
+  identifiants chiffrés ;
+- `/var/packages/TorrentLinker/var/web-password` : mot de passe Web,
+  généré avec 256 bits d'aléa et protégé en 0600 ;
+- `/var/packages/TorrentLinker/var/server.log` : journaux du serveur.
 
-1. Éditer `TL_MEDIA_PATH` dans
-   `/var/packages/TorrentLinker/var/config.env` (par exemple
-   `/volume1/Films`). Préparer les droits de lecture de ce dossier pour
-   l'utilisateur du paquet et privilégier le montage en lecture seule.
-2. Appliquer la même valeur au fichier
-   `/var/packages/TorrentLinker/target/project/.env` et **recréer** le
-   conteneur dans Container Manager (Projet `torrentlinker`). Un simple
-   redémarrage ne modifie pas un montage de volume existant.
-3. Dans l'interface Web, associer `/data` au chemin utilisé par le client
-   torrent (qBittorrent, Deluge ou Transmission).
+La mise à jour d'un SPK conserve le dossier `var` ; le script
+d'installation ne remplace jamais un mot de passe déjà présent.
+Sauvegarder les données avant une désinstallation : DSM peut les supprimer.
 
-Le fichier `config.env` dans `var` reste la source de vérité et sera recopié
-au prochain upgrade. L'identité est conservée afin de pouvoir réutiliser le
-dossier de configuration après les mises à jour.
+Par sécurité, **aucun dossier média n'est accessible par défaut**.
+Pour utiliser une bibliothèque existante, il faudra donner au compte du
+paquet les droits adaptés sur le dossier partagé du NAS, puis ajouter
+la racine autorisée au service (voir `--root` dans
+`src/torrentlinker/web/server.py`). Cette configuration doit encore
+être intégrée dans une interface d'installation pour éviter les
+modifications manuelles.
 
-## Mises à jour automatiques du fork et des artefacts
+## Automatisation du fork et du SPK
 
-Le workflow `.github/workflows/synology.yml` s'exécute toutes les six heures,
-lors des push sur `main` et manuellement dans **Actions**.
+`.github/workflows/synology.yml` :
 
-1. Pour une exécution planifiée/manuelle, récupérer
-   `Vietnoirien/TorrentLinker:main` et réaliser un **merge normal** dans
-   `floppy69/TorrentLinker:main`. Ne jamais forcer ni écraser les fichiers
-   Synology. En cas de conflit, le workflow échoue et ne pousse rien.
-2. Construire un candidat SPK ; vérifier son contenu et les scripts.
-3. Construire et tester une image avec `/healthz`.
-4. Pousser le merge sur le fork si le test réussit.
-5. Si la redistribution est autorisée et que la publication est activée :
-   produire une image GHCR multiarchitecture liée à la révision Git,
-   puis publier un nouveau SPK dans **GitHub Releases**. Le SPK référence
-   un tag d'image `sha-<12 caractères>`, jamais `beta` ou `latest`.
+- Toutes les six heures, comparer `Vietnoirien/TorrentLinker:main`
+  et `floppy69/TorrentLinker:main`.
+- Fusionner sans force-push si des changements sont disponibles.
+  Arrêter le workflow en cas de conflit ; ne jamais écraser les
+  modifications Synology du fork.
+- Construire sur des runners Linux **natifs** x86_64 et ARM64. Le pipeline
+  copie une distribution Python portable dans chaque paquet, prépare les
+  wheels compatibles avec DSM, vérifie les exigences glibc, teste les
+  scripts et sauvegarde les SPK comme artifacts.
+- Une variable Actions `SYNOLOGY_PUBLISH=true` autorisera ensuite les
+  GitHub Releases publiques ; elle est **désactivée par défaut**
+  tant que les droits de redistribution ne sont pas clarifiés.
+  Le dépôt d'origine consulté ne contient pas de fichier `LICENSE`.
 
-Le numéro de révision DSM suit le compteur monotone de GitHub Actions :
-`<version du projet>-<run_number>` (par exemple `1.0.0-123`).
-Un commit déjà publié avec un tag `synology-*` n'est pas republié.
+**Une nouvelle release n'installe pas automatiquement le paquet sur le NAS.**
+Pour cela, il faudra ultérieurement ajouter un dépôt de paquets DSM
+(`spkrepo`), puis activer les mises à jour du Centre de paquets.
 
-**Droits de redistribution :** le dépôt d'origine ne fournit pas de fichier
-`LICENSE` dans la version examinée. Le simple fait qu'un dépôt soit public
-n'accorde pas automatiquement le droit de distribuer des images et des SPK.
-La publication GHCR / Releases est donc désactivée par défaut. Après avoir
-clarifié les droits avec le mainteneur, créer la variable GitHub Actions
-`SYNOLOGY_PUBLISH=true` dans **Settings > Secrets and variables > Actions >
-Variables**, puis déclencher **Actions > Synology SPK and upstream sync > Run
-workflow**. Les compilations non publiées restent disponibles dans
-les **Artifacts** de l'exécution GitHub Actions, soumis aux règles
-d'accès et de rétention de GitHub.
+## Générer le SPK manuellement
 
-**Attention :** une nouvelle release GitHub ne met **pas** automatiquement
-à jour le logiciel déjà installé sur le NAS. Installer le nouveau SPK via
-le Centre de paquets. Pour mettre à jour depuis le Centre de paquets
-sans intervention, il faudra configurer un dépôt Synology de paquets
-(`spkrepo`) ou un mécanisme d'administration DSM distinct.
-
-## Développement et tests
+Sur un poste de compilation Linux possédant déjà un dossier `runtime`
+autonome et compatible DSM, contenant Python 3.12 et
+`lib/python3.12/site-packages/torrentlinker` :
 
 ```sh
+python3 synology/check_binary.py --runtime runtime --arch x86_64
 python3 -m unittest discover -s synology -p 'test_*.py'
-python3 synology/build_spk.py \
-  --image ghcr.io/floppy69/torrentlinker:sha-012345abcdef \
-  --run-number 1
+python3 synology/build_spk.py --arch x86_64 --runtime runtime --run-number 1
 ```
 
-Le générateur n'utilise que la bibliothèque standard de Python 3.11+.
-L'archive est validée localement par le script et les tests ; la compatibilité
-d'installation sur un **vrai NAS Synology** reste à confirmer avant de considérer
-la release comme stable. Tester en particulier le worker `docker-project`,
-les permissions du compte package et les sauvegardes/restaurations.
+La compilation ne nécessite pas Docker. Les packages générés sont des
+**candidats** tant qu'une installation, un redémarrage et une mise à jour
+réels sur le modèle Synology visé n'ont pas été testés.
