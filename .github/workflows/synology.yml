@@ -81,6 +81,7 @@ jobs:
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
+      - uses: mamba-org/setup-micromamba@v2
       - name: Build complete native runtime (no Docker)
         shell: bash
         run: |
@@ -102,6 +103,19 @@ jobs:
             --find-links wheelhouse
           python -m pip install --no-index --find-links wheelhouse \
             --target runtime/lib/python3.12/site-packages app-wheels/torrentlinker-*.whl
+          # MediaInfo native shared libraries are compiled for both CPU targets.
+          # Bundle the conda-forge runtime dependencies, never require them on DSM.
+          micromamba create --yes --prefix "$RUNNER_TEMP/tl-media" \
+            -c conda-forge "libmediainfo=26.10"
+          cp -a "$RUNNER_TEMP/tl-media/lib/." runtime/lib/
+          test -e runtime/lib/libmediainfo.so.0
+          (
+            cd /tmp
+            LD_LIBRARY_PATH="$GITHUB_WORKSPACE/runtime/lib" \
+            PYTHONPATH="$GITHUB_WORKSPACE/runtime/lib/python3.12/site-packages" \
+              "$GITHUB_WORKSPACE/runtime/bin/python3.12" -c \
+              "from pymediainfo import MediaInfo; assert MediaInfo.can_parse()"
+          )
           # The embedded interpreter must load the installed app, not the checkout.
           (
             cd /tmp
