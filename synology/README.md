@@ -58,12 +58,13 @@ d'installation ne remplace jamais un mot de passe déjà présent.
 Sauvegarder les données avant une désinstallation : DSM peut les supprimer.
 
 Par sécurité, **aucun dossier média n'est accessible par défaut**.
-Pour utiliser une bibliothèque existante, il faudra donner au compte du
-paquet les droits adaptés sur le dossier partagé du NAS, puis ajouter
-la racine autorisée au service (voir `--root` dans
-`src/torrentlinker/web/server.py`). Cette configuration doit encore
-être intégrée dans une interface d'installation pour éviter les
-modifications manuelles.
+Pour utiliser une bibliothèque existante, donner au compte du paquet les
+droits adaptés (lecture seule de préférence), puis créer un fichier
+`/var/packages/TorrentLinker/var/media-roots` contenant **un chemin absolu
+par ligne**, par exemple `/volume1/Films`. Redémarrer le paquet depuis le
+Centre de paquets. Le service transmet chaque chemin au serveur avec
+l'option `--root` sans exécuter le contenu du fichier comme des commandes.
+Une interface DSM de configuration pour ce fichier reste à réaliser.
 
 ## Automatisation du fork et du SPK
 
