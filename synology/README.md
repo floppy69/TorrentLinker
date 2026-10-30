@@ -16,11 +16,11 @@ service contrôlé par le Centre de paquets. L'interface utilisée est le
 - Les dépendances ELF sont contrôlées contre la glibc 2.26 de DSM 7.
   Cela ne remplace **pas** une vérification sur un vrai NAS.
 - Aucun logiciel supplémentaire ne doit être installé sur le NAS pour
-  démarrer le serveur Web. Certaines fonctions multimédias peuvent toutefois
-  nécessiter des bibliothèques qui restent à embarquer et à tester :
-  notamment la bibliothèque native MediaInfo ; le wrapper Python seul
-  ne suffit pas. L'extraction d'archives propre à l'interface de bureau
-  n'est pas exposée par l'interface Web.
+  démarrer le serveur Web. La compilation embarque également la bibliothèque
+  native MediaInfo et ses dépendances, avec vérification de leur chargement
+  sur le runner Linux et de leur compatibilité glibc. Leur fonctionnement
+  sur un NAS DSM réel reste à tester. Certaines fonctions d'extraction
+  d'archives de l'application de bureau ne sont pas exposées en Web.
 
 ## Installation
 
