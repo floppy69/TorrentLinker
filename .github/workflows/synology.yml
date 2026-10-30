@@ -1,8 +1,7 @@
-name: Synology SPK and upstream sync
+name: Native Synology SPK and upstream sync
 
 on:
   schedule:
-    # GitHub schedules are approximate; check upstream every six hours.
     - cron: "17 */6 * * *"
   workflow_dispatch:
   push:
@@ -12,28 +11,27 @@ on:
       - "synology/**"
       - ".github/workflows/synology.yml"
 
-concurrency:
-  group: synology-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
-  cancel-in-progress: false
-
 permissions:
   contents: write
-  packages: write
+
+concurrency:
+  group: native-synology-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
 
 jobs:
-  synology:
+  prepare:
     if: github.repository == 'floppy69/TorrentLinker'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    outputs:
+      sha: ${{ steps.ref.outputs.sha }}
+      build: ${{ steps.ref.outputs.build }}
     steps:
-      - name: Check out fork
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: true
-
-      - name: Merge upstream when scheduled or manually requested
+      - name: Merge upstream without overwriting the fork
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        id: sync
         shell: bash
         run: |
           set -euo pipefail
@@ -42,127 +40,118 @@ jobs:
           git remote add upstream https://github.com/Vietnoirien/TorrentLinker.git
           git fetch --no-tags upstream main
           if git merge-base --is-ancestor upstream/main HEAD; then
-            echo "Fork already contains all upstream commits."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            # Conflicts stop the workflow: never overwrite Synology changes.
             git merge --no-edit upstream/main
+            # Non-fast-forward failures abort; no force push and no discard of custom files.
+            git push origin HEAD:main
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Select revision and skip already-published revisions
-        id: meta
+      - id: ref
         shell: bash
         run: |
-          set -euo pipefail
-          git fetch --force --tags origin
-          sha="$(git rev-parse HEAD)"
-          echo "image=ghcr.io/floppy69/torrentlinker:sha-${sha:0:12}" >> "$GITHUB_OUTPUT"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          if [ "${{ github.event_name }}" != "pull_request" ] &&
-             [ -n "$(git tag --points-at HEAD --list 'synology-*')" ]; then
-            echo "pending=false" >> "$GITHUB_OUTPUT"
-            echo "This revision already has a published Synology package."
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = schedule ] && \
+             [ "${{ steps.sync.outputs.changed }}" != true ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
           else
-            echo "pending=true" >> "$GITHUB_OUTPUT"
+            echo "build=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Validate and build SPK
-        if: steps.meta.outputs.pending == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -m py_compile synology/build_spk.py
-          python3 -m unittest discover -s synology -p 'test_*.py'
-          python3 synology/build_spk.py --image "${{ steps.meta.outputs.image }}" \
-            --run-number "${{ github.run_number }}"
-          mkdir -p /tmp/tl-spk
-          tar xf dist/*.spk -C /tmp/tl-spk
-          for script in /tmp/tl-spk/scripts/*; do sh -n "$script"; done
-          python3 - <<'PY'
-          import json, pathlib, tarfile
-          p = pathlib.Path("/tmp/tl-spk")
-          info = (p / "INFO").read_text()
-          assert 'install_dep_packages="ContainerManager>=1432"' in info
-          assert json.loads((p / "conf/resource").read_text())["docker-project"]["projects"][0]["path"] == "project"
-          with tarfile.open(p / "package.tgz") as t:
-              compose = t.extractfile("project/compose.yaml").read().decode()
-              assert "TL_WEB_PASSWORD" in compose and "TL_MEDIA_PATH" in compose
-          PY
-
-      - name: Build and smoke-test app image
-        if: steps.meta.outputs.pending == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker build -t torrentlinker:smoke .
-          docker run -d --name torrentlinker-smoke -p 127.0.0.1:18787:8787 \
-            -e TL_WEB_PASSWORD=ci-smoke-test-password torrentlinker:smoke
-          trap 'docker logs torrentlinker-smoke || true; docker rm -f torrentlinker-smoke || true' EXIT
-          success=0
-          for i in $(seq 1 45); do
-            if curl --fail --silent http://127.0.0.1:18787/healthz; then
-              success=1
-              break
-            fi
-            sleep 2
-          done
-          [ "$success" = "1" ] || exit 1
-
-      - name: Upload candidate SPK
-        if: steps.meta.outputs.pending == 'true'
-        uses: actions/upload-artifact@v4
+  native:
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+            platform: manylinux2014_x86_64
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            platform: manylinux2014_aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
         with:
-          name: synology-spk-${{ github.run_number }}
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+      - name: Build complete native runtime (no Docker)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip build wheel
+          python -m build --wheel --outdir app-wheels
+          uv python install 3.12
+          managed="$(uv python find 3.12 --managed-python)"
+          mkdir -p runtime wheelhouse
+          cp -a "$(dirname "$(dirname "$managed")")/." runtime/
+          # pymediainfo's prebuilt Linux wheel needs GLIBC 2.27.
+          # Build its pure-Python wrapper instead for DSM's GLIBC 2.26 baseline.
+          python -m pip wheel --wheel-dir wheelhouse --no-deps \
+            --no-binary=pymediainfo "pymediainfo>=6.1"
+          python -m pip download app-wheels/torrentlinker-*.whl \
+            --dest wheelhouse \
+            --platform "${{ matrix.platform }}" --python-version 312 \
+            --implementation cp --abi cp312 --only-binary=:all: \
+            --find-links wheelhouse
+          python -m pip install --no-index --find-links wheelhouse \
+            --target runtime/lib/python3.12/site-packages app-wheels/torrentlinker-*.whl
+          # The embedded interpreter must load the installed app, not the checkout.
+          (
+            cd /tmp
+            PYTHONPATH="$GITHUB_WORKSPACE/runtime/lib/python3.12/site-packages" \
+              "$GITHUB_WORKSPACE/runtime/bin/python3.12" -c \
+              "import torrentlinker.web.server, fastapi, uvicorn, cryptography, numpy, PIL"
+          )
+      - name: Verify DSM ELF compatibility and pack native SPK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python synology/check_binary.py --runtime runtime --arch "${{ matrix.arch }}"
+          python -m unittest discover -s synology -p 'test_*.py'
+          python synology/build_spk.py --arch "${{ matrix.arch }}" \
+            --runtime runtime --run-number "${{ github.run_number }}"
+          mkdir -p /tmp/check-spk
+          tar xf dist/*.spk -C /tmp/check-spk
+          for f in /tmp/check-spk/scripts/*; do sh -n "$f"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-spk-${{ matrix.arch }}
           path: dist/*.spk
           if-no-files-found: error
 
-      - name: Push merged upstream into fork
-        if: steps.meta.outputs.pending == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        shell: bash
-        run: |
-          # A non-fast-forward error protects concurrent user changes.
-          git push origin HEAD:main
-
-      - name: Enable Docker Buildx
-        if: steps.meta.outputs.pending == 'true' && github.event_name != 'pull_request' && vars.SYNOLOGY_PUBLISH == 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log into GitHub Container Registry
-        if: steps.meta.outputs.pending == 'true' && github.event_name != 'pull_request' && vars.SYNOLOGY_PUBLISH == 'true'
-        uses: docker/login-action@v3
+  publish:
+    needs: [prepare, native]
+    # Distribution is opt-in until the upstream copyright/license situation is clarified.
+    if: github.event_name != 'pull_request' && vars.SYNOLOGY_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish multiarchitecture image
-        if: steps.meta.outputs.pending == 'true' && github.event_name != 'pull_request' && vars.SYNOLOGY_PUBLISH == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.image }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/floppy69/TorrentLinker
-            org.opencontainers.image.revision=${{ steps.meta.outputs.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Publish SPK as GitHub Release
-        if: steps.meta.outputs.pending == 'true' && github.event_name != 'pull_request' && vars.SYNOLOGY_PUBLISH == 'true'
+          pattern: native-spk-*
+          merge-multiple: true
+          path: dist
+      - name: Publish both native SPKs
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TARGET_SHA: ${{ steps.meta.outputs.sha }}
-          IMAGE: ${{ steps.meta.outputs.image }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
         run: |
           set -euo pipefail
-          file="$(find dist -maxdepth 1 -name '*.spk' -print -quit)"
-          [ -n "$file" ]
-          version="$(basename "$file" | sed -E 's/^TorrentLinker-(.*)-noarch\.spk$/\1/')"
-          tag="synology-$version"
-          gh release create "$tag" "$file" \
-            --target "$TARGET_SHA" \
-            --title "TorrentLinker Synology $version" \
-            --notes "DSM 7.2.1+ / Container Manager >= 1432. Source: $TARGET_SHA. Image: $IMAGE. See synology/README.md for installation and upgrades." \
+          shopt -s nullglob
+          files=(dist/*.spk)
+          [ "${#files[@]}" -eq 2 ] || exit 1
+          version="$(basename "${files[0]}" | sed -E 's/^TorrentLinker-(.*)-(x86_64|aarch64)\.spk$/\1/')"
+          gh release create "synology-$version" "${files[@]}" \
+            --repo "${{ github.repository }}" --target "$SOURCE_SHA" \
+            --title "TorrentLinker Synology native $version" \
+            --notes "Native DSM 7.0+ packages: x86_64 and ARMv8. No Docker or separate Python required. Source commit: $SOURCE_SHA. Installation/limitations: synology/README.md" \
             --latest=false
