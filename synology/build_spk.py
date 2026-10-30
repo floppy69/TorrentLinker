@@ -57,8 +57,19 @@ case "${1:-}" in
     if running; then exit 0; fi
     mkdir -p "$var/config" "$var/home/cache" "$var/tmp"
     test -x "$python" && test -r "$var/web-password" || exit 1
-    "$python" -m torrentlinker.web.server --host 0.0.0.0 --port 8787 \\
-      --config "$var/config" --password-file "$var/web-password" \\
+    set -- --host 0.0.0.0 --port 8787 --config "$var/config" \\
+      --password-file "$var/web-password"
+    # A line per absolute NAS media path. No shell eval or word splitting.
+    if [ -f "$var/media-roots" ]; then
+      while IFS= read -r root || [ -n "$root" ]; do
+        case "$root" in
+          /*) test -d "$root" || exit 1; set -- "$@" --root "$root" ;;
+          '') ;;
+          *) echo "Invalid media root: $root" >&2; exit 1 ;;
+        esac
+      done < "$var/media-roots"
+    fi
+    "$python" -m torrentlinker.web.server "$@" \\
       >> "$var/server.log" 2>&1 &
     printf '%s\\n' "$!" > "$pidfile"
     sleep 2
