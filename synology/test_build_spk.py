@@ -48,7 +48,7 @@ class SynologySPKTests(unittest.TestCase):
             root = folder / "installed"
             root.mkdir()
             with tarfile.open(output) as spk:
-                spk.extractfile("package.tgz", path=folder)
+                (folder / "package.tgz").write_bytes(spk.extractfile("package.tgz").read())
                 postinst = spk.extractfile("scripts/postinst").read()
             with tarfile.open(folder / "package.tgz") as inner:
                 inner.extractall(root, filter="data")
@@ -64,7 +64,7 @@ class SynologySPKTests(unittest.TestCase):
             config = data / "config.env"
             self.assertEqual(config.stat().st_mode & 0o777, 0o600)
             original = config.read_text()
-            self.assertRegex(original, r"TL_WEB_PASSWORD=[a-f0-9]{64}\\n")
+            self.assertRegex(original, r"TL_WEB_PASSWORD=[a-f0-9]{64}\n")
             self.assertIn(f"TL_UID={os.getuid()}\n", original)
             self.assertIn(f"TL_GID={os.getgid()}\n", original)
             self.assertEqual((root / "project/.env").read_text(), original)
