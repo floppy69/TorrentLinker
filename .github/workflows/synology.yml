@@ -96,13 +96,15 @@ jobs:
           # Build its pure-Python wrapper instead for DSM's GLIBC 2.26 baseline.
           python -m pip wheel --wheel-dir wheelhouse --no-deps \
             --no-binary=pymediainfo "pymediainfo>=6.1"
-          python -m pip download "torrentlinker[web]" \
+          local_wheel="$(find app-wheels -maxdepth 1 -name 'torrentlinker-*.whl' -print -quit)"
+          test -n "$local_wheel"
+          python -m pip download "$local_wheel[web]" \
             --dest wheelhouse \
             --platform "${{ matrix.platform }}" --python-version 312 \
             --implementation cp --abi cp312 --only-binary=:all: \
             --find-links wheelhouse --find-links app-wheels
           python -m pip install --no-index --find-links wheelhouse --find-links app-wheels \
-            --target runtime/lib/python3.12/site-packages "torrentlinker[web]"
+            --target runtime/lib/python3.12/site-packages "$local_wheel[web]"
           # MediaInfo native shared libraries are compiled for both CPU targets.
           # Bundle the conda-forge runtime dependencies, never require them on DSM.
           micromamba create --yes --prefix "$RUNNER_TEMP/tl-media" \
@@ -123,6 +125,32 @@ jobs:
               "$GITHUB_WORKSPACE/runtime/bin/python3.12" -c \
               "import torrentlinker.web.server, fastapi, uvicorn, cryptography, numpy, PIL"
           )
+      - name: Smoke-test the bundled Web server without host Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONNOUSERSITE=1
+          export PYTHONPATH="$GITHUB_WORKSPACE/runtime/lib/python3.12/site-packages"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/runtime/lib"
+          export HOME="$RUNNER_TEMP/tl-home"
+          mkdir -p "$HOME" "$RUNNER_TEMP/tl-config"
+          printf '%s' 'a-local-test-password-with-32-characters' > "$RUNNER_TEMP/tl-password"
+          (
+            cd /tmp
+            "$GITHUB_WORKSPACE/runtime/bin/python3.12" -m torrentlinker.web.server \
+              --host 127.0.0.1 --port 18787 \
+              --config "$RUNNER_TEMP/tl-config" \
+              --password-file "$RUNNER_TEMP/tl-password"
+          ) > "$RUNNER_TEMP/tl-web.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; cat "$RUNNER_TEMP/tl-web.log"' EXIT
+          ready=0
+          for i in $(seq 1 45); do
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:18787/healthz; then ready=1; break; fi
+            sleep 2
+          done
+          test "$ready" = 1
       - name: Verify DSM ELF compatibility and pack native SPK
         shell: bash
         run: |
@@ -142,8 +170,9 @@ jobs:
 
   publish:
     needs: [prepare, native]
-    # Distribution is opt-in until the upstream copyright/license situation is clarified.
-    if: github.event_name != 'pull_request' && vars.SYNOLOGY_PUBLISH == 'true'
+    # Release only after both native architecture builds and smoke tests pass.
+    # The upstream author granted redistribution permission to the fork maintainer.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
