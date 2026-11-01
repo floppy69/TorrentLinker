@@ -415,7 +415,7 @@ def test_media_playback_survives_browsing_and_contextual_chat(tmp_path):
                 return model.submit(invoke, app, actor, name, **arguments).result(timeout=10)
 
             selection = model_tool(
-                "search_media", client_id="default", kind="video", q="Validation Film"
+                "search_media", client_id="default", kind="video", query="Validation Film"
             )["selection_id"]
             assert model_tool("play_media", selection_id=selection, subtitle_language="en")[
                 "queued"
