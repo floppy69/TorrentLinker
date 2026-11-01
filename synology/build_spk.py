@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build native, self-contained Synology DSM 7 SPKs; no Docker dependency."""
+"""Build native, self-contained Synology DSM 7.4 SPKs; no Docker dependency."""
 from __future__ import annotations
 
 import argparse
@@ -12,7 +12,7 @@ import tomllib
 import zlib
 from pathlib import Path
 
-ARCHES = {"x86_64": (62, "x86_64"), "aarch64": (183, "armv8")}
+ARCHES = {"x86_64": (62, "x64"), "aarch64": (183, "aarch64")}
 NOOP = "#!/bin/sh\nexit 0\n"
 POSTINST = """#!/bin/sh
 set -eu
@@ -157,10 +157,10 @@ def build(version: str, arch: str, runtime: Path, output: Path) -> None:
         'package="TorrentLinker"',
         f'version="{version}"',
         'displayname="TorrentLinker"',
-        'description="Native TorrentLinker Web server for Synology DSM 7"',
+        'description="Native TorrentLinker Web server for Synology DSM 7.4"',
         'maintainer="floppy69"',
         f'arch="{ARCHES[arch][1]}"',
-        'os_min_ver="7.0-40000"',
+        'os_min_ver="7.4-90075"',
         'adminprotocol="http"',
         'adminport="8787"',
         'adminurl="/"',
