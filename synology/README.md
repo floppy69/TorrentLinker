@@ -79,10 +79,11 @@ Une interface DSM de configuration pour ce fichier reste à réaliser.
   copie une distribution Python portable dans chaque paquet, prépare les
   wheels compatibles avec DSM, vérifie les exigences glibc, teste les
   scripts et sauvegarde les SPK comme artifacts.
-- Une variable Actions `SYNOLOGY_PUBLISH=true` autorisera ensuite les
-  GitHub Releases publiques ; elle est **désactivée par défaut**
-  tant que les droits de redistribution ne sont pas clarifiés.
-  Le dépôt d'origine consulté ne contient pas de fichier `LICENSE`.
+- À chaque build réussi des deux architectures sur `main`, GitHub Actions
+  publie automatiquement les deux SPK dans une **GitHub Release** marquée
+  `synology-<version>` avec le commit source. L'auteur original a donné
+  son accord de redistribution au mainteneur du fork ; les conditions
+  de licence du dépôt original doivent néanmoins être documentées.
 
 **Une nouvelle release n'installe pas automatiquement le paquet sur le NAS.**
 Pour cela, il faudra ultérieurement ajouter un dépôt de paquets DSM
@@ -103,3 +104,13 @@ python3 synology/build_spk.py --arch x86_64 --runtime runtime --run-number 1
 La compilation ne nécessite pas Docker. Les paquets demandent DSM 7.4 ou supérieur. Les packages générés sont des
 **candidats** tant qu'une installation, un redémarrage et une mise à jour
 réels sur le modèle Synology visé n'ont pas été testés.
+
+## Contribution au dépôt d'origine
+
+Après la première release du fork validée par les tests et une installation
+réelle sur DSM 7.4, proposer une pull request à
+`Vietnoirien/TorrentLinker`. Elle doit intégrer le constructeur SPK, ses
+contrôles de compatibilité et le workflow **build / test / release** adapté
+à `github.repository` (sans automatisation de synchronisation de fork). Le
+workflow natif existant Windows/Linux/macOS et Docker de l'auteur n'est pas
+remplacé ; cette PR ajoutera uniquement le support Synology.
