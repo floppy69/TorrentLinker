@@ -238,7 +238,7 @@ def torrent_zen(
     profile: ZenProfile, torrent: ZenTorrent, alongside: Sequence[ZenTorrent] = ()
 ) -> float:
     """Zen Estimate of one torrent seeded alongside the user's current torrents."""
-    return estimate(profile, [*alongside, torrent]).per_torrent[-1]
+    return added_values(profile, [torrent], alongside)[0]
 
 
 def compare_classes(

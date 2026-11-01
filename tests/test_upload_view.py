@@ -961,3 +961,27 @@ def test_local_upload_queue_keeps_edited_description_without_remote_draft(qtbot,
         qtbot.wait(150)
         Path(screenshots).mkdir(parents=True, exist_ok=True)
         assert view.grab().save(str(Path(screenshots) / "desktop-upload-queue.png"))
+
+
+def test_a_batch_rebuilds_the_upload_list_at_most_once_a_second(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    view, _, _ = tab(qtbot, tmp_path)
+    entries = [model(tmp_path, f"Pièce {i}.3mf") for i in range(3)]
+    view.set_entries(entries)
+    view.show_all.setChecked(True)
+    fills: list[int] = []
+    original = view._fill
+
+    def counted() -> None:
+        fills.append(1)
+        original()
+
+    view._fill = counted  # type: ignore[method-assign]
+    view.throttle_refresh(True)
+    for entry in entries:
+        view.remember(entry, [])
+    assert len(fills) == 3  # each search still asks, but only the first rebuilds at once
+    assert view.why_not(entries[2]) is None
+    assert "Search it first" in view.items.item(2, 3).text()  # not rebuilt yet
+
+    view.throttle_refresh(False)  # the batch ended: show everything now
+    assert "Search it first" not in view.items.item(2, 3).text()

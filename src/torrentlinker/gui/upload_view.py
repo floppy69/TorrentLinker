@@ -184,6 +184,10 @@ class UploadTab(QWidget):
         self.searched: dict[Path, list[CheckedCandidate]] = {}
         self._refresh_depth = 0
         self._refresh_pending = False
+        # While a batch delivers searches one by one, rebuild the list at most once a second.
+        self._throttled = False
+        self._throttle = QTimer(self, singleShot=True, interval=1000)
+        self._throttle.timeout.connect(self._flush_refresh)
         # Orphans whose last search, kept by the Store, found no Candidate at all: known
         # at once after a restart, while the Library still compares the others.
         self._found_nothing: set[Path] = set()
@@ -610,6 +614,17 @@ class UploadTab(QWidget):
                 self._refresh_pending = False
                 self._fill()
 
+    def throttle_refresh(self, on: bool) -> None:
+        self._throttled = on
+        if not on and self._throttle.isActive():
+            self._throttle.stop()
+            self._flush_refresh()
+
+    def _flush_refresh(self) -> None:
+        if self._refresh_pending:
+            self._refresh_pending = False
+            self._fill()
+
     def remember(self, entry: LibraryEntry, checked: list[CheckedCandidate]) -> None:
         """An Orphan's latest search, from the Library."""
         self.searched[entry.item.path] = checked
@@ -669,9 +684,11 @@ class UploadTab(QWidget):
         return self.subcategory.currentData() if entry is self.entry else None
 
     def _fill(self) -> None:
-        if self._refresh_depth:
+        if self._refresh_depth or self._throttle.isActive():
             self._refresh_pending = True
             return
+        if self._throttled:
+            self._throttle.start()
         selected = self.entry.item.path if self.entry else None
         kind = self.kind_filter.currentData()
         everything = self.show_all.isChecked()

@@ -2459,6 +2459,7 @@ class MainWindow(QMainWindow):
         self.batch.signals.error.connect(self._batch_error)
         self.batch.signals.finished.connect(self._batch_finished)
         self._set_batch_running(True)
+        self.upload_tab.throttle_refresh(True)
         self.batch.start()
 
     def cancel_batch(self) -> None:
@@ -2545,6 +2546,7 @@ class MainWindow(QMainWindow):
         cancelled = self.batch is not None and self.batch.cancelled()
         self.batch = None
         self._set_batch_running(False)
+        self.upload_tab.throttle_refresh(False)
         if self._batch_mode != "search":
             text = (
                 self.tr("{0} Reseeds started; {1} already in torrent client").format(
@@ -2647,11 +2649,16 @@ class MainWindow(QMainWindow):
     def _searches_restored(
         self, restored: list[tuple[LibraryEntry, list[CheckedCandidate]]]
     ) -> None:
-        with self.upload_tab.defer_refresh():
-            for entry, checked in restored:
-                if self.library_model.contains(entry):
-                    self.review.remember(entry, checked)
-                    self.library_model.set_status(entry.item.path, self._summary(checked))
+        # Sort once afterwards, not per status and Zen update.
+        self.library_proxy.setDynamicSortFilter(False)
+        try:
+            with self.upload_tab.defer_refresh():
+                for entry, checked in restored:
+                    if self.library_model.contains(entry):
+                        self.review.remember(entry, checked)
+                        self.library_model.set_status(entry.item.path, self._summary(checked))
+        finally:
+            self.library_proxy.setDynamicSortFilter(True)
 
     def _restore_failed(self, error: Exception) -> None:
         log.warning("could not restore previous searches: %s", error)
