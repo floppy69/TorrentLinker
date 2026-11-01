@@ -290,6 +290,9 @@ class Indexer:
     def search(self, query: SearchQuery, cached: bool = True) -> list[Candidate]:
         """Run a Torznab search; `cached=False` always asks the Indexer and keeps nothing."""
         params = query.params()
+        if self.is_c411 and params.get("imdbid", "").isdigit():
+            # c411 ignores a bare IMDb number and answers with unrelated recent releases.
+            params["imdbid"] = "tt" + params["imdbid"]
         if not cached:
             return _parse_items(self._get(params))
         key = self.url + "?" + "&".join(f"{k}={v}" for k, v in sorted(params.items()))

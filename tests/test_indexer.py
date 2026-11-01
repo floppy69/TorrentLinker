@@ -9,6 +9,7 @@ from torrentlinker.indexer import (
     Indexer,
     KeyRefused,
     RateLimited,
+    SearchMode,
     SearchQuery,
     TorrentUnavailable,
 )
@@ -58,6 +59,28 @@ def test_search_returns_candidates_from_torznab_items() -> None:
     assert first.download_url == "https://c411.example/api/download/42?apikey=K"
     assert first.infohash == "abcdef0123456789abcdef0123456789abcdef01"
     assert candidates[1].infohash is None
+
+
+@pytest.mark.parametrize(
+    ("url", "sent"),
+    [
+        ("https://c411.org/api/torznab", "tt0133093"),
+        ("https://c411.example/api/torznab", "0133093"),
+    ],
+)
+def test_c411_receives_imdb_ids_with_their_tt_prefix(url: str, sent: str) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, text=SEARCH_XML)
+
+    indexer = Indexer(
+        url=url, api_key="K", http=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+    indexer.search(SearchQuery(mode=SearchMode.MOVIE, imdbid="0133093"), cached=False)
+
+    assert seen[0].url.params["imdbid"] == sent
 
 
 def test_searches_are_spaced_by_c411s_documented_rate() -> None:
