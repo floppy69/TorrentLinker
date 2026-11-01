@@ -1,4 +1,4 @@
-name: Native Synology SPK and upstream sync
+name: Native Synology DSM 7.4 SPK and upstream sync
 
 on:
   schedule:
@@ -96,13 +96,13 @@ jobs:
           # Build its pure-Python wrapper instead for DSM's GLIBC 2.26 baseline.
           python -m pip wheel --wheel-dir wheelhouse --no-deps \
             --no-binary=pymediainfo "pymediainfo>=6.1"
-          python -m pip download app-wheels/torrentlinker-*.whl \
+          python -m pip download "torrentlinker[web]" \
             --dest wheelhouse \
             --platform "${{ matrix.platform }}" --python-version 312 \
             --implementation cp --abi cp312 --only-binary=:all: \
-            --find-links wheelhouse
-          python -m pip install --no-index --find-links wheelhouse \
-            --target runtime/lib/python3.12/site-packages app-wheels/torrentlinker-*.whl
+            --find-links wheelhouse --find-links app-wheels
+          python -m pip install --no-index --find-links wheelhouse --find-links app-wheels \
+            --target runtime/lib/python3.12/site-packages "torrentlinker[web]"
           # MediaInfo native shared libraries are compiled for both CPU targets.
           # Bundle the conda-forge runtime dependencies, never require them on DSM.
           micromamba create --yes --prefix "$RUNNER_TEMP/tl-media" \
@@ -167,5 +167,5 @@ jobs:
           gh release create "synology-$version" "${files[@]}" \
             --repo "${{ github.repository }}" --target "$SOURCE_SHA" \
             --title "TorrentLinker Synology native $version" \
-            --notes "Native DSM 7.0+ packages: x86_64 and ARMv8. No Docker or separate Python required. Source commit: $SOURCE_SHA. Installation/limitations: synology/README.md" \
+            --notes "Native DSM 7.4+ packages: x64 and aarch64. No Docker or separate Python required. Source commit: $SOURCE_SHA. Installation/limitations: synology/README.md" \
             --latest=false
