@@ -125,12 +125,11 @@ jobs:
               "$GITHUB_WORKSPACE/runtime/bin/python3.12" -c \
               "import torrentlinker.web.server, fastapi, uvicorn, cryptography, numpy, PIL"
           )
-      - name: Smoke-test the bundled Web server without host Python
+      - name: Smoke-test the standalone Web server without PYTHONPATH
         shell: bash
         run: |
           set -euo pipefail
           export PYTHONNOUSERSITE=1
-          export PYTHONPATH="$GITHUB_WORKSPACE/runtime/lib/python3.12/site-packages"
           export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/runtime/lib"
           export HOME="$RUNNER_TEMP/tl-home"
           mkdir -p "$HOME" "$RUNNER_TEMP/tl-config"
