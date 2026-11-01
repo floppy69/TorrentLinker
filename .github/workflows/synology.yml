@@ -1,0 +1,199 @@
+name: Native Synology DSM 7.4 SPK and upstream sync
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "synology/**"
+      - ".github/workflows/synology.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-synology-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.repository == 'floppy69/TorrentLinker'
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.ref.outputs.sha }}
+      build: ${{ steps.ref.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge upstream without overwriting the fork
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        id: sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/Vietnoirien/TorrentLinker.git
+          git fetch --no-tags upstream main
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git merge --no-edit upstream/main
+            # Non-fast-forward failures abort; no force push and no discard of custom files.
+            git push origin HEAD:main
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - id: ref
+        shell: bash
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = schedule ] && \
+             [ "${{ steps.sync.outputs.changed }}" != true ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  native:
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+            platform: manylinux2014_x86_64
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            platform: manylinux2014_aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+      - uses: mamba-org/setup-micromamba@v2
+      - name: Build complete native runtime (no Docker)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip build wheel
+          python -m build --wheel --outdir app-wheels
+          uv python install 3.12
+          managed="$(uv python find 3.12 --managed-python)"
+          mkdir -p runtime wheelhouse
+          cp -a "$(dirname "$(dirname "$managed")")/." runtime/
+          # pymediainfo's prebuilt Linux wheel needs GLIBC 2.27.
+          # Build its pure-Python wrapper instead for DSM's GLIBC 2.26 baseline.
+          python -m pip wheel --wheel-dir wheelhouse --no-deps \
+            --no-binary=pymediainfo "pymediainfo>=6.1"
+          local_wheel="$(find app-wheels -maxdepth 1 -name 'torrentlinker-*.whl' -print -quit)"
+          test -n "$local_wheel"
+          python -m pip download "$local_wheel[web]" \
+            --dest wheelhouse \
+            --platform "${{ matrix.platform }}" --python-version 312 \
+            --implementation cp --abi cp312 --only-binary=:all: \
+            --find-links wheelhouse --find-links app-wheels
+          python -m pip install --no-index --find-links wheelhouse --find-links app-wheels \
+            --target runtime/lib/python3.12/site-packages "$local_wheel[web]"
+          # MediaInfo native shared libraries are compiled for both CPU targets.
+          # Bundle the conda-forge runtime dependencies, never require them on DSM.
+          micromamba create --yes --prefix "$RUNNER_TEMP/tl-media" \
+            -c conda-forge "libmediainfo=26.10"
+          cp -a "$RUNNER_TEMP/tl-media/lib/." runtime/lib/
+          test -e runtime/lib/libmediainfo.so.0
+          (
+            cd /tmp
+            LD_LIBRARY_PATH="$GITHUB_WORKSPACE/runtime/lib" \
+            PYTHONPATH="$GITHUB_WORKSPACE/runtime/lib/python3.12/site-packages" \
+              "$GITHUB_WORKSPACE/runtime/bin/python3.12" -c \
+              "from pymediainfo import MediaInfo; assert MediaInfo.can_parse()"
+          )
+          # The embedded interpreter must load the installed app, not the checkout.
+          (
+            cd /tmp
+            PYTHONPATH="$GITHUB_WORKSPACE/runtime/lib/python3.12/site-packages" \
+              "$GITHUB_WORKSPACE/runtime/bin/python3.12" -c \
+              "import torrentlinker.web.server, fastapi, uvicorn, cryptography, numpy, PIL"
+          )
+      - name: Smoke-test the standalone Web server without PYTHONPATH
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONNOUSERSITE=1
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/runtime/lib"
+          export HOME="$RUNNER_TEMP/tl-home"
+          mkdir -p "$HOME" "$RUNNER_TEMP/tl-config"
+          printf '%s' 'a-local-test-password-with-32-characters' > "$RUNNER_TEMP/tl-password"
+          (
+            cd /tmp
+            "$GITHUB_WORKSPACE/runtime/bin/python3.12" -m torrentlinker.web.server \
+              --host 127.0.0.1 --port 18787 \
+              --config "$RUNNER_TEMP/tl-config" \
+              --password-file "$RUNNER_TEMP/tl-password"
+          ) > "$RUNNER_TEMP/tl-web.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; cat "$RUNNER_TEMP/tl-web.log"' EXIT
+          ready=0
+          for i in $(seq 1 45); do
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:18787/healthz; then ready=1; break; fi
+            sleep 2
+          done
+          test "$ready" = 1
+      - name: Verify DSM ELF compatibility and pack native SPK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python synology/check_binary.py --runtime runtime --arch "${{ matrix.arch }}"
+          python -m unittest discover -s synology -p 'test_*.py'
+          python synology/build_spk.py --arch "${{ matrix.arch }}" \
+            --runtime runtime --run-number "${{ github.run_number }}"
+          mkdir -p /tmp/check-spk
+          tar xf dist/*.spk -C /tmp/check-spk
+          for f in /tmp/check-spk/scripts/*; do sh -n "$f"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-spk-${{ matrix.arch }}
+          path: dist/*.spk
+          if-no-files-found: error
+
+  publish:
+    needs: [prepare, native]
+    # Release only after both native architecture builds and smoke tests pass.
+    # The upstream author granted redistribution permission to the fork maintainer.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-spk-*
+          merge-multiple: true
+          path: dist
+      - name: Publish both native SPKs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/*.spk)
+          [ "${#files[@]}" -eq 2 ] || exit 1
+          version="$(basename "${files[0]}" | sed -E 's/^TorrentLinker-(.*)-(x86_64|aarch64)\.spk$/\1/')"
+          gh release create "synology-$version" "${files[@]}" \
+            --repo "${{ github.repository }}" --target "$SOURCE_SHA" \
+            --title "TorrentLinker Synology native $version" \
+            --notes "Native DSM 7.4+ packages: x64 and aarch64. No Docker or separate Python required. Source commit: $SOURCE_SHA. Installation/limitations: synology/README.md" \
+            --latest=false
