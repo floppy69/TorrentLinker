@@ -1,4 +1,4 @@
-# TorrentLinker natif pour Synology DSM 7
+# TorrentLinker natif pour Synology DSM 7.4
 
 **Aucun Docker / Container Manager / Python à installer sur le NAS.** Le
 paquet SPK contient Python 3.12, TorrentLinker, ses bibliothèques et un
@@ -7,11 +7,11 @@ service contrôlé par le Centre de paquets. L'interface utilisée est le
 
 ## Compatibilité
 
-- DSM 7.0 ou supérieur, sous réserve de validation sur le modèle cible.
+- DSM **7.4 (build 90075)** ou supérieur, sous réserve de validation sur le modèle cible.
 - Deux fichiers distincts :
   - `TorrentLinker-<version>-x86_64.spk` pour les NAS Intel / AMD 64 bits ;
   - `TorrentLinker-<version>-aarch64.spk` pour les NAS ARM 64 bits (famille
-    `armv8` dans les métadonnées DSM).
+    `aarch64` dans les métadonnées DSM).
 - Les ARM 32 bits et les modèles non compatibles ne sont pas couverts.
 - Les dépendances ELF sont contrôlées contre la glibc 2.26 de DSM 7.
   Cela ne remplace **pas** une vérification sur un vrai NAS.
@@ -100,6 +100,6 @@ python3 -m unittest discover -s synology -p 'test_*.py'
 python3 synology/build_spk.py --arch x86_64 --runtime runtime --run-number 1
 ```
 
-La compilation ne nécessite pas Docker. Les packages générés sont des
+La compilation ne nécessite pas Docker. Les paquets demandent DSM 7.4 ou supérieur. Les packages générés sont des
 **candidats** tant qu'une installation, un redémarrage et une mise à jour
 réels sur le modèle Synology visé n'ont pas été testés.
