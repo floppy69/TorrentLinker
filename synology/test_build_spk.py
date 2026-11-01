@@ -31,7 +31,8 @@ class NativeSPK(unittest.TestCase):
             build("1.0.0-2", "x86_64", runtime, out)
             with tarfile.open(out) as spk:
                 info = spk.extractfile("INFO").read().decode()
-                self.assertIn('arch="x86_64"', info)
+                self.assertIn('arch="x64"', info)
+                self.assertIn('os_min_ver="7.4-90075"', info)
                 self.assertNotIn("ContainerManager", info)
                 self.assertEqual(spk.extractfile("conf/resource").read(), b"{}\n")
                 self.assertIn('"run-as": "package"', spk.extractfile("conf/privilege").read().decode())
@@ -64,7 +65,7 @@ class NativeSPK(unittest.TestCase):
             runtime = self.sample(root, machine=183)
             build("1.0.0-3", "aarch64", runtime, root / "arm.spk")
             with tarfile.open(root / "arm.spk") as archive:
-                self.assertIn('arch="armv8"', archive.extractfile("INFO").read().decode())
+                self.assertIn('arch="aarch64"', archive.extractfile("INFO").read().decode())
             with self.assertRaises(ValueError):
                 build("1.0.0-3", "x86_64", runtime, root / "bad.spk")
             with self.assertRaises(ValueError):
