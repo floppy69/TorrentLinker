@@ -47,7 +47,7 @@ L'image démarre toujours avec l'UID/GID 1000 par défaut. Les déploiements exi
 La prise en charge de PUID/PGID au démarrage est disponible à partir de **1.0.0-beta.21**. Choisissez cette version ou le tag `beta` ; l'ancienne image stable `latest` ne la contient pas. Pour utiliser un compte du NAS, activez explicitement l'initialisation :
 
 ```bash
-TL_IMAGE_TAG=1.0.0-beta.27 PUID=1001 PGID=100 docker compose \
+TL_IMAGE_TAG=1.0.0-beta.28 PUID=1001 PGID=100 docker compose \
   -f compose.yaml -f deploy/compose.identity.yaml up -d --pull always
 ```
 

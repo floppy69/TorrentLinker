@@ -47,7 +47,7 @@ The image still starts as UID/GID 1000 by default. Existing deployments with `ca
 Runtime PUID/PGID support is available from **1.0.0-beta.21**. Select that version or the `beta` tag; the older `latest` stable image does not include it. To use a NAS account, enable initialization explicitly:
 
 ```bash
-TL_IMAGE_TAG=1.0.0-beta.27 PUID=1001 PGID=100 docker compose \
+TL_IMAGE_TAG=1.0.0-beta.28 PUID=1001 PGID=100 docker compose \
   -f compose.yaml -f deploy/compose.identity.yaml up -d --pull always
 ```
 
