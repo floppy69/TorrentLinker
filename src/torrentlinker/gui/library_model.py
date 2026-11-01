@@ -57,6 +57,7 @@ class LibraryModel(QAbstractTableModel):
     def __init__(self) -> None:
         super().__init__()
         self.entries: list[LibraryEntry] = []
+        self._rows: dict[Path, list[int]] = {}  # a lookup per item would be quadratic
         self.status: dict[Path, str] = {}
         self.zen: dict[Path, float] = {}  # Zen Estimate of an Orphan's best Match
         self.seeding_zen: dict[str, float] = {}
@@ -64,7 +65,16 @@ class LibraryModel(QAbstractTableModel):
     def set_entries(self, entries: list[LibraryEntry]) -> None:
         self.beginResetModel()
         self.entries = entries
+        self._rows = {}
+        for row, e in enumerate(entries):
+            self._rows.setdefault(e.item.path, []).append(row)
         self.endResetModel()
+
+    def rows_of(self, path: Path) -> list[int]:
+        return self._rows.get(path, [])
+
+    def contains(self, entry: LibraryEntry) -> bool:
+        return any(self.entries[row] == entry for row in self.rows_of(entry.item.path))
 
     def set_status(self, path: Path, text: str | None) -> None:
         """Overlay a transient status (Verifying, Reseeded, Failed…) on a Local Item."""
@@ -72,20 +82,18 @@ class LibraryModel(QAbstractTableModel):
             self.status.pop(path, None)
         else:
             self.status[path] = text
-        for row, e in enumerate(self.entries):
-            if e.item.path == path:
-                i = self.index(row, 1)
-                self.dataChanged.emit(i, i)
+        for row in self.rows_of(path):
+            i = self.index(row, 1)
+            self.dataChanged.emit(i, i)
 
     def set_zen(self, path: Path, value: float | None) -> None:
         if value is None:
             self.zen.pop(path, None)
         else:
             self.zen[path] = value
-        for row, e in enumerate(self.entries):
-            if e.item.path == path:
-                i = self.index(row, self.ZEN_COLUMN)
-                self.dataChanged.emit(i, i)
+        for row in self.rows_of(path):
+            i = self.index(row, self.ZEN_COLUMN)
+            self.dataChanged.emit(i, i)
 
     def zen_of(self, entry: LibraryEntry) -> float | None:
         if entry.state is ItemState.ORPHAN:

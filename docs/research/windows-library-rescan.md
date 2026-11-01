@@ -75,3 +75,24 @@ The Python monitor cannot report if the interpreter itself cannot schedule its b
 ## Remaining acceptance
 
 The freeze is not claimed fixed. Obtain a reproduced trigger or affected-machine stacks, then verify the correction with at least ten scans in the packaged Windows executable, responsive UI, preserved results/files and clean shutdown. Keep #51 open until that evidence exists.
+
+## Quadratic search restore after rescans, 2026-11-01
+
+A plausible trigger was reproduced on Linux. Every scan ends by restoring each Local
+Item's last search on the GUI thread. For each restored item, `_searches_restored`
+checked `entry in self.library_model.entries`, and `set_status` and `set_zen` each walked
+every entry to find its row. A first scan in a fresh session usually has nothing to
+restore; once items have been searched, each rescan costs time quadratic in Library size.
+
+Offscreen measurements with ten files per item and every item searched: 1,000 items took
+0.54 s, 2,000 took 1.89 s and 4,000 took 7.04 s on the GUI thread. Empty candidate lists
+were used, so real results cost more. The earlier rescan probes missed this because they
+used 25 items and never searched before rescanning.
+
+`LibraryModel` now indexes rows by path when entries are set; restore uses that index.
+The same restore takes 0.36 s for 2,000 items, 0.72 s for 4,000 and 1.8 s for 10,000.
+`tests/test_library_model.py` fails if a per-item lookup walks the whole Library.
+
+This is not yet confirmed as the reporter's freeze. Keep #51 open until a packaged
+Windows build passes ten rescans with searched items, ideally at the reporter's
+Library size.

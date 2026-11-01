@@ -2649,7 +2649,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         with self.upload_tab.defer_refresh():
             for entry, checked in restored:
-                if entry in self.library_model.entries:
+                if self.library_model.contains(entry):
                     self.review.remember(entry, checked)
                     self.library_model.set_status(entry.item.path, self._summary(checked))
 
