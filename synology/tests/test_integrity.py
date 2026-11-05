@@ -49,6 +49,10 @@ class SourceIntegrityTests(unittest.TestCase):
     def test_new_synology_files_are_accepted(self) -> None:
         self.assertEqual(check(self.repo), [])
 
+    def test_native_spk_workflow_is_allowed(self) -> None:
+        self.commit(".github/workflows/synology-dsm73-build.yml", "name: build\n")
+        self.assertEqual(check(self.repo), [])
+
     def test_original_file_modification_is_rejected(self) -> None:
         self.commit("src/app.py", "VERSION = 2\n")
         self.assertIn("Upstream file changed or removed: src/app.py", check(self.repo))

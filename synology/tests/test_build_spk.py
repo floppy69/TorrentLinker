@@ -99,6 +99,11 @@ class BuildSpkTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Required runtime file missing"):
             build(self.payload, self.icon64, self.icon256, self.root / "output")
 
+    def test_missing_archive_tool_is_rejected(self) -> None:
+        (self.payload / "native/bin/7zz").unlink()
+        with self.assertRaisesRegex(ValueError, "Required runtime file missing"):
+            build(self.payload, self.icon64, self.icon256, self.root / "output")
+
     def test_non_elf_or_wrong_architecture_is_rejected(self) -> None:
         (self.payload / "runtime/bin/python3.12").write_text("not an ELF\n")
         with self.assertRaisesRegex(ValueError, "x86_64 ELF"):

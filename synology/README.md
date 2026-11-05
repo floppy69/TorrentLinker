@@ -48,9 +48,9 @@ The optional working-tree check also refuses local or untracked changes.
 2. **FEAT-02**: DSM 7.3 x86_64 SPK structure, deterministic builder, DSM
    lifecycle hooks, and native service template — structurally implemented.
    Not yet deployable without FEAT-03's real runtime and dependencies.
-3. **FEAT-03**: build the *real* DSM-compatible Python runtime, resolve and
-   bundle native/Python dependencies offline, provision the initial password,
-   and perform first real NAS installation.
+3. **FEAT-03**: automated candidate SPK build with Python 3.12, fully resolved
+   offline Python wheelhouse, MediaInfo + 7-Zip, credential provisioning and
+   native dependency audit. NAS acceptance test remains pending.
 4. **FEAT-04**: ARM64 and DSM 7.4 matrix.
 5. **FEAT-05**: ARM32/platform-specific validation and full regression suite.
 
@@ -105,3 +105,50 @@ FEAT-02; the next milestone must supply a safe first-install experience.
 **Do not install the structural test artifact on a NAS.** The unit tests use
 a deliberately fake ELF header, not a working Python interpreter. No
 functional SPK is declared until the runtime is cross-built and tested.
+
+## DSM 7.3 x86_64 candidate build (FEAT-03)
+
+GitHub Actions workflow: `.github/workflows/synology-dsm73-build.yml`. The
+workflow writes ALL generated materials beneath `$RUNNER_TEMP`, never into
+upstream sources. It produces a **candidate** SPK artifact, not a published
+release or a claim of DSM compatibility.
+
+- Python: Astral python-build-standalone 3.12.16 (2026-10-26), pinned SHA256.
+- Python dependencies: `pip download` resolves *all transitive dependencies*
+  for CPython 3.12 / Linux x86_64; no source-built wheels, no PySide6.
+  `pymediainfo==7.0.1` uses the Linux wheel bundling `libmediainfo`.
+- Archives: upstream 7-Zip `7zz` v26.05 (SHA256 pinned); includes RAR and 7z
+  readers, therefore the optional `unrar-free` fallback is not necessary.
+- ELF audit: inspect each executable and native extension, vendor non-glibc
+  libraries, fail on unresolved dependencies and symbols newer than
+  `GLIBC_2.36` (DSM 7.3 toolkit generation).
+- Smoke test: actual standalone Python imports all major dependencies,
+  `MediaInfo.can_parse()`, `7zz i`, and starts the original Web server on
+  loopback port 18787 before hitting `/healthz`. NAS browser access stays on
+  the unchanged port **8787**.
+- Reproducibility: deterministic archive, source version recorded,
+  a JSON dependency inventory with wheel SHA256s inside the SPK.
+- Licenses: upstream project lacks an explicit LICENSE; candidate artifacts
+  must **not** be published as official releases before redistribution rights
+  are established.
+
+### First installation and authentication
+
+The package's `postinst` script securely generates a fresh random 48-character
+Web password using the NAS kernel's random source. It is preserved on upgrades
+and never embedded in the SPK or written to CI logs. Retrieve it as a NAS admin
+via SSH:
+
+```sh
+sudo cat /var/packages/TorrentLinkerSynology/var/secrets/web-password
+```
+
+Then browse to `http://NAS_IP:8787` (trusted LAN only; prefer HTTPS through
+a configured reverse proxy for Internet exposure). There is no DSM desktop
+launcher or Web Station dependency. Grant the package's internal user access
+to any NAS shared folders that should be visible from TorrentLinker, and
+configure appropriate library roots separately.
+
+**Physical NAS acceptance is mandatory.** The GitHub runner cannot prove
+DS1817+ ABI, DSM permissions, native libc loader, shared-folder ACLs or
+multimodel compatibility. It must not be advertised as validated yet.

@@ -1,0 +1,46 @@
+name: Synology DSM 7.3 x86_64 candidate SPK
+
+on:
+  push:
+    branches: [FEAT]
+    paths:
+      - 'synology/**'
+      - '.github/workflows/synology-dsm73-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-candidate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify upstream source remains pristine
+        run: python3 synology/tools/check_upstream_integrity.py --check-worktree
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pax-utils python3-pyelftools binutils
+          python3 -m pip install --upgrade 'build>=1,<2' 'setuptools>=69' 'pillow>=10' 'packaging>=24'
+      - name: Run Synology packaging tests
+        run: python3 -m unittest discover -s synology/tests -v
+      - name: Resolve complete runtime and assemble SPK
+        run: python3 synology/tools/prepare_runtime.py --workdir "$RUNNER_TEMP/torrentlinker-spk"
+      - name: Confirm pristine Git checkout
+        run: |
+          python3 synology/tools/check_upstream_integrity.py --check-worktree
+          git diff --exit-code
+      - name: Upload candidate SPK for NAS acceptance
+        uses: actions/upload-artifact@v4
+        with:
+          name: TorrentLinkerSynology-DSM73-x86_64-UNVALIDATED
+          path: ${{ runner.temp }}/torrentlinker-spk/dist/*.spk
+          retention-days: 7
+          if-no-files-found: error

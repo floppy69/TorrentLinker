@@ -47,10 +47,14 @@ start() {
         return 1
     fi
     umask 077
-    mkdir -p "$RUN" "$CONFIG" "$VAR/logs"
-    chmod 700 "$RUN" "$CONFIG" "$VAR/logs"
+    mkdir -p "$RUN" "$CONFIG" "$VAR/logs" "$VAR/tmp"
+    chmod 700 "$RUN" "$CONFIG" "$VAR/logs" "$VAR/tmp"
     export PYTHONHOME="$DEST/runtime"
     export PYTHONPATH="$DEST/runtime/lib/python3.12/site-packages"
+    export PYTHONNOUSERSITE="1"
+    export LD_LIBRARY_PATH="$DEST/native/lib:$DEST/runtime/lib"
+    export PATH="$DEST/native/bin:$DEST/runtime/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    export TMPDIR="$VAR/tmp"
     export TL_WEB_HOST="0.0.0.0"
     export TL_WEB_PORT="8787"
     "$PYTHON" -m torrentlinker.web.server \

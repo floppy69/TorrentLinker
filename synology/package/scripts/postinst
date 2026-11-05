@@ -1,3 +1,20 @@
 #!/bin/sh
-# Initial credential provisioning is scheduled for FEAT-03.
+# Initial Web password: random, private, generated on the NAS (never baked into SPK).
+set -eu
+PACKAGE="TorrentLinkerSynology"
+VAR="${SYNOPKG_PKGVAR:-/var/packages/$PACKAGE/var}"
+SECRETS="$VAR/secrets"
+SECRET="$SECRETS/web-password"
+umask 077
+mkdir -p "$SECRETS"
+chmod 700 "$SECRETS"
+if [ -e "$SECRET" ]; then
+    [ -s "$SECRET" ] || { echo "Empty existing Web password file" >&2; exit 1; }
+    exit 0
+fi
+password=$(od -An -N24 -tx1 /dev/urandom | tr -d '[:space:]')
+[ "${#password}" -eq 48 ] || { echo "Secure random source unavailable" >&2; exit 1; }
+( set -C; printf '%s\n' "$password" > "$SECRET" )
+chmod 600 "$SECRET"
+# To retrieve: sudo cat /var/packages/TorrentLinkerSynology/var/secrets/web-password
 exit 0

@@ -50,6 +50,8 @@ def safe_payload(payload: Path) -> None:
             raise ValueError(f"Required runtime file missing: {relative}")
     if not os.access(payload / REQUIRED_FILES[0], os.X_OK):
         raise ValueError("Packaged Python must be executable")
+    if not os.access(payload / "native/bin/7zz", os.X_OK):
+        raise ValueError("Bundled 7-Zip must be executable")
     python_header = (payload / REQUIRED_FILES[0]).read_bytes()[:20]
     if (
         len(python_header) < 20

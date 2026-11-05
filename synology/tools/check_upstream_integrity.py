@@ -10,7 +10,10 @@ import sys
 from pathlib import Path
 
 ALLOWED_PREFIX = "synology/"
-ALLOWED_FILES = frozenset({".github/workflows/synology-integrity.yml"})
+ALLOWED_FILES = frozenset({
+    ".github/workflows/synology-integrity.yml",
+    ".github/workflows/synology-dsm73-build.yml",
+})
 BASELINE_PATH = Path("synology/upstream.sha")
 
 
