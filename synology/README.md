@@ -21,7 +21,8 @@ The upstream baseline commit is recorded in [upstream.sha](upstream.sha).
 
 - No original file may be edited, deleted, renamed, or replaced.
 - All new project files must live under `synology/`, except the dedicated
-  `.github/workflows/synology-integrity.yml` check.
+  GitHub workflows `.github/workflows/synology-integrity.yml` and
+  `.github/workflows/synology-dsm73-build.yml`.
 - Generated build files must be created outside the checked-out source tree.
 - Later upstream updates require an explicit review of this baseline and a
   fresh dependency/build validation.
@@ -51,7 +52,8 @@ The optional working-tree check also refuses local or untracked changes.
 3. **FEAT-03**: automated candidate SPK build with Python 3.12, fully resolved
    offline Python wheelhouse, MediaInfo + 7-Zip, credential provisioning and
    native dependency audit. NAS acceptance test remains pending.
-4. **FEAT-04**: ARM64 and DSM 7.4 matrix.
+4. **FEAT-04**: DSM 7.4 x86_64 matrix candidate — implemented; NAS acceptance
+   pending. ARM64 and the remaining architectures follow separately.
 5. **FEAT-05**: ARM32/platform-specific validation and full regression suite.
 
 No public SPK distribution until the upstream licensing/redistribution rights
@@ -106,12 +108,21 @@ FEAT-02; the next milestone must supply a safe first-install experience.
 a deliberately fake ELF header, not a working Python interpreter. No
 functional SPK is declared until the runtime is cross-built and tested.
 
-## DSM 7.3 x86_64 candidate build (FEAT-03)
+## DSM 7.3 / 7.4 x86_64 candidate builds (FEAT-03 and FEAT-04)
 
 GitHub Actions workflow: `.github/workflows/synology-dsm73-build.yml`. The
 workflow writes ALL generated materials beneath `$RUNNER_TEMP`, never into
-upstream sources. It produces a **candidate** SPK artifact, not a published
-release or a claim of DSM compatibility.
+upstream sources. A two-target build matrix produces **separate candidate**
+SPK artifacts, not published releases or proof of NAS compatibility:
+
+| Target | SPK suffix | Package minimum DSM | Maximum |
+| ------ | ---------- | ------------------- | ------- |
+| `dsm73-x86_64` | `-dsm73-x86_64.spk` | `7.3-81180` | `7.3-99999` |
+| `dsm74-x86_64` | `-dsm74-x86_64.spk` | `7.4-90075` | none (allows `7.4.1`) |
+
+The DSM 7.4.1 patch version must not be accidentally excluded by an
+`os_max_ver="7.4-99999"` ceiling. Later DSM major/minor versions are not
+validated simply because the 7.4 package has no maximum restriction.
 
 - Python: Astral python-build-standalone 3.12.16 (2026-10-26), pinned SHA256.
 - Python dependencies: `pip download` resolves *all transitive dependencies*
@@ -121,7 +132,7 @@ release or a claim of DSM compatibility.
   readers, therefore the optional `unrar-free` fallback is not necessary.
 - ELF audit: inspect each executable and native extension, vendor non-glibc
   libraries, fail on unresolved dependencies and symbols newer than
-  `GLIBC_2.36` (DSM 7.3 toolkit generation).
+  `GLIBC_2.36` (DSM 7.3 and 7.4 x86_64 toolkit generation).
 - Smoke test: actual standalone Python imports all major dependencies,
   `MediaInfo.can_parse()`, `7zz i`, and starts the original Web server on
   loopback port 18787 before hitting `/healthz`. NAS browser access stays on

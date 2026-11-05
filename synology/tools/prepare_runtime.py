@@ -193,6 +193,9 @@ def smoke(runtime: Path, payload: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workdir", type=Path, required=True)
+    parser.add_argument(
+        "--target", choices=("dsm73-x86_64", "dsm74-x86_64"), default="dsm73-x86_64"
+    )
     args = parser.parse_args()
     work = args.workdir.resolve()
     if work.is_relative_to(REPO) or REPO.is_relative_to(work):
@@ -314,6 +317,7 @@ def main() -> int:
             frame.save(icons / f"icon{size}.png")
 
     manifest = {
+        "dsm_target": args.target,
         "upstream_commit": (REPO / "synology/upstream.sha").read_text().strip(),
         "python": PYTHON_RELEASE,
         "python_archive_sha256": PYTHON_SHA256,
@@ -333,6 +337,7 @@ def main() -> int:
         sys.executable, str(REPO / "synology/tools/build_spk.py"),
         "--payload", str(payload), "--icon64", str(icons / "icon64.png"),
         "--icon256", str(icons / "icon256.png"),
+        "--target", args.target,
         "--output-dir", str(work / "dist"),
     )
     print("SPK built with complete wheel manifest; physical NAS acceptance is still required.")

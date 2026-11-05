@@ -99,6 +99,27 @@ class BuildSpkTests(unittest.TestCase):
         second = build(self.payload, self.icon64, self.icon256, self.root / "two")
         self.assertEqual(first.read_bytes(), second.read_bytes())
 
+    def test_dsm74_target_has_separate_metadata_and_filename(self) -> None:
+        result = build(
+            self.payload, self.icon64, self.icon256, self.root / "output",
+            target="dsm74-x86_64",
+        )
+        self.assertEqual(result.name, "TorrentLinkerSynology-1.0.0-0001-dsm74-x86_64.spk")
+        with tarfile.open(result, "r") as archive:
+            info = archive.extractfile("INFO").read().decode()
+        self.assertIn('arch="x86_64"', info)
+        self.assertIn('os_min_ver="7.4-90075"', info)
+        # There is no artificial ceiling excluding DSM 7.4.1-90080.
+        self.assertNotIn("os_max_ver", info)
+        self.assertNotIn('os_min_ver="7.3-', info)
+
+    def test_unknown_dsm_target_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Unsupported DSM build target"):
+            build(
+                self.payload, self.icon64, self.icon256, self.root / "output",
+                target="noarch",
+            )
+
     def test_missing_python_is_rejected(self) -> None:
         (self.payload / "runtime/bin/python3.12").unlink()
         with self.assertRaisesRegex(ValueError, "Required runtime file missing"):

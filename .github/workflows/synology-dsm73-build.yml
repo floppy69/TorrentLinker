@@ -1,4 +1,4 @@
-name: Synology DSM 7.3 x86_64 candidate SPK
+name: Synology DSM 7.3 and 7.4 x86_64 candidate SPKs
 
 on:
   push:
@@ -15,6 +15,10 @@ jobs:
   build-candidate:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [dsm73-x86_64, dsm74-x86_64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,7 +36,10 @@ jobs:
       - name: Run Synology packaging tests
         run: python3 -m unittest discover -s synology/tests -v
       - name: Resolve complete runtime and assemble SPK
-        run: python3 synology/tools/prepare_runtime.py --workdir "$RUNNER_TEMP/torrentlinker-spk"
+        run: |
+          python3 synology/tools/prepare_runtime.py \
+            --workdir "$RUNNER_TEMP/torrentlinker-spk" \
+            --target "${{ matrix.target }}"
       - name: Confirm pristine Git checkout
         run: |
           python3 synology/tools/check_upstream_integrity.py --check-worktree
@@ -40,7 +47,7 @@ jobs:
       - name: Upload candidate SPK for NAS acceptance
         uses: actions/upload-artifact@v4
         with:
-          name: TorrentLinkerSynology-DSM73-x86_64-UNVALIDATED
+          name: TorrentLinkerSynology-${{ matrix.target }}-UNVALIDATED
           path: ${{ runner.temp }}/torrentlinker-spk/dist/*.spk
           retention-days: 7
           if-no-files-found: error

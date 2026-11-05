@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble a DSM 7.3 x86_64 SPK from a verified, fully prepared offline runtime.
+"""Assemble a DSM 7.3/7.4 x86_64 SPK from a verified offline runtime.
 
 This command never builds Python or downloads dependencies. A dedicated later
 stage must supply a DSM-compatible runtime and all Python/native dependencies.
@@ -19,6 +19,10 @@ from pathlib import Path
 PACKAGE = "TorrentLinkerSynology"
 PACKAGE_VERSION = "1.0.0-0001"
 TARGET = "dsm73-x86_64"
+TARGET_INFO = {
+    "dsm73-x86_64": "INFO.in",
+    "dsm74-x86_64": "INFO.dsm74.in",
+}
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "package"
 REQUIRED_FILES = (
     "runtime/bin/python3.12",
@@ -102,7 +106,11 @@ def package_payload(payload: Path, destination: Path) -> None:
                 tar.addfile(info)
 
 
-def build(payload: Path, icon64: Path, icon256: Path, output_dir: Path) -> Path:
+def build(
+    payload: Path, icon64: Path, icon256: Path, output_dir: Path, *, target: str = TARGET
+) -> Path:
+    if target not in TARGET_INFO:
+        raise ValueError(f"Unsupported DSM build target: {target}")
     source_root = TEMPLATE_ROOT.parent.parent.resolve()
     if payload.resolve().is_relative_to(source_root):
         raise ValueError("Runtime payload must be staged outside the upstream checkout")
@@ -112,7 +120,7 @@ def build(payload: Path, icon64: Path, icon256: Path, output_dir: Path) -> Path:
     validate_png(icon64, 64)
     validate_png(icon256, 256)
     output_dir.mkdir(parents=True, exist_ok=True)
-    output = output_dir / f"{PACKAGE}-{PACKAGE_VERSION}-{TARGET}.spk"
+    output = output_dir / f"{PACKAGE}-{PACKAGE_VERSION}-{target}.spk"
     if output.exists():
         raise FileExistsError(f"Refusing to overwrite existing SPK: {output}")
     with tempfile.TemporaryDirectory(prefix="synology-package-", dir=output_dir) as tmp:
@@ -120,7 +128,7 @@ def build(payload: Path, icon64: Path, icon256: Path, output_dir: Path) -> Path:
         temporary_spk = Path(tmp) / "package.spk"
         package_payload(payload, payload_archive)
         with tarfile.open(temporary_spk, "w", format=tarfile.PAX_FORMAT) as tar:
-            add_bytes(tar, "INFO", (TEMPLATE_ROOT / "INFO.in").read_bytes())
+            add_bytes(tar, "INFO", (TEMPLATE_ROOT / TARGET_INFO[target]).read_bytes())
             add_bytes(tar, "conf/privilege", (TEMPLATE_ROOT / "conf/privilege").read_bytes())
             for script_name in LIFECYCLE_SCRIPTS:
                 target = f"scripts/{script_name}"
@@ -142,10 +150,11 @@ def main() -> int:
     parser.add_argument("--icon64", type=Path, required=True)
     parser.add_argument("--icon256", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--target", choices=tuple(TARGET_INFO), default=TARGET)
     args = parser.parse_args()
     output = build(
         args.payload.resolve(), args.icon64.resolve(),
-        args.icon256.resolve(), args.output_dir.resolve(),
+        args.icon256.resolve(), args.output_dir.resolve(), target=args.target,
     )
     print(f"SPK archive assembled (runtime compatibility NOT yet certified): {output}")
     return 0
