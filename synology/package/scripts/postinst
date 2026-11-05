@@ -1,0 +1,3 @@
+#!/bin/sh
+# Initial credential provisioning is scheduled for FEAT-03.
+exit 0

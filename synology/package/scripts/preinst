@@ -1,0 +1,3 @@
+#!/bin/sh
+# Reserved for DSM installation checks (FEAT-03).
+exit 0

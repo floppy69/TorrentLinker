@@ -1,0 +1,7 @@
+{
+  "defaults": {
+    "run-as": "package"
+  },
+  "username": "TorrentLinkerSynology",
+  "groupname": "TorrentLinkerSynology"
+}

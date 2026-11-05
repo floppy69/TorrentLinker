@@ -1,0 +1,107 @@
+#!/bin/sh
+# Native DSM package service. Never run torrentlinker.container_entrypoint here.
+set -eu
+
+PACKAGE="TorrentLinkerSynology"
+DEST="${SYNOPKG_PKGDEST:-/var/packages/$PACKAGE/target}"
+VAR="${SYNOPKG_PKGVAR:-/var/packages/$PACKAGE/var}"
+PYTHON="$DEST/runtime/bin/python3.12"
+CONFIG="$VAR/config"
+SECRET="$VAR/secrets/web-password"
+RUN="$VAR/run"
+PIDFILE="$RUN/torrentlinker.pid"
+LOG="$VAR/logs/torrentlinker.log"
+
+read_pid() {
+    [ -f "$PIDFILE" ] || return 1
+    pid=$(sed -n '1p' "$PIDFILE")
+    case "$pid" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$pid" -gt 1 ] || return 1
+    return 0
+}
+
+running() {
+    read_pid || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    [ -r "/proc/$pid/cmdline" ] || return 1
+    tr '\000' '\n' < "/proc/$pid/cmdline" | grep -Fxq 'torrentlinker.web.server'
+}
+
+start() {
+    if running; then
+        echo "TorrentLinker is already running."
+        return 0
+    fi
+    if [ -e "$PIDFILE" ]; then
+        echo "Stale or invalid PID file: $PIDFILE" >&2
+        return 1
+    fi
+    if [ ! -x "$PYTHON" ]; then
+        echo "Missing packaged Python executable: $PYTHON" >&2
+        return 1
+    fi
+    if [ ! -s "$SECRET" ] || [ ! -r "$SECRET" ]; then
+        echo "Missing web password file: $SECRET (minimum 12 characters)" >&2
+        return 1
+    fi
+    umask 077
+    mkdir -p "$RUN" "$CONFIG" "$VAR/logs"
+    chmod 700 "$RUN" "$CONFIG" "$VAR/logs"
+    export PYTHONHOME="$DEST/runtime"
+    export PYTHONPATH="$DEST/runtime/lib/python3.12/site-packages"
+    export TL_WEB_HOST="0.0.0.0"
+    export TL_WEB_PORT="8787"
+    "$PYTHON" -m torrentlinker.web.server \
+        --host "$TL_WEB_HOST" --port "$TL_WEB_PORT" \
+        --config "$CONFIG" --password-file "$SECRET" \
+        >> "$LOG" 2>&1 &
+    pid=$!
+    printf '%s\n' "$pid" > "$PIDFILE"
+    sleep 2
+    if running; then
+        echo "TorrentLinker started on port 8787."
+        return 0
+    fi
+    rm -f "$PIDFILE"
+    echo "TorrentLinker terminated during startup. Check $LOG" >&2
+    return 1
+}
+
+stop() {
+    if ! running; then
+        if [ -e "$PIDFILE" ]; then
+            echo "Cannot safely stop an unknown process recorded in $PIDFILE" >&2
+            return 1
+        fi
+        return 0
+    fi
+    kill -TERM "$pid"
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if ! running; then
+            rm -f "$PIDFILE"
+            return 0
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+    echo "TorrentLinker did not stop within 30 seconds; refusing SIGKILL." >&2
+    return 1
+}
+
+case "${1:-}" in
+    start) start ;;
+    stop) stop ;;
+    status)
+        if running; then
+            exit 0
+        elif [ -f "$PIDFILE" ]; then
+            exit 1
+        else
+            exit 3
+        fi
+        ;;
+    *) echo "Usage: $0 {start|stop|status}" >&2; exit 2 ;;
+esac

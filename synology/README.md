@@ -44,12 +44,64 @@ The optional working-tree check also refuses local or untracked changes.
 
 ## Validation milestones
 
-1. **FEAT-01**: branch, source-integrity guard, and automated tests.
-2. **FEAT-02**: DSM 7.3 x86_64 SPK structure and local Python runtime.
-3. **FEAT-03**: dependencies including native libraries, offline installation,
-   secure service lifecycle, and direct port 8787 exposure.
+1. **FEAT-01**: branch, source-integrity guard, and automated tests — completed.
+2. **FEAT-02**: DSM 7.3 x86_64 SPK structure, deterministic builder, DSM
+   lifecycle hooks, and native service template — structurally implemented.
+   Not yet deployable without FEAT-03's real runtime and dependencies.
+3. **FEAT-03**: build the *real* DSM-compatible Python runtime, resolve and
+   bundle native/Python dependencies offline, provision the initial password,
+   and perform first real NAS installation.
 4. **FEAT-04**: ARM64 and DSM 7.4 matrix.
 5. **FEAT-05**: ARM32/platform-specific validation and full regression suite.
 
 No public SPK distribution until the upstream licensing/redistribution rights
 are clarified. The repository currently has no explicit LICENSE file.
+
+## DSM 7.3 x86_64 SPK builder (FEAT-02)
+
+The offline assembler is `synology/tools/build_spk.py`. It never downloads
+dependencies, compiles on the NAS, or modifies upstream files. It requires a
+**separately prepared, DSM-compatible** payload outside the Git checkout:
+
+```text
+payload/
+└── runtime/
+    ├── bin/python3.12                    # native x86_64 ELF
+    └── lib/python3.12/
+        ├── ...                           # complete Python standard library
+        └── site-packages/
+            ├── torrentlinker/web/server.py
+            ├── torrentlinker/web/static/index.html
+            └── ...                       # all Python modules and extensions
+```
+
+Use two appropriately sized PNG icons generated from the project's image:
+
+```bash
+python3 synology/tools/build_spk.py \
+  --payload /tmp/torrentlinker-dsm73-payload \
+  --icon64 /tmp/torrentlinker-icons/icon64.png \
+  --icon256 /tmp/torrentlinker-icons/icon256.png \
+  --output-dir /tmp/torrentlinker-spk
+```
+
+The assembler checks the required Python binary, x86_64 ELF identity,
+application entry point, static UI and PNG dimensions; it creates the SPK
+atomically and deterministically. **These checks do not prove ABI compatibility
+or the completeness of shared libraries and transitive Python packages.**
+That validation is explicitly deferred to FEAT-03.
+
+DSM metadata is restricted to **7.3** and `x86_64`, using package identity
+`TorrentLinkerSynology`. The `conf/privilege` policy requests a package
+account, not root. No DSM desktop integration is installed.
+
+The native lifecycle script starts `python3.12 -m torrentlinker.web.server`
+on the unchanged port `8787` and uses the persistent Synology package
+directory for configuration, logs and PID. Startup **fails closed** until
+`$SYNOPKG_PKGVAR/secrets/web-password` exists and is readable by the
+package account. This is a temporary admin-provisioning prerequisite for
+FEAT-02; the next milestone must supply a safe first-install experience.
+
+**Do not install the structural test artifact on a NAS.** The unit tests use
+a deliberately fake ELF header, not a working Python interpreter. No
+functional SPK is declared until the runtime is cross-built and tested.
