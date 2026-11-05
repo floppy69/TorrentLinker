@@ -35,8 +35,11 @@ start() {
         return 0
     fi
     if [ -e "$PIDFILE" ]; then
-        echo "Stale or invalid PID file: $PIDFILE" >&2
-        return 1
+        if read_pid && kill -0 "$pid" 2>/dev/null; then
+            echo "Refusing to reuse PID file for an unrelated live process" >&2
+            return 1
+        fi
+        rm -f "$PIDFILE"
     fi
     if [ ! -x "$PYTHON" ]; then
         echo "Missing packaged Python executable: $PYTHON" >&2

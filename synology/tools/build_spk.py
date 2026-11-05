@@ -22,6 +22,7 @@ TARGET = "dsm73-x86_64"
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "package"
 REQUIRED_FILES = (
     "runtime/bin/python3.12",
+    "native/bin/7zz",
     "runtime/lib/python3.12/site-packages/torrentlinker/web/server.py",
     "runtime/lib/python3.12/site-packages/torrentlinker/web/static/index.html",
 )

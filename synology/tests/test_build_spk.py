@@ -46,6 +46,10 @@ class BuildSpkTests(unittest.TestCase):
         struct.pack_into("<H", elf_header, 18, 62)
         python.write_bytes(elf_header)
         python.chmod(0o755)
+        sevenzip = self.payload / "native/bin/7zz"
+        sevenzip.parent.mkdir(parents=True)
+        sevenzip.write_bytes(elf_header)
+        sevenzip.chmod(0o755)
         source = self.payload / "runtime/lib/python3.12/site-packages/torrentlinker/web"
         (source / "static").mkdir(parents=True)
         (source / "server.py").write_text("# fake server in structural test\n")
@@ -84,6 +88,7 @@ class BuildSpkTests(unittest.TestCase):
         with tarfile.open(fileobj=io.BytesIO(package_bytes), mode="r:gz") as payload:
             members = set(payload.getnames())
             self.assertIn("runtime/bin/python3.12", members)
+            self.assertIn("native/bin/7zz", members)
             self.assertIn(
                 "runtime/lib/python3.12/site-packages/torrentlinker/web/static/index.html",
                 members,
