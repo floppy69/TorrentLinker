@@ -56,6 +56,8 @@ The optional working-tree check also refuses local or untracked changes.
    pending. ARM64 and the remaining architectures follow separately.
    DSM data-share credential management (package revision `1.0.0-0002`) is
    implemented structurally; File Station access needs DS1817+ validation.
+   Revision `1.0.0-0003` fixes Web guide resource placement and adds end-to-end
+   HTTP checks for guides, screenshots, static assets and the browser companion.
 5. **FEAT-05**: ARM32/platform-specific validation and full regression suite.
 
 No public SPK distribution until the upstream licensing/redistribution rights
@@ -137,8 +139,10 @@ validated simply because the 7.4 package has no maximum restriction.
   `GLIBC_2.36` (DSM 7.3 and 7.4 x86_64 toolkit generation).
 - Smoke test: actual standalone Python imports all major dependencies,
   `MediaInfo.can_parse()`, `7zz i`, and starts the original Web server on
-  loopback port 18787 before hitting `/healthz`. NAS browser access stays on
-  the unchanged port **8787**.
+  loopback port 18787 before hitting `/healthz`, logging in, and loading the
+  32 French/English guides, all linked guide images, all HTML static resources,
+  standalone guide pages and the authenticated browser companion ZIP endpoint.
+  NAS browser access stays on the unchanged port **8787**.
 - Reproducibility: deterministic archive, source version recorded,
   a JSON dependency inventory with wheel SHA256s inside the SPK.
 - Licenses: upstream project lacks an explicit LICENSE; candidate artifacts
@@ -190,6 +194,39 @@ a configured reverse proxy for Internet exposure). There is no DSM desktop
 launcher or Web Station dependency. Grant the package's internal user access
 to any NAS shared folders that should be visible from TorrentLinker, and
 configure appropriate library roots separately.
+
+### Documentation and browser extension (revision 0003)
+
+Upstream `documentation.root()` expects `sys.prefix/share/torrentlinker/docs`,
+but installing its wheel with `pip --target` places wheel data files in a
+different tree. The Synology builder now copies the complete, unmodified
+upstream `docs/` directory to the runtime's expected prefix and fails the CI
+build if a packaged guide, image, Web asset or companion file is missing.
+The smoke test also checks the real, authenticated Web routes and ZIP bytes.
+
+**TorrentLinker companion** is a Chromium/Brave/Chrome Manifest V3 extension.
+Once logged into the Web interface, download it from
+`http://NAS_IP:8787/api/zen/profile/extension` (not `localhost` on a remote PC),
+unzip and load the folder containing `manifest.json` as an unpacked extension.
+This is the upstream extension; no modified third-party JavaScript ships.
+
+**Pairing from a remote browser requires HTTPS.** The original extension
+intentionally refuses `http://NAS_IP:8787` for remote pairing, permitting HTTP
+only when the Web server runs on that browser's own localhost. Use a NAS HTTPS
+reverse proxy with a trusted certificate, access TorrentLinker through HTTPS,
+then re-download the extension from that exact HTTPS address so the extension
+is correctly scoped to the host.
+
+### NAS filesystem access
+
+The package declares internal user `TorrentLinkerSynology` in `conf/privilege`,
+not `sc-torrentlinker`. DSM package accounts are intentionally non-root. To
+access media/download shared folders, grant this **actual internal package user**
+the necessary read/write permissions through DSM Control Panel → Shared Folder
+→ Edit → Permissions → System internal user. Do not assume a request for NAS
+administrator group membership has taken effect; no administrator elevation is
+performed by this candidate SPK. Confirm the account identity and intended
+scope of group membership on the DS1817+ before any privileged migration.
 
 **Physical NAS acceptance is mandatory.** The GitHub runner cannot prove
 DS1817+ ABI, DSM permissions, native libc loader, shared-folder ACLs or

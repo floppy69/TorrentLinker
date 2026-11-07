@@ -1,6 +1,6 @@
 package="TorrentLinkerSynology"
 displayname="TorrentLinker"
-version="1.0.0-0002"
+version="1.0.0-0003"
 arch="x86_64"
 os_min_ver="7.3-81180"
 os_max_ver="7.3-99999"

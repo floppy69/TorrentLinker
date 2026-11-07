@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a relocatable DSM 7.3 x86_64 SPK outside the untouched upstream checkout.
+"""Build relocatable DSM 7.3/7.4 x86_64 SPKs outside the upstream checkout.
 
 Runtime compatibility is checked against the DSM 7.3 x86_64 glibc ceiling.
 Actual DSM operation still requires a physical NAS acceptance test.
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import os
 import re
@@ -21,6 +22,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -128,6 +130,9 @@ def audit_and_bundle_native(payload: Path) -> dict[str, object]:
 
 
 def smoke(runtime: Path, payload: Path) -> None:
+    from http.cookies import SimpleCookie
+    from urllib.parse import quote
+
     import urllib.request
 
     site = runtime / "lib/python3.12/site-packages"
@@ -147,6 +152,18 @@ def smoke(runtime: Path, payload: Path) -> None:
         "from pymediainfo import MediaInfo\n"
         "assert MediaInfo.can_parse(), 'Bundled libmediainfo cannot be loaded'\n"
         "import torrentlinker.web.server\n"
+        "from torrentlinker import documentation\n"
+        "for lang in ('fr', 'en'):\n"
+        "    for guide in documentation.guides(lang):\n"
+        "        assert documentation.document_path(guide['path']).is_file()\n"
+        "from torrentlinker.companion import extension_zip\n"
+        "from zipfile import ZipFile\n"
+        "from io import BytesIO\n"
+        "import json\n"
+        "with ZipFile(BytesIO(extension_zip('https://nas.example.test:8787/'))) as bundle:\n"
+        "    assert bundle.testzip() is None\n"
+        "    manifest = json.loads(bundle.read('torrentlinker-companion/manifest.json'))\n"
+        "    assert 'https://nas.example.test/*' in manifest['host_permissions']\n"
     )
     run(str(python), "-c", checks, env=env)
     run(str(payload / "native/bin/7zz"), "i", env=env)
@@ -173,9 +190,84 @@ def smoke(runtime: Path, payload: Path) -> None:
                         "http://127.0.0.1:18787/healthz", timeout=1
                     ) as response:
                         if response.status == 200:
+                            base = "http://127.0.0.1:18787/"
+                            login = urllib.request.Request(
+                                base + "api/login",
+                                data=json.dumps({
+                                    "password": "ci-only-replace-this-password-strong",
+                                }).encode("utf-8"),
+                                headers={
+                                    "Content-Type": "application/json",
+                                    "X-TorrentLinker": "1",
+                                },
+                                method="POST",
+                            )
+                            with urllib.request.urlopen(login, timeout=5) as auth:
+                                cookie = SimpleCookie()
+                                cookie.load(auth.headers["Set-Cookie"])
+                                session = "tl_session=" + cookie["tl_session"].value
+
+                            def fetch(path: str, *, authenticated: bool = True) -> bytes:
+                                req = urllib.request.Request(
+                                    base + path,
+                                    headers={"Cookie": session} if authenticated else {},
+                                )
+                                with urllib.request.urlopen(req, timeout=10) as result:
+                                    if result.status != 200:
+                                        raise ValueError(f"Broken Web link: {path} -> {result.status}")
+                                    return result.read()
+
+                            page = fetch("", authenticated=False).decode("utf-8")
+                            links = set(re.findall(
+                                r'(?:src|href)="(static/[^"#?]+)"', page,
+                            ))
+                            if len(links) < 15:
+                                raise ValueError("The Web UI is missing bundled asset links")
+                            for link in sorted(links):
+                                if not fetch(link, authenticated=False):
+                                    raise ValueError(f"Empty Web asset: {link}")
+
+                            images: set[str] = set()
+                            for lang in ("fr", "en"):
+                                guides = json.loads(fetch(f"api/documentation?language={lang}"))
+                                if len(guides) < 15:
+                                    raise ValueError(f"Missing {lang} guide index")
+                                for guide in guides:
+                                    name = quote(guide["path"], safe="/")
+                                    content = json.loads(fetch(f"api/documentation/page/{name}"))
+                                    images.update(re.findall(
+                                        r'src="(api/documentation/file/[^"#?]+)"',
+                                        content["html"],
+                                    ))
+                                # Standalone guide links must also work in the browser.
+                                fetch(f"documentation/{quote(guides[0]['path'], safe='/')}")
+                            if len(images) < 20:
+                                raise ValueError("Missing images from rendered documentation")
+                            for link in sorted(images):
+                                if not fetch(link):
+                                    raise ValueError(f"Empty documentation image: {link}")
+
+                            for path in ("companion/connect", "companion/connect.css", "companion/connect.js"):
+                                if not fetch(path, authenticated=False):
+                                    raise ValueError(f"Missing companion connection asset: {path}")
+                            extension = fetch("api/zen/profile/extension")
+                            with zipfile.ZipFile(io.BytesIO(extension)) as bundle:
+                                if bundle.testzip() is not None:
+                                    raise ValueError("Corrupted companion extension ZIP")
+                                if "torrentlinker-companion/manifest.json" not in bundle.namelist():
+                                    raise ValueError("Companion ZIP has no manifest.json")
+                            print(
+                                f"Web link smoke test: {len(links)} static, "
+                                f"32 guides, {len(images)} images, companion ZIP OK"
+                            )
                             print("Native runtime server smoke test: OK")
                             break
-                except (OSError, urllib.error.URLError):
+                except urllib.error.HTTPError:
+                    # A broken authenticated guide / asset is not a startup delay.
+                    raise
+                except urllib.error.URLError as error:
+                    if not isinstance(error.reason, ConnectionRefusedError):
+                        raise
                     time.sleep(0.25)
             else:
                 raise RuntimeError("TorrentLinker /healthz did not become ready")
@@ -265,6 +357,11 @@ def main() -> int:
         "--no-index", "--no-deps", "--no-compile",
         "--target", str(site), *[str(p) for p in sorted(wheelhouse.glob("*.whl"))],
     )
+    # pip --target installs wheel data_files below site-packages/share, while
+    # upstream documentation.root() resolves sys.prefix/share/torrentlinker/docs.
+    # Bundle the entire immutable upstream docs tree at the expected location.
+    shutil.copytree(source / "docs", runtime / "share/torrentlinker/docs")
+    run(sys.executable, str(REPO / "synology/tools/audit_web_assets.py"), str(runtime))
     # Validate the entire transitive distribution graph, not merely direct deps.
     import importlib.metadata as md
 
@@ -329,6 +426,7 @@ def main() -> int:
         },
         "elf": binary_audit,
         "nas_validation": "NOT YET TESTED ON PHYSICAL DSM HARDWARE",
+        "web_links": "static assets, both guide languages, images and companion verified",
     }
     (payload / "synology-build-manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"

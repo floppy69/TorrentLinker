@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 PACKAGE = "TorrentLinkerSynology"
-PACKAGE_VERSION = "1.0.0-0002"
+PACKAGE_VERSION = "1.0.0-0003"
 TARGET = "dsm73-x86_64"
 TARGET_INFO = {
     "dsm73-x86_64": "INFO.in",
@@ -29,6 +29,10 @@ REQUIRED_FILES = (
     "native/bin/7zz",
     "runtime/lib/python3.12/site-packages/torrentlinker/web/server.py",
     "runtime/lib/python3.12/site-packages/torrentlinker/web/static/index.html",
+    "runtime/lib/python3.12/site-packages/torrentlinker/companion_extension/manifest.json",
+    "runtime/lib/python3.12/site-packages/torrentlinker/companion_extension/background.js",
+    "runtime/share/torrentlinker/docs/guide/en/getting-started.md",
+    "runtime/share/torrentlinker/docs/guide/fr/demarrage.md",
 )
 LIFECYCLE_SCRIPTS = (
     "preinst", "postinst", "preuninst", "postuninst", "preupgrade",

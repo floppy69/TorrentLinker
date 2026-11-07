@@ -55,6 +55,14 @@ class BuildSpkTests(unittest.TestCase):
         (source / "static").mkdir(parents=True)
         (source / "server.py").write_text("# fake server in structural test\n")
         (source / "static/index.html").write_text("<!doctype html>\n")
+        extension = source.parent / "companion_extension"
+        extension.mkdir()
+        (extension / "manifest.json").write_text('{"manifest_version":3}\n')
+        (extension / "background.js").write_text("// fixture\n")
+        guides = self.payload / "runtime/share/torrentlinker/docs/guide"
+        for lang, name in (("en", "getting-started"), ("fr", "demarrage")):
+            (guides / lang).mkdir(parents=True)
+            (guides / lang / f"{name}.md").write_text("# Fixture\n")
         self.icon64 = root / "icon64.png"
         self.icon256 = root / "icon256.png"
         self.icon64.write_bytes(png(64))
@@ -103,6 +111,11 @@ class BuildSpkTests(unittest.TestCase):
                 "runtime/lib/python3.12/site-packages/torrentlinker/web/static/index.html",
                 members,
             )
+            self.assertIn("runtime/share/torrentlinker/docs/guide/fr/demarrage.md", members)
+            self.assertIn(
+                "runtime/lib/python3.12/site-packages/torrentlinker/companion_extension/manifest.json",
+                members,
+            )
 
     def test_reproducible_archive(self) -> None:
         first = build(self.payload, self.icon64, self.icon256, self.root / "one")
@@ -114,7 +127,7 @@ class BuildSpkTests(unittest.TestCase):
             self.payload, self.icon64, self.icon256, self.root / "output",
             target="dsm74-x86_64",
         )
-        self.assertEqual(result.name, "TorrentLinkerSynology-1.0.0-0002-dsm74-x86_64.spk")
+        self.assertEqual(result.name, "TorrentLinkerSynology-1.0.0-0003-dsm74-x86_64.spk")
         with tarfile.open(result, "r") as archive:
             info = archive.extractfile("INFO").read().decode()
         self.assertIn('arch="x86_64"', info)
@@ -137,6 +150,18 @@ class BuildSpkTests(unittest.TestCase):
 
     def test_missing_archive_tool_is_rejected(self) -> None:
         (self.payload / "native/bin/7zz").unlink()
+        with self.assertRaisesRegex(ValueError, "Required runtime file missing"):
+            build(self.payload, self.icon64, self.icon256, self.root / "output")
+
+    def test_missing_docs_or_companion_is_rejected(self) -> None:
+        (self.payload / "runtime/share/torrentlinker/docs/guide/fr/demarrage.md").unlink()
+        with self.assertRaisesRegex(ValueError, "Required runtime file missing"):
+            build(self.payload, self.icon64, self.icon256, self.root / "output")
+        (self.payload / "runtime/share/torrentlinker/docs/guide/fr/demarrage.md").write_text("# Fixture\n")
+        (
+            self.payload
+            / "runtime/lib/python3.12/site-packages/torrentlinker/companion_extension/manifest.json"
+        ).unlink()
         with self.assertRaisesRegex(ValueError, "Required runtime file missing"):
             build(self.payload, self.icon64, self.icon256, self.root / "output")
 
