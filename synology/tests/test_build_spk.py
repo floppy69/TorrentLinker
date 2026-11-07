@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import struct
 import subprocess
 import tarfile
 import tempfile
 import unittest
+import zipfile
 import zlib
 from pathlib import Path
 
-from synology.tools.build_spk import build
+from synology.tools.build_spk import ZIP_COMPATIBLE_MTIME, build
 
 
 def png(size: int) -> bytes:
@@ -122,12 +124,46 @@ class BuildSpkTests(unittest.TestCase):
         second = build(self.payload, self.icon64, self.icon256, self.root / "two")
         self.assertEqual(first.read_bytes(), second.read_bytes())
 
+    def test_packaged_extension_files_have_zip_compatible_mtime(self) -> None:
+        # Reproduce the regression: a ZIP assembled at runtime fails if the
+        # Synology SPK extraction leaves the extension files dated 1970.
+        extension = (
+            self.payload
+            / "runtime/lib/python3.12/site-packages/torrentlinker/companion_extension"
+        )
+        os.utime(extension / "manifest.json", (0, 0))
+        with zipfile.ZipFile(io.BytesIO(), "w") as archive:
+            with self.assertRaisesRegex(ValueError, "timestamps before 1980"):
+                archive.write(extension / "manifest.json", "manifest.json")
+
+        output = build(self.payload, self.icon64, self.icon256, self.root / "output")
+        with tarfile.open(output, "r") as spk:
+            contents = spk.extractfile("package.tgz").read()
+        with tarfile.open(fileobj=io.BytesIO(contents), mode="r:gz") as payload:
+            members = [member for member in payload.getmembers() if member.isfile()]
+            self.assertTrue(members)
+            self.assertTrue(all(m.mtime == ZIP_COMPATIBLE_MTIME for m in members))
+            extracted = self.root / "extracted"
+            payload.extractall(extracted, filter="data")
+
+        runtime_extension = (
+            extracted
+            / "runtime/lib/python3.12/site-packages/torrentlinker/companion_extension"
+        )
+        zipped = io.BytesIO()
+        with zipfile.ZipFile(zipped, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path in sorted(runtime_extension.iterdir()):
+                archive.write(path, f"torrentlinker-companion/{path.name}")
+        with zipfile.ZipFile(io.BytesIO(zipped.getvalue())) as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertIn("torrentlinker-companion/manifest.json", archive.namelist())
+
     def test_dsm74_target_has_separate_metadata_and_filename(self) -> None:
         result = build(
             self.payload, self.icon64, self.icon256, self.root / "output",
             target="dsm74-x86_64",
         )
-        self.assertEqual(result.name, "TorrentLinkerSynology-1.0.0-0003-dsm74-x86_64.spk")
+        self.assertEqual(result.name, "TorrentLinkerSynology-1.0.0-0004-dsm74-x86_64.spk")
         with tarfile.open(result, "r") as archive:
             info = archive.extractfile("INFO").read().decode()
         self.assertIn('arch="x86_64"', info)

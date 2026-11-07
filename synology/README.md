@@ -58,6 +58,9 @@ The optional working-tree check also refuses local or untracked changes.
    implemented structurally; File Station access needs DS1817+ validation.
    Revision `1.0.0-0003` fixes Web guide resource placement and adds end-to-end
    HTTP checks for guides, screenshots, static assets and the browser companion.
+   Revision `1.0.0-0004` fixes runtime browser-extension ZIP downloads on DSM:
+   the deterministic SPK payload uses a fixed ZIP-compatible date rather than
+   1970, with a regression test that extracts the actual package archive.
 5. **FEAT-05**: ARM32/platform-specific validation and full regression suite.
 
 No public SPK distribution until the upstream licensing/redistribution rights

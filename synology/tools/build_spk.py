@@ -17,8 +17,13 @@ import tempfile
 from pathlib import Path
 
 PACKAGE = "TorrentLinkerSynology"
-PACKAGE_VERSION = "1.0.0-0003"
+PACKAGE_VERSION = "1.0.0-0004"
 TARGET = "dsm73-x86_64"
+# Python's zipfile.ZipFile.write() refuses source files dated before 1980.
+# The upstream companion extension is zipped on demand from these packaged
+# files. Keep the payload's timestamp reproducible but ZIP-compatible, with
+# a two-day margin for local time zones west of UTC.
+ZIP_COMPATIBLE_MTIME = 315705600  # 1980-01-03 00:00:00 UTC
 TARGET_INFO = {
     "dsm73-x86_64": "INFO.in",
     "dsm74-x86_64": "INFO.dsm74.in",
@@ -103,6 +108,7 @@ def package_payload(payload: Path, destination: Path) -> None:
         for path in sorted(payload.rglob("*"), key=lambda p: p.relative_to(payload).as_posix()):
             relative = path.relative_to(payload).as_posix()
             info = normalized_info(tar.gettarinfo(str(path), arcname=relative))
+            info.mtime = ZIP_COMPATIBLE_MTIME
             if info.isfile():
                 with path.open("rb") as content:
                     tar.addfile(info, content)
