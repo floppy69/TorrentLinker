@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import struct
 import subprocess
 import tarfile
@@ -67,7 +68,7 @@ class BuildSpkTests(unittest.TestCase):
             self.assertEqual(
                 names,
                 {
-                    "INFO", "conf/privilege",
+                    "INFO", "conf/privilege", "conf/resource",
                     "scripts/preinst", "scripts/postinst",
                     "scripts/preuninst", "scripts/postuninst",
                     "scripts/preupgrade", "scripts/postupgrade",
@@ -81,6 +82,15 @@ class BuildSpkTests(unittest.TestCase):
             self.assertIn('os_max_ver="7.3-99999"', info)
             script = outer.extractfile("scripts/start-stop-status").read().decode()
             self.assertIn('TL_WEB_PORT="8787"', script)
+            self.assertIn('--password-file "$SHARED_PASSWORD"', script)
+            resource = json.loads(outer.extractfile("conf/resource").read())
+            self.assertEqual(
+                resource["data-share"]["shares"][0]["name"], "TorrentLinker-Config"
+            )
+            self.assertEqual(
+                resource["data-share"]["shares"][0]["permission"]["rw"],
+                ["TorrentLinkerSynology"],
+            )
             self.assertEqual(outer.getmember("scripts/start-stop-status").mode, 0o755)
             for name in ("preinst", "postinst", "preuninst", "postuninst", "preupgrade", "postupgrade"):
                 self.assertEqual(outer.getmember(f"scripts/{name}").mode, 0o755)
@@ -104,7 +114,7 @@ class BuildSpkTests(unittest.TestCase):
             self.payload, self.icon64, self.icon256, self.root / "output",
             target="dsm74-x86_64",
         )
-        self.assertEqual(result.name, "TorrentLinkerSynology-1.0.0-0001-dsm74-x86_64.spk")
+        self.assertEqual(result.name, "TorrentLinkerSynology-1.0.0-0002-dsm74-x86_64.spk")
         with tarfile.open(result, "r") as archive:
             info = archive.extractfile("INFO").read().decode()
         self.assertIn('arch="x86_64"', info)

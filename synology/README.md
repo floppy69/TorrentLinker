@@ -54,6 +54,8 @@ The optional working-tree check also refuses local or untracked changes.
    native dependency audit. NAS acceptance test remains pending.
 4. **FEAT-04**: DSM 7.4 x86_64 matrix candidate — implemented; NAS acceptance
    pending. ARM64 and the remaining architectures follow separately.
+   DSM data-share credential management (package revision `1.0.0-0002`) is
+   implemented structurally; File Station access needs DS1817+ validation.
 5. **FEAT-05**: ARM32/platform-specific validation and full regression suite.
 
 No public SPK distribution until the upstream licensing/redistribution rights
@@ -143,16 +145,45 @@ validated simply because the 7.4 package has no maximum restriction.
   must **not** be published as official releases before redistribution rights
   are established.
 
-### First installation and authentication
+### First installation and authentication (revision 0002)
 
 The package's `postinst` script securely generates a fresh random 48-character
-Web password using the NAS kernel's random source. It is preserved on upgrades
-and never embedded in the SPK or written to CI logs. Retrieve it as a NAS admin
-via SSH:
+Web password using the NAS kernel's random source. The DSM `data-share` worker
+creates a visible **TorrentLinker-Config** shared folder on the selected
+Synology volume when the service first starts, and grants read/write access to
+the package's system account. The service initializes
+`TorrentLinker-Config/web-password.txt` from the private install-time secret
+exactly once. Existing values in the share are **never overwritten** during
+an upgrade or later service restart. The password never ships inside the SPK
+or CI logs.
+
+Open **DSM → File Station → TorrentLinker-Config → web-password.txt** as an
+administrator. The installer is assumed to be a DSM administrator, who is
+responsible for managing the share's permissions. **Do not grant other DSM
+accounts access to this share**: the password is stored as plaintext. The
+initial file is created with Unix mode `0600`; actual File Station access and
+DSM ACL inheritance must be verified on the DS1817+ before declaring this
+feature production-ready.
+
+To change the password, edit `web-password.txt` to contain **one line of
+12–128 characters**, then **restart the package in Package Center**. The
+original Web server reads its password only when starting, and there is no
+DSM desktop launcher. An invalid password makes startup fail closed instead
+of silently resetting credentials.
+
+The original seed remains in package-private storage for safe initialization
+on a new share. It is not an additional active login credential once the
+shared file exists. Advanced SSH retrieval of the seed remains possible:
 
 ```sh
 sudo cat /var/packages/TorrentLinkerSynology/var/secrets/web-password
 ```
+
+The shared folder is **not deleted on uninstallation** by Synology's
+data-share resource worker. Remove it manually via DSM only after you have
+confirmed that no configuration or password must be retained. If a share
+named `TorrentLinker-Config` already exists, Synology will reuse it and
+apply the package user permission; check its contents and ACLs first.
 
 Then browse to `http://NAS_IP:8787` (trusted LAN only; prefer HTTPS through
 a configured reverse proxy for Internet exposure). There is no DSM desktop

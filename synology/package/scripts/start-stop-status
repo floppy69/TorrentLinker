@@ -8,6 +8,8 @@ VAR="${SYNOPKG_PKGVAR:-/var/packages/$PACKAGE/var}"
 PYTHON="$DEST/runtime/bin/python3.12"
 CONFIG="$VAR/config"
 SECRET="$VAR/secrets/web-password"
+SHARE="${TL_SYNOLOGY_SHARE_DIR:-/var/packages/$PACKAGE/shares/TorrentLinker-Config}"
+SHARED_PASSWORD="$SHARE/web-password.txt"
 RUN="$VAR/run"
 PIDFILE="$RUN/torrentlinker.pid"
 LOG="$VAR/logs/torrentlinker.log"
@@ -29,6 +31,45 @@ running() {
     tr '\000' '\n' < "/proc/$pid/cmdline" | grep -Fxq 'torrentlinker.web.server'
 }
 
+# DSM's data-share worker creates the visible share before the package starts.
+# File Station users may change this password; it is reloaded on the next start.
+# The private install-time secret is only used to initialize the share once.
+prepare_shared_password() {
+    # DSM deliberately exposes the data-share through a symlink here.
+    if [ ! -d "$SHARE" ]; then
+        echo "Missing Synology shared folder TorrentLinker-Config: $SHARE" >&2
+        return 1
+    fi
+    if [ -L "$SHARED_PASSWORD" ]; then
+        echo "Refusing a symlink as Web password file" >&2
+        return 1
+    fi
+    if [ ! -e "$SHARED_PASSWORD" ]; then
+        if [ ! -s "$SECRET" ] || [ ! -r "$SECRET" ]; then
+            echo "Missing initial Web password: $SECRET" >&2
+            return 1
+        fi
+        # Never overwrite a password saved by the administrator or a previous install.
+        ( umask 077; set -C; cat "$SECRET" > "$SHARED_PASSWORD" ) || {
+            echo "Cannot initialize password in $SHARE" >&2
+            return 1
+        }
+        chmod 600 "$SHARED_PASSWORD"
+    fi
+    if [ ! -f "$SHARED_PASSWORD" ] || [ ! -r "$SHARED_PASSWORD" ]; then
+        echo "Web password cannot be read: $SHARED_PASSWORD" >&2
+        return 1
+    fi
+    # The original server strips the final newline; reject multiline files.
+    password=$(cat "$SHARED_PASSWORD") || return 1
+    bytes=$(wc -c < "$SHARED_PASSWORD") || return 1
+    if [ "${#password}" -lt 12 ] || [ "${#password}" -gt 128 ] || \
+       [ "$bytes" -gt "$(( ${#password} + 1 ))" ]; then
+        echo "Invalid Web password: use 12-128 characters on one line" >&2
+        return 1
+    fi
+}
+
 start() {
     if running; then
         echo "TorrentLinker is already running."
@@ -45,10 +86,7 @@ start() {
         echo "Missing packaged Python executable: $PYTHON" >&2
         return 1
     fi
-    if [ ! -s "$SECRET" ] || [ ! -r "$SECRET" ]; then
-        echo "Missing web password file: $SECRET (minimum 12 characters)" >&2
-        return 1
-    fi
+    prepare_shared_password || return 1
     umask 077
     mkdir -p "$RUN" "$CONFIG" "$VAR/logs" "$VAR/tmp"
     chmod 700 "$RUN" "$CONFIG" "$VAR/logs" "$VAR/tmp"
@@ -62,7 +100,7 @@ start() {
     export TL_WEB_PORT="8787"
     "$PYTHON" -m torrentlinker.web.server \
         --host "$TL_WEB_HOST" --port "$TL_WEB_PORT" \
-        --config "$CONFIG" --password-file "$SECRET" \
+        --config "$CONFIG" --password-file "$SHARED_PASSWORD" \
         >> "$LOG" 2>&1 &
     pid=$!
     printf '%s\n' "$pid" > "$PIDFILE"
@@ -101,6 +139,7 @@ stop() {
 case "${1:-}" in
     start) start ;;
     stop) stop ;;
+    prepare-password) prepare_shared_password ;;
     status)
         if running; then
             exit 0
@@ -110,5 +149,5 @@ case "${1:-}" in
             exit 3
         fi
         ;;
-    *) echo "Usage: $0 {start|stop|status}" >&2; exit 2 ;;
+    *) echo "Usage: $0 {start|stop|status|prepare-password}" >&2; exit 2 ;;
 esac

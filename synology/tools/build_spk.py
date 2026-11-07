@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 PACKAGE = "TorrentLinkerSynology"
-PACKAGE_VERSION = "1.0.0-0001"
+PACKAGE_VERSION = "1.0.0-0002"
 TARGET = "dsm73-x86_64"
 TARGET_INFO = {
     "dsm73-x86_64": "INFO.in",
@@ -130,6 +130,7 @@ def build(
         with tarfile.open(temporary_spk, "w", format=tarfile.PAX_FORMAT) as tar:
             add_bytes(tar, "INFO", (TEMPLATE_ROOT / TARGET_INFO[target]).read_bytes())
             add_bytes(tar, "conf/privilege", (TEMPLATE_ROOT / "conf/privilege").read_bytes())
+            add_bytes(tar, "conf/resource", (TEMPLATE_ROOT / "conf/resource").read_bytes())
             for script_name in LIFECYCLE_SCRIPTS:
                 target = f"scripts/{script_name}"
                 add_bytes(

@@ -1,0 +1,11 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "TorrentLinker-Config",
+        "permission": {"rw": ["TorrentLinkerSynology"]},
+        "once": true
+      }
+    ]
+  }
+}
