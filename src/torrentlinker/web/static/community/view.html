@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' qrc:; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>TorrentLinker · Communauté</title>
+    <link rel="stylesheet" href="../panel/base.css" />
+    <link rel="stylesheet" href="view.css" />
+    <script src="../panel/i18n.js" defer></script>
+    <script src="../panel/transport.js" defer></script>
+    <script src="transport.js" defer></script>
+    <script src="view.js" defer></script>
+  </head>
+  <body>
+    <div id="community-app">
+      <p class="loading" role="status">Chargement…</p>
+    </div>
+    <dialog class="drawer" id="drawer" aria-label="Détails"></dialog>
+    <div id="toast" class="community-toast" role="status" hidden></div>
+  </body>
+</html>

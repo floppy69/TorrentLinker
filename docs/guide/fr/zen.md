@@ -67,11 +67,13 @@ Choisissez les catégories, puis réglez le Plan :
 | Réglage | Effet |
 | --- | --- |
 | Optimiser pour **Zen/jour** | Essaie plusieurs ordres de sélection gloutonne et garde le Plan au gain de Zen estimé le plus élevé. |
-| Optimiser pour **Note** | Sélectionne d’abord les torrents aux meilleures Notes pour votre Classe. |
+| Optimiser pour **Note** | Sélectionne les meilleures notes initiales individuelles pour votre Classe, sans bonus de durée de seed ni pondération par la taille. À note égale, les téléchargements plus petits sont prioritaires. |
 | Limite de téléchargement | Taille totale maximale en Go décimaux. Zéro n’ajoute aucune limite. |
 | Limite de torrents | Nombre maximal facultatif de torrents ajoutés par ce Plan. |
 | Peu de seeders uniquement | Nombre maximal de seeders actuels, initialement 10, avant votre arrivée. |
 | Taille des torrents de… à… | Taille minimale et maximale par torrent, en Go décimaux. Zéro laisse la borne ouverte. S’applique aux téléchargements et remises en seed. |
+
+Les nouveaux paramètres utilisent **Note** par défaut. Les choix enregistrés sont conservés. Chaque candidat est évalué avec le nombre actuel de seeders, votre arrivée comprise, et zéro jour de seed cumulé. Sa note peut augmenter avec la durée de seed. La moyenne pondérée affichée est un résumé, pas l’objectif de sélection. Cette règle vaut pour les Plans sur un seul client comme pour les Plans répartis.
 
 Les remises en seed sont prioritaires. Elles comptent dans la limite de torrents mais ne consomment pas de budget de téléchargement. Le plafond global et la réserve d’espace disque s’appliquent aussi. Les résultats indiquent la Note de chaque torrent, la Note moyenne pondérée par la taille, le gain de Zen estimé, le délai de rentabilisation et l’espace libre avant et après le Plan. Les dossiers situés sur un même disque physique sont comptés ensemble. Les options sont conservées après redémarrage.
 

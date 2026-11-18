@@ -128,7 +128,7 @@ class CompanionReceiver:
                     return
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
-                    maximum = MAX_RESULT if self.path == "/api/companion/result" else 8192
+                    maximum = MAX_RESULT if self.path == "/api/companion/result" else 65536
                     if not 0 < length <= maximum:
                         raise ValueError("Request too large.")
                     body = json.loads(self.rfile.read(length))

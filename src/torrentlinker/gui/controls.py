@@ -12,7 +12,8 @@ A dark page such as the Media Center may recolor a role, never reshape it.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QAbstractButton, QToolButton
+from PySide6.QtGui import QWheelEvent
+from PySide6.QtWidgets import QAbstractButton, QDoubleSpinBox, QSpinBox, QToolButton
 
 ROLES = {"primary", "secondary", "quiet", "icon", "tab"}
 
@@ -36,3 +37,17 @@ def icon_button(glyph: str, tooltip: str, *, parent=None) -> QToolButton:
     button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     set_role(button, "icon")
     return button
+
+
+class ScrollSpinBox(QSpinBox):
+    """Wheel gestures scroll the form; arrows and typing still edit the value."""
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        event.ignore()
+
+
+class ScrollDoubleSpinBox(QDoubleSpinBox):
+    """A decimal input that never turns a scrolling gesture into an edit."""
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        event.ignore()

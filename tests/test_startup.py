@@ -238,3 +238,112 @@ def test_restoring_searches_checks_upload_eligibility_once_per_item(qtbot, tmp_p
     assert len(checked) == len(entries)
     assert len(window.review.cache) == len(entries)
     assert len(window.upload_tab.searched) == len(entries)
+
+
+def test_first_web_panel_visit_keeps_the_native_window(qtbot, tmp_path, monkeypatch):
+    # Offscreen never recreates windows. Use the session's display in a child process.
+    import os
+    import subprocess
+    import sys
+
+    import pytest
+
+    if not os.getenv("TL_NATIVE_WINDOW_CHILD"):
+        platform = (
+            "wayland" if os.getenv("WAYLAND_DISPLAY") else "xcb" if os.getenv("DISPLAY") else ""
+        )
+        if not platform:
+            pytest.skip("needs a Wayland or X11 display")
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", f"{__file__}::{sys._getframe().f_code.co_name}"],
+            env={
+                **os.environ,
+                "TL_NATIVE_WINDOW_CHILD": "1",
+                "QT_QPA_PLATFORM": platform,
+                "LC_ALL": "fr_FR.UTF-8",
+                "LANG": "fr_FR.UTF-8",
+            },
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        return
+    from PySide6.QtCore import QEvent
+    from PySide6.QtWidgets import QStackedWidget, QTabWidget
+
+    window, _, _ = setup_window(qtbot, tmp_path, monkeypatch)
+    window.show()
+    qtbot.waitExposed(window)
+    native = window.windowHandle()
+    destroyed = []
+
+    class Spy(QObject):
+        def eventFilter(self, watched, event):
+            if event.type() == QEvent.Type.PlatformSurface:
+                destroyed.append(event.surfaceEventType())
+            return False
+
+    spy = Spy()
+    native.installEventFilter(spy)
+    for panel in (
+        window.zen_tab.profile_view,
+        window.community_view,
+        window.library_workspace.reseed,
+        window.upload_workspace,
+    ):
+        child = panel
+        while child is not window:
+            parent = child.parentWidget()
+            if isinstance(parent, QStackedWidget):
+                tabs = parent.parentWidget()
+                if isinstance(tabs, QTabWidget):
+                    tabs.setCurrentWidget(child)
+                else:
+                    parent.setCurrentWidget(child)
+            child = parent
+        qtbot.waitUntil(lambda panel=panel: panel.web is not None and panel.isVisible())
+        from tests.test_community_interfaces import js, wait_js
+
+        labels = {
+            "profile": ("Refresh", "Actualiser"),
+            "community": ("Every contribution counts.", "Chaque contribution compte."),
+            "reseed": ("Run all", "Tout enchaîner"),
+            "upload": ("A new share starts here.", "Un nouveau partage commence ici."),
+        }
+        for language, text in [
+            ("auto", labels[panel.channel_name][1]),
+            *zip(("en", "fr"), labels[panel.channel_name], strict=True),
+        ]:
+            panel.language = language
+            panel.refresh()
+            resolved_language = "fr" if language == "auto" else language
+            import json
+
+            if panel.channel_name == "community":
+                # This startup fixture has no tracker profile. The populated Community
+                # workflow is covered separately in test_community_interfaces.
+                wait_js(
+                    qtbot,
+                    panel,
+                    f"document.documentElement.lang === {json.dumps(resolved_language)}",
+                )
+            else:
+                wait_js(qtbot, panel, f"document.body.innerText.includes({json.dumps(text)})")
+            assert js(qtbot, panel, "document.documentElement.lang") == resolved_language
+        # A neighboring file must not become loadable when shared assets are allowed.
+        forbidden = tmp_path / "unbundled.js"
+        forbidden.write_text("document.title = 'unbundled script executed'")
+        js(
+            qtbot,
+            panel,
+            f"""(() => {{
+          const script = document.createElement('script');
+          script.src = {json.dumps(forbidden.as_uri())};
+          script.onerror = () => document.body.dataset.blocked = 'yes';
+          document.head.append(script);
+        }})()""",
+        )
+        wait_js(qtbot, panel, "document.body.dataset.blocked === 'yes'")
+        assert js(qtbot, panel, "document.title") != "unbundled script executed"
+        assert window.windowHandle() is native and not destroyed, panel

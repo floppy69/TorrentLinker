@@ -10,6 +10,7 @@ from torrentlinker.gui.zen_view import PlanView
 from torrentlinker.plan import (
     DiskSpace,
     PlanCandidate,
+    PlanGoal,
     PlanOptions,
     catalogue_candidates,
     explain_inputs,
@@ -80,7 +81,7 @@ def test_refresh_failure_still_plans_from_usable_cached_rows(qtbot, tmp_path, mo
         (PlanOptions(min_size=2 * GB), ZenProfile(), 100 * GB, "filters"),
         (PlanOptions(max_seeders=1), ZenProfile(), 100 * GB, "filters"),
         (PlanOptions(), ZenProfile(ZenClass.REUPLOADER), 100 * GB, "zen_class"),
-        (PlanOptions(), ZenProfile(seed_hours=0), 100 * GB, "seed_hours"),
+        (PlanOptions(PlanGoal.ZEN), ZenProfile(seed_hours=0), 100 * GB, "seed_hours"),
         (PlanOptions(), ZenProfile(), GB - 1, "disk_space"),
         (PlanOptions(max_download_bytes=GB - 1), ZenProfile(), 100 * GB, "download_limit"),
     ],

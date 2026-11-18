@@ -7,10 +7,16 @@ from pydantic import ValidationError
 from tests.test_web_jobs import finished, login
 from torrentlinker.domain import Torrent
 from torrentlinker.downloads import IndexerCategory
+from torrentlinker.plan import PlanGoal
 from torrentlinker.store import CatalogueRow
 from torrentlinker.web.app import create_app
 from torrentlinker.web.operations import JobRequest, Operations
 from torrentlinker.zen import ZenClass, ZenProfile
+
+
+def test_web_plan_defaults_to_note_and_accepts_explicit_zen() -> None:
+    assert JobRequest(kind="plan").planning_options().goal is PlanGoal.NOTE
+    assert JobRequest(kind="plan", plan_goal="zen").planning_options().goal is PlanGoal.ZEN
 
 
 @pytest.mark.parametrize("distributed", [False, True])

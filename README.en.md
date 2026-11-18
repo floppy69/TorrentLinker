@@ -16,11 +16,11 @@ Find torrents matching your existing files and reseed them in **qBittorrent, Del
 - **Media**: integrated video and music playback, resume, playlists and Assistant chat beside the player, on desktop and the Web. [Guide](docs/guide/en/media.md).
 - **MCP agents**: connect an assistant, prepare Plans and approve its actions. [Guide](docs/guide/en/agents.md).
 - **Named clients**: multiple connections, a combined overview and Plans distributed across selected clients.
-- **Library**: find files no longer seeded, search and check Candidates, then reseed matching torrents.
+- **Library**: guided setup, list and inspection view, and independent file progression from search to reseeding.
 - **Search**: filter torrents, explore details in tabs and prepare a download queue.
 - **Zen**: track estimated earnings and notes, then make a Plan within your space and budget.
 - **Torrents**: manage downloads and seeding, grouped by tracker and category.
-- **Upload**: prepare files, a description and NFO for a c411 Draft that you review and publish on the website.
+- **Upload**: choose a source, check existing releases and prepare files, presentation, images and NFO, then review before sending a c411 Draft.
 
 With qBittorrent, Deluge and Transmission, reseeding does not rename existing files on disk. rTorrent, µTorrent Classic and BitTorrent Classic may require disk renames, with explicit confirmation. In the desktop app, API keys and passwords stay in your system keyring. The interface supports French and English, with system, light and dark themes.
 
@@ -41,7 +41,7 @@ On Linux, make the AppImage executable before opening it. On macOS the app is no
 
 1. Enable your torrent client’s Web UI.
 2. Open TorrentLinker and enter the client connection and Indexer API key in Settings. The first launch guides you there.
-3. Use **Library → Add folder…** for existing files. Use **Search** or **Zen → Plan** for new downloads.
+3. Use **Library → Reseed → Disk** for existing files. Use **Search** or **Zen → Plan** for new downloads.
 
 The [illustrated setup guide](docs/guide/en/getting-started.md) covers connections, Docker and NAS setups.
 

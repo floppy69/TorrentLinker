@@ -205,7 +205,7 @@ async function guard(fn) {
   }
 }
 async function api(path, body, method) {
-  const scoped = ["setup", "torrents", "library", "queue", "upload/queue", "upload/drafts"];
+  const scoped = ["reseed-workspace", "setup", "torrents", "library", "queue", "upload/queue", "upload/drafts"];
   if (body === undefined && scoped.includes(path.split("?")[0]) && state.clientId && !new URLSearchParams(path.split("?")[1]).has("client_id")) {
     const id = state.clientId === "all" && path === "setup" ? state.setup?.default_client_id || "" : state.clientId;
     path += (path.includes("?") ? "&" : "?") + "client_id=" + encodeURIComponent(id);
@@ -352,6 +352,10 @@ function step(name) {
 }
 async function refreshSetup() {
   state.setup = await api("setup");
+  // The form below represents this saved profile, even after leaving Add client.
+  state.addingClient = false;
+  $("client-password").value = "";
+  $("client-key").value = "";
   // XXX choices and the Media XXX panel only once adult content is enabled.
   for (const node of document.querySelectorAll("[data-adult]")) node.hidden = !state.setup.adult_content;
   if (!state.clientId) state.clientId = state.setup.client_id;
@@ -372,6 +376,8 @@ async function refreshSetup() {
   for (const [id, category] of categories.filter(([, c]) => !c.parent || !categories.some(([key]) => key === String(c.parent)))) appendCategory(id, category);
   for (const option of $("plan-category").options) option.selected = oldCategories.has(option.value);
   $("client-name").value = state.setup.name;
+  $("reseed-folder-settings").hidden = false;
+  $("reseed-root").value = state.setup.reseed_link_root || localStorage.getItem(`reseed-root:${state.setup.client_id}`) || "";
   const oldDestinations = $("plan-clients").dataset.owner === state.setup.client_id ? new Map(
     [...$("plan-clients").querySelectorAll("input[data-client-id]")].map(e => [e.dataset.clientId, {
       checked:e.checked, budget:$("plan-clients").querySelector(`input[data-budget-id="${CSS.escape(e.dataset.clientId)}"]`).value,
@@ -461,7 +467,23 @@ function renderCapabilities() {
     }),
   );
 }
+function renderSecretHints() {
+  const setup = state.setup || {};
+  const editingSavedClient = !state.addingClient && $("client-kind").value === setup.client;
+  const fields = [
+    ["client-password", editingSavedClient && setup.has_password],
+    ["client-key", editingSavedClient && setup.has_api_key],
+    ["proxy-password", setup.has_proxy_password],
+    ["announce-url", setup.has_announce_url],
+  ];
+  for (const [id, saved] of fields) {
+    $(id).placeholder = saved
+      ? say("Saved · leave blank to keep", "Enregistré · laisser vide pour conserver")
+      : say("Not saved", "Non enregistré");
+  }
+}
 function clientKind() {
+  renderSecretHints();
   $("username-label").hidden = $("client-kind").value === "deluge";
   $("client-key").parentElement.hidden =
     $("client-kind").value !== "qbittorrent";
@@ -609,7 +631,8 @@ function clearAgentToken() {
   $("agent-token").value = "";
   $("agent-token-box").hidden = true;
 }
-async function settingsSection(section) {
+async function settingsSection(section, detail) {
+  rememberTab("setup", section, detail);
   state.settingsSection = section;
   document.querySelectorAll("[data-settings-panel]").forEach(el => {
     el.hidden = el.dataset.settingsPanel !== section;
@@ -619,28 +642,92 @@ async function settingsSection(section) {
     else el.removeAttribute("aria-current");
   });
   if (section !== "agents") clearAgentToken();
-  if (section === "agents") await loadAgents();
+  if (section === "agents") {
+    agentTab(detail || "connections");
+    await loadAgents();
+  }
   if (section === "assistant") await loadAssistantConnections();
   if (section === "companion") await loadZenProfile();
 }
 document.querySelectorAll("[data-settings-section]").forEach(el => {
   el.onclick = () => guard(() => settingsSection(el.dataset.settingsSection));
 });
+function agentTab(name) {
+  rememberTab("setup", "agents", name === "connections" ? undefined : name);
+  document.querySelectorAll("[data-agent-panel]").forEach(panel => {
+    panel.hidden = panel.dataset.agentPanel !== name;
+  });
+  document.querySelectorAll("[data-agent-tab]").forEach(tab => {
+    if (tab.dataset.agentTab === name) tab.setAttribute("aria-current", "page");
+    else tab.removeAttribute("aria-current");
+  });
+  if (name !== "new") clearAgentToken();
+}
 document.querySelectorAll("[data-agent-tab]").forEach(el => {
-  el.onclick = () => {
-    document.querySelectorAll("[data-agent-panel]").forEach(panel => {
-      panel.hidden = panel.dataset.agentPanel !== el.dataset.agentTab;
-    });
-    document.querySelectorAll("[data-agent-tab]").forEach(tab => {
-      if (tab === el) tab.setAttribute("aria-current", "page");
-      else tab.removeAttribute("aria-current");
-    });
-    if (el.dataset.agentTab !== "new") clearAgentToken();
-  };
+  el.onclick = () => agentTab(el.dataset.agentTab);
 });
-async function navigate(view, section = "connections") {
+
+// Only workspace locations belong in the fragment. Form state and filters stay local.
+const viewTabs = {
+  torrents: [], zen: ["profile", "seeding", "plan", "catalogue", "community"], search: [],
+  feeds: [], queue: [], media: ["video", "music"], library: ["reseed", "items", "folders", "activity"],
+  upload: ["local", "remote", "sources"], assistant: [], jobs: [], documentation: [],
+  setup: ["connections", "interface", "companion", "assistant", "agents"],
+};
+const agentTabs = ["connections", "new", "activity"];
+const mediaViewsByKind = {
+  video: ["recent", "continue", "films", "series", "anime", "rated", "unwatched", "all", "adult"],
+  music: ["albums", "artists", "tracks"],
+};
+const rememberedTabs = {};
+let activeRoute = "";
+function resolveRoute(fragment) {
+  const fallback = state.setup?.configured ? ["torrents"] : ["setup", "connections"];
+  const parts = fragment.replace(/^#\//, "").split("/");
+  const [view, tab, detail] = parts;
+  // Incomplete setup selects the landing page; it does not block explicit routes
+  // such as configuring the Assistant or reviewing saved Upload drafts.
+  if (!fragment.startsWith("#/") || !Object.hasOwn(viewTabs, view)) return fallback;
+  const tabs = viewTabs[view];
+  const validDetail = view === "setup" && tab === "agents" && agentTabs.includes(detail) ||
+    view === "media" && mediaViewsByKind[tab]?.includes(detail) &&
+      (detail !== "adult" || state.setup?.adult_content);
+  if (parts.length > 3 || (tab !== undefined && !tabs.includes(tab)) ||
+      (detail !== undefined && !validDetail)) return fallback;
+  const defaultDetail = view === "media" ? mediaViewsByKind[tab || tabs[0]][0] : "connections";
+  return tabs.length ? [view, tab || tabs[0], ...(detail && detail !== defaultDetail ? [detail] : [])] : [view];
+}
+function routeFragment(parts) { return "#/" + parts.join("/"); }
+function writeRoute(parts, replace = false) {
+  activeRoute = routeFragment(parts);
+  if (location.hash === activeRoute) return;
+  if (replace) history.replaceState(null, "", activeRoute);
+  else location.hash = activeRoute;
+}
+function rememberTab(view, tab, detail) {
+  if (state.view !== view || $("workspace").hidden) return;
+  const parts = [view, tab, ...(detail ? [detail] : [])];
+  rememberedTabs[view] = parts.slice(1);
+  writeRoute(parts);
+}
+async function openFragment() {
+  if ($("workspace").hidden) return;
+  const parts = resolveRoute(location.hash);
+  const fragment = routeFragment(parts);
+  if (location.hash !== fragment) history.replaceState(null, "", fragment);
+  if (activeRoute !== fragment) await navigate(...parts);
+}
+window.addEventListener("hashchange", () => guard(openFragment));
+async function navigate(view, section, detail) {
   if (view === "agents") { view = "setup"; section = "agents"; }
+  const requested = [view, ...(section ? [section, ...(detail ? [detail] : [])] : rememberedTabs[view] || [])];
+  const parts = resolveRoute(routeFragment(requested));
+  [view, section, detail] = parts;
+  rememberedTabs[view] = parts.slice(1);
+  const route = routeFragment(parts);
+  writeRoute(parts);
   if (view !== "media" && document.body.classList.contains("media-center-mode")) await mediaExitCenter();
+  if (activeRoute !== route) return;
   if (typeof mediaCloseChat === "function" && media.chat) mediaCloseChat();
   state.view = view;
   document.body.classList.toggle("media-view", view === "media");
@@ -655,20 +742,32 @@ async function navigate(view, section = "connections") {
     document.querySelector(`[data-view="${view}"]`)?.textContent || view;
   if (view === "setup") {
     await refreshSetup();
+    if (activeRoute !== route) return;
     step("client");
-    await settingsSection(section);
+    await settingsSection(section, detail);
   }
   if (view === "assistant") await loadAssistant();
-  if (view === "media") { await loadMedia(); guard(mediaAutoScan); }
+  if (view === "media") {
+    media.kind = section;
+    media.view = detail || mediaViewsByKind[section][0];
+    mediaViews();
+    await loadMedia(); guard(mediaAutoScan);
+  }
   if (view !== "setup") clearAgentToken();
   if (view === "documentation") await loadGuides();
   if (view === "torrents") await loadTorrents();
   if (view === "queue") await loadQueue();
   if (view === "feeds") await loadFeeds();
-  if (view === "upload") await loadUploadQueue();
-  if (view === "library") await loadLibrary();
+  if (view === "upload") {
+    showUploadView(section);
+    if (section === "remote") await loadRemoteUploads();
+    else if (section === "sources") await loadUploadSources();
+    else await loadUploadQueue();
+  }
+  if (view === "library") await libraryTab(section);
   if (view === "jobs") await loadJobs();
   if (view === "zen") {
+    zenTab(section);
     await refreshSetup();
     await Promise.all([loadZenProfile(true), loadZenSeeding(), api("zen/catalogue").then(showCatalogue), loadZenPlan()]);
   }
@@ -717,6 +816,7 @@ async function pollJobs() {
   else workStatus("Up to date", "À jour");
   if (state.view === "jobs") renderJobs(rows);
   if (state.view === "queue") await loadQueue();
+  if (state.view === "library" && !$("library-reseed").hidden && reseedUI.job) await loadReseed();
 }
 async function loadJobs() {
   renderJobs(await api("jobs"));
@@ -730,7 +830,10 @@ function renderJobs(rows) {
       text.append(
         element("strong", `${r.kind} · ${clientName(r.client_id)}`),
         element("p", r.status),
-        element("small", r.error || JSON.stringify(r.progress || {})),
+        element("small", r.error || (r.progress?.stage === "client-files"
+          ? say(`Reading client files: ${r.progress.done}/${r.progress.total} · up to ${Number(r.progress.requests_per_second).toFixed(2)} requests/s`,
+              `Lecture des fichiers du client : ${r.progress.done}/${r.progress.total} · jusqu’à ${Number(r.progress.requests_per_second).toFixed(2)} requêtes/s`)
+          : JSON.stringify(r.progress || {}))),
       );
       card.append(text);
       if (["queued", "running"].includes(r.status) && r.progress?.cancellable !== false)
@@ -1383,7 +1486,9 @@ async function enter() {
   $("logout").hidden = state.setup.web_auth === "proxy";
   $("login-screen").hidden = true;
   $("workspace").hidden = false;
-  await navigate(state.setup.configured ? "torrents" : "setup");
+  const parts = resolveRoute(location.hash);
+  writeRoute(parts, true);
+  await navigate(...parts);
   if (state.setup.configured) await job({ kind: "refresh" }, loadTorrents);
   await pollJobs();
 }
@@ -1439,16 +1544,21 @@ $("logout").onclick = () =>
 $("theme").value = localStorage.getItem("tl-theme") || "auto";
 function theme() {
   const value = $("theme").value;
-  document.documentElement.dataset.theme = value;
+  document.documentElement.dataset.theme = value === "auto"
+    ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : value;
   localStorage.setItem("tl-theme", value);
 }
 $("theme").onchange = theme;
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", theme);
 theme();
 $("language").onchange = () => {
   if (state.view === "documentation") setTimeout(() => guard(loadGuides), 0);
   language = $("language").value;
   localStorage.setItem("tl-language", language);
   translate();
+  renderSecretHints();
+  document.dispatchEvent(new Event("tl-language-changed"));
   if (state.view === "setup" && state.settingsSection === "agents") guard(loadAgents);
   if (state.view === "zen") { guard(loadZenSeeding); retranslatePlan(); if (profileState) showZenProfile(profileState); }
   if (state.view === "search") searchRetranslate();
@@ -1554,8 +1664,11 @@ guard(async () => {
 
 $("save-announce").onclick = () =>
   guard(async () => {
-    await api("setup/announce", { value: $("announce-url").value });
-    $("announce-url").value = "";
+    const value = $("announce-url").value;
+    await api("setup/announce", { value });
+    if ($("announce-url").value === value) $("announce-url").value = "";
+    state.setup.has_announce_url = true;
+    renderSecretHints();
     toast(say("Announce URL saved.", "URL d’annonce enregistrée."));
   });
 $("refresh-profile").onclick = () =>
@@ -1568,15 +1681,16 @@ $("refresh-profile").onclick = () =>
 
 $("save-proxy").onclick = () =>
   guard(async () => {
+    const password = $("proxy-password").value;
     await api("setup/proxy", {
       address: $("proxy-address").value,
       username: $("proxy-username").value,
       torrent_client: $("proxy-client").checked,
-      ...($("proxy-password").value
-        ? { password: $("proxy-password").value }
-        : {}),
+      ...(password ? { password } : {}),
     });
-    $("proxy-password").value = "";
+    if (password) state.setup.has_proxy_password = true;
+    if ($("proxy-password").value === password) $("proxy-password").value = "";
+    renderSecretHints();
     toast(
       say(
         "Proxy settings saved. Test the connection again.",
@@ -1662,8 +1776,10 @@ $("target-client").onchange = () => guard(async () => {
 });
 $("add-client").onclick = () => {
   state.addingClient = true;
+  $("reseed-folder-settings").hidden = true;
   $("client-name").value = ""; $("client-host").value = "";
   $("client-username").value = ""; $("client-password").value = ""; $("client-key").value = "";
+  renderSecretHints();
   $("client-name").focus();
 };
 $("default-client").onclick = () => guard(async () => {

@@ -36,6 +36,31 @@ DATA = Path(os.environ.get("TL_QBIT_DOCKER_DATA", "/nonexistent"))
 pytestmark = pytest.mark.skipif(not HOST, reason="set TL_QBIT_DOCKER and TL_QBIT_DOCKER_DATA")
 
 
+@pytest.mark.parametrize("normalization", ["NFC", "NFD"])
+def test_link_workspace_verifies_mapped_accented_sources(qbit, normalization):
+    import tempfile
+    import unicodedata
+
+    from tests.test_reseed_workspace import run, workspace
+
+    root = Path(tempfile.mkdtemp(prefix="linked-reseed-", dir=DATA))
+    filename = unicodedata.normalize(normalization, "Été - mon film.mkv")
+    board, _, original, links, meta = workspace(root, qbit, filename)
+    board.setup.settings.path_mappings = [PathMapping(str(DATA), "/data")]
+    before = original.read_bytes(), original.stat().st_ino, original.name
+    result = run(board, original, links)
+    assert not result["errors"], result
+    assert result["seeded"] == 1
+    torrent = qbit.torrent(meta.infohash)
+    assert torrent and torrent.progress == 1
+    assert torrent.save_path == Path("/data") / Path(result["rows"][0]["destination"]).relative_to(
+        DATA
+    )
+    assert torrent.files == {"Release.mkv": original.stat().st_size}
+    assert (original.read_bytes(), original.stat().st_ino, original.name) == before
+    assert not list(original.parent.glob("Release*"))
+
+
 @pytest.fixture
 def qbit():  # type: ignore[no-untyped-def]
     api = QbitApi(HOST, "", "")

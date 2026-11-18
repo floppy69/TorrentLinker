@@ -440,6 +440,8 @@ def test_browser_cards_open_modal_and_keep_exact_pagination(tmp_path, root_path,
                 page.evaluate("""async () => {
                     state.clientId = 'default';
                     await navigate('upload');
+                    uploadLegacy.hidden = false;
+                    uploadFrame.hidden = true;
                     state.uploadDraft = uploadUI.rows[0];
                     $('upload-editor').hidden = false;
                     $('upload-help').hidden = true;

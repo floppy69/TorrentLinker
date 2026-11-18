@@ -63,11 +63,13 @@ Choose categories, then configure the Plan:
 | Control | Effect |
 | --- | --- |
 | Optimize for **Zen/day** | Tries several greedy orderings and keeps the Plan with the largest estimated Zen gain. |
-| Optimize for **Note** | Selects the highest-note torrents first for your Class. |
+| Optimize for **Note** | Selects the highest individual initial scores for your Class, without a seed-age bonus or size weighting. Equal scores prefer smaller downloads. |
 | Download limit | Maximum total download size in decimal GB. Zero means no additional size limit. |
 | Limit torrents | Optional maximum number of torrents added by this Plan. |
 | Low seeders only | Optional maximum current seeder count, initially 10, before you join the swarm. |
 | Torrent size from … to | Optional minimum and maximum size of each torrent, in decimal GB. Zero leaves that side open. Applies to downloads and Reseeds. |
+
+New settings default to **Note**. Saved choices are preserved. Each candidate is scored using the current seeder count including your arrival, with zero cumulative seed days. Its score can rise as you keep seeding. The displayed size-weighted average is a summary, not the selection objective. This applies to single-client and distributed Plans.
 
 Reseeds come first. They count toward the torrent limit and consume no download budget. The overall torrent cap and disk-space reserve also apply. The results show each torrent's note, the size-weighted average note, estimated Zen gain and payback, and free disk space before and after the Plan. Download Folders sharing a physical disk are counted once. Plan options are saved across restarts.
 

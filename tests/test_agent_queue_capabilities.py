@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from tests import test_catalogue_selection
@@ -429,6 +431,32 @@ def test_refinement_and_comparison_save_new_exact_snapshots(catalogue_app):
     assert approved.is_success, approved.text
     assert finished(browser, approved.json()["job_id"])["result"]["queued"] == 2
     assert tool(browser, token, "job_status", job_id=original)["result"]["selected_count"] == 3
+
+
+def test_refinement_keeps_the_releases_the_user_picked_by_title_or_hash(catalogue_app):
+    _, browser, token = catalogue_app
+    original = selection(browser, token, categories=[], count=3)
+    rows = tool(browser, token, "job_status", job_id=original)["result"]["rows"]
+    picked = tool(
+        browser,
+        token,
+        "refine_selection",
+        request_id="pick",
+        selection_id=original,
+        keep=[rows[1]["title"].upper(), rows[2]["hash"]],
+    )
+    result = finished(browser, picked["job_id"])["result"]
+    assert [r["hash"] for r in result["rows"]] == [rows[1]["hash"], rows[2]["hash"]]
+    invented = call(
+        browser,
+        token,
+        "refine_selection",
+        {"request_id": "invented", "selection_id": original, "keep": ["Film.2024-ROMKENT"]},
+    )
+    failure = json.dumps(invented)
+    if "job_id" in failure and not invented.get("isError"):
+        failure = json.dumps(finished(browser, invented["structuredContent"]["job_id"]))
+    assert "Not in this selection: Film.2024-ROMKENT" in failure
 
 
 def test_download_only_grant_cannot_edit_queue_automatically_and_retries_are_idempotent(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import threading
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
@@ -17,6 +19,7 @@ from torrentlinker.domain import ItemState, LibraryFolder, LocalItem, Torrent
 from torrentlinker.item_detection import seeded_roots
 from torrentlinker.matching import IgnoreList
 from torrentlinker.qbit import Qbit
+from torrentlinker.read_pacing import ReadPacing
 from torrentlinker.reconcile import classify
 from torrentlinker.scan import ScanError, scan
 from torrentlinker.seeding import indexer_torrents
@@ -62,7 +65,7 @@ def _timed_out(error: BaseException) -> bool:
     return False
 
 
-CLIENT_PAUSE_MAX = 2.0  # seconds; a very slow answer must not stall the scan for long
+log = logging.getLogger(__name__)
 
 
 def _client_read(
@@ -165,6 +168,8 @@ def indexer_contents(
     refresh: bool = False,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    stop: threading.Event | None = None,
+    progress: Callable[[int, int, float], None] = lambda done, total, rate: None,
 ) -> list[Torrent]:
     """The Indexer's torrents in the Torrent Client, with their files.
 
@@ -173,29 +178,78 @@ def indexer_contents(
     each, which spares thousands of requests when the client seeds for other trackers.
 
     File lists read before are reused (`refresh` reads them all again). The client
-    answers on its main thread, so after each request this waits as long as the answer
-    took: the client spends at most half its time on TorrentLinker and stays usable.
+    file requests are paced from measured response times: at most five per second,
+    targeting 20% time spent answering this scan. Slow responses reduce the rate
+    immediately; recovery is gradual. This measures API latency, not disk throughput.
     Lists are saved as they come, so an interrupted scan keeps what it read.
     """
+    if stop is not None and stop.is_set():
+        raise InterruptedError("Client file-list scan cancelled.")
     listed = _client_read(lambda: client.torrents(with_files=False), "torrents")
     known = store.known_hashes([t.hash.lower() for t in listed])
     torrents = indexer_torrents(listed, indexer_url, known)
     cached = {} if refresh else store.torrent_files([t.hash for t in torrents])
     result, fresh = [], {}
+    pacing = ReadPacing()
     try:
-        for t in torrents:
+        for done, t in enumerate(torrents, 1):
+            if stop is not None and stop.is_set():
+                raise InterruptedError("Client file-list scan cancelled.")
             files = cached.get(t.hash.lower())
             if files is None:
                 started = clock()
                 files = _client_read(partial(client.files, t.hash), "files", t.name)
-                sleep(min(clock() - started, CLIENT_PAUSE_MAX))
+                elapsed = max(0.0, clock() - started)
+                pause = pacing.observe(elapsed)
                 fresh[t.hash] = files
+                progress(done, len(torrents), pacing.rate)
+                if stop is not None:
+                    if stop.wait(pause):
+                        raise InterruptedError("Client file-list scan cancelled.")
+                else:
+                    sleep(pause)
                 if len(fresh) >= 200:
                     store.cache_torrent_files(fresh)
                     fresh = {}
             result.append(replace(t, files=files))
     finally:
         store.cache_torrent_files(fresh)
+        if pacing.samples:
+            log.info(
+                "Client file-list scan: %d reads, %.3fs mean response, %.2f requests/s target",
+                pacing.samples,
+                pacing.total / pacing.samples,
+                pacing.rate,
+            )
+    # Linked reseeds use a persistent layout elsewhere. Classification must still
+    # associate verified sharing with the original Local Item, across restarts.
+    from torrentlinker.reseed_links import validate_links
+
+    linked = {r.get("hash"): (path, r) for path, r in store.reseed_records().items()}
+    for i, torrent in enumerate(result):
+        if torrent.hash not in linked:
+            continue
+        path, record = linked[torrent.hash]
+        if (
+            "torrentlinker:links" not in torrent.tags
+            or record.get("status") not in {"verified", "seeding"}
+            or str(torrent.save_path) != record.get("destination")
+            or torrent.progress < 1
+        ):
+            continue
+        try:
+            validate_links(record)
+        except (ValueError, OSError):
+            continue
+        base = Path(path).parent
+        result[i] = replace(
+            torrent,
+            save_path=base,
+            files={
+                str(Path(f["source"]).relative_to(base)).replace("\\", "/"): f["identity"][2]
+                for f in record["files"]
+            },
+        )
     return result
 
 

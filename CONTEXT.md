@@ -61,9 +61,12 @@ The program that seeds, qBittorrent, Deluge, Transmission, rTorrent, µTorrent C
 _Avoid_: Client (alone, when the Indexer's API client could be meant), qBit (outside code)
 
 **Reseed**:
-Adding a Match to the Torrent Client pointed at the existing data, renaming inside the torrent so its paths line up with the local files, then verifying by hash check before seeding.
-For µTorrent Classic, BitTorrent Classic and rTorrent, differing names require a per-torrent confirmation to rename files on disk. Other clients keep the existing files at their original paths. See ADR-0013 and ADR-0017.
+Adding a Match to the Torrent Client pointed at existing data, then verifying by hash check before seeding. The Reseed board prepares a Link Folder with the torrent's expected filenames and preserves original names. It requires every torrent file and verifies locally before the client's own check (ADR-0020).
+The older Local Items flow renames paths inside the torrent. For µTorrent Classic, BitTorrent Classic and rTorrent, that flow requires per-torrent confirmation to rename differing filenames on disk (ADR-0013/0017).
 _Avoid_: Inject, cross-seed, relink
+
+**Link Folder**:
+A dedicated folder outside Library Folders holding persistent symlink layouts for Reseeds. Each link points to an original file using the Torrent Client's path namespace. Keep these layouts for as long as their torrents remain in use; they are not temporary verification files.
 
 **Verification**:
 The Torrent Client's hash check a Reseed must pass at 100% before the torrent is started; a failed Verification removes the torrent (never the data) and becomes a Rejection.

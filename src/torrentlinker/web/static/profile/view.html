@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' qrc:; style-src 'self' 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Profile · TorrentLinker</title>
+    <link rel="stylesheet" href="../panel/base.css" />
+    <link rel="stylesheet" href="view.css" />
+  </head>
+  <body>
+    <section id="zen-profile-panel">
+      <p id="profile-notice" role="status"></p>
+      <section
+        id="profile-header"
+        class="pf-panel pf-identity"
+        aria-labelledby="profile-username"
+      >
+        <div id="profile-avatar" class="pf-avatar" aria-hidden="true">?</div>
+        <div class="pf-who">
+          <h2 id="profile-username"></h2>
+          <div id="profile-meta" class="pf-meta"></div>
+          <div id="profile-badges" class="pf-pills"></div>
+        </div>
+        <div class="pf-actions">
+          <div
+            id="profile-period"
+            class="pf-seg"
+            role="group"
+            aria-label="Period"
+          >
+            <button type="button" data-days="7" aria-pressed="false">7 d</button
+            ><button type="button" data-days="30" aria-pressed="true">
+              30 d</button
+            ><button type="button" data-days="90" aria-pressed="false">
+              90 d</button
+            ><button type="button" data-days="0" aria-pressed="false">
+              All
+            </button>
+          </div>
+          <button id="profile-refresh" class="primary" type="button">
+            Refresh
+          </button>
+        </div>
+      </section>
+      <section
+        id="profile-tiles"
+        class="pf-kpis"
+        aria-label="Key figures"
+      ></section>
+      <section class="pf-charts">
+        <div id="profile-volumes" class="pf-panel"></div>
+        <div id="profile-zen-chart" class="pf-panel"></div>
+      </section>
+      <section class="pf-grid2">
+        <div id="profile-progression" class="pf-panel"></div>
+        <div id="profile-zen" class="pf-panel"></div>
+        <div id="profile-transfers" class="pf-panel"></div>
+        <div id="profile-seeding" class="pf-panel" aria-live="polite"></div>
+        <div
+          id="profile-contribution"
+          class="pf-panel"
+          aria-live="polite"
+        ></div>
+        <div id="profile-sync" class="pf-panel"></div>
+      </section>
+      <p id="profile-privacy" class="muted"></p>
+    </section>
+    <script src="../panel/i18n.js"></script>
+    <script src="../panel/transport.js"></script>
+    <script src="view.js"></script>
+  </body>
+</html>

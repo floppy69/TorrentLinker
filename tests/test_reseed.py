@@ -1,3 +1,4 @@
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -173,6 +174,117 @@ def test_reseed_refuses_occupied_rename_sources_before_changing_the_client(tmp_p
     assert (local / "a.mkv").read_bytes() == b"b" * 50
     assert (local / "b.mkv").read_bytes() == b"a" * 40
     assert sorted(p.name for p in local.iterdir()) == ["a.mkv", "b.mkv"]
+
+
+@pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize("torrent_form,local_form", [("NFC", "NFD"), ("NFD", "NFC")])
+def test_reseed_does_not_rename_unicode_aliases_on_a_normalizing_filesystem(
+    tmp_path: Path, monkeypatch, nested, torrent_form, local_form
+) -> None:
+    library = tmp_path / "library"
+    relative = "Série/Héros.mkv" if nested else "Héros.mkv"
+    local = library / relative
+    local.parent.mkdir(parents=True)
+    local.write_bytes(b"movie" * 4000)
+    source = tmp_path / "source" / unicodedata.normalize(torrent_form, relative)
+    source.parent.mkdir(parents=True)
+    source.write_bytes(local.read_bytes())
+    meta = read_torrent(make_torrent(source.parent if nested else source))
+    spelling = unicodedata.normalize(local_form, relative)
+    item_path = library / (spelling.split("/")[0] if nested else spelling)
+    item = LocalItem(item_path, {spelling: local.stat().st_size})
+    # Model macOS lookup semantics while retaining the different directory-entry
+    # and torrent spellings. Both names resolve to this one real file.
+    original_stat, original_lstat = Path.stat, Path.lstat
+
+    def lookup(path):
+        if path.is_relative_to(library):
+            return library / unicodedata.normalize("NFC", path.relative_to(library).as_posix())
+        return path
+
+    monkeypatch.setattr(Path, "stat", lambda path, **kw: original_stat(lookup(path), **kw))
+    monkeypatch.setattr(Path, "lstat", lambda path: original_lstat(lookup(path)))
+    qbit, store = FakeQbit(), Store(tmp_path / "s.db")
+    found = match(item, meta.files)
+    assert found is not None
+
+    h = start_reseed(qbit, store, item, meta, found, meta.infohash, sleep=lambda _: None)
+
+    assert qbit.calls == ["recheck"]
+    assert qbit.files(h) == meta.files
+    qbit.finish_check(h, 1.0)
+    assert check_verifications(qbit, store)[0].started
+    assert local.read_bytes() == b"movie" * 4000
+    assert [p.name for p in local.parent.iterdir()] == [local.name]
+
+
+@pytest.mark.parametrize("source_kind", ["different-file", "symlink", "dangling-symlink"])
+def test_unicode_equivalence_never_bypasses_an_occupied_source(tmp_path, source_kind):
+    local = tmp_path / "library" / "He\u0301ros.mkv"
+    local.parent.mkdir()
+    local.write_bytes(b"movie" * 4000)
+    old = local.with_name("Héros.mkv")
+    if old.exists():
+        pytest.skip("requires a filesystem with distinct composed and decomposed names")
+    if source_kind == "different-file":
+        old.write_bytes(b"other" * 4000)
+    else:
+        old.symlink_to(local if source_kind == "symlink" else tmp_path / "missing")
+    source = tmp_path / "source" / old.name
+    source.parent.mkdir()
+    source.write_bytes(local.read_bytes())
+    meta, item = read_torrent(make_torrent(source)), scan_item(local)
+    qbit, store = FakeQbit(), Store(tmp_path / "s.db")
+    found = match(item, meta.files)
+    assert found is not None
+
+    with pytest.raises(ReseedAborted, match="would move an existing local path"):
+        start_reseed(qbit, store, item, meta, found, meta.infohash, sleep=lambda _: None)
+
+    assert qbit.torrents() == [] and qbit.calls == []
+    assert store.verification_hashes() == []
+    assert local.read_bytes() == b"movie" * 4000
+
+
+def test_unicode_names_on_a_normalization_sensitive_filesystem_are_still_renamed(tmp_path):
+    local = tmp_path / "library" / "He\u0301ros.mkv"
+    local.parent.mkdir()
+    local.write_bytes(b"movie" * 4000)
+    if local.with_name("Héros.mkv").exists():
+        pytest.skip("requires a normalization-sensitive filesystem")
+    source = tmp_path / "source" / "Héros.mkv"
+    source.parent.mkdir()
+    source.write_bytes(local.read_bytes())
+    meta, item = read_torrent(make_torrent(source)), scan_item(local)
+    qbit, store = FakeQbit(), Store(tmp_path / "s.db")
+    found = match(item, meta.files)
+    assert found is not None
+
+    start_reseed(qbit, store, item, meta, found, meta.infohash, sleep=lambda _: None)
+
+    assert qbit.calls == [f"rename {source.name} -> {local.name}", "recheck"]
+    assert local.read_bytes() == b"movie" * 4000
+
+
+def test_native_filesystem_unicode_alias_can_reseed_without_a_rename(tmp_path):
+    local = tmp_path / "library" / "Héros.mkv"
+    local.parent.mkdir()
+    local.write_bytes(b"movie" * 4000)
+    alias = local.with_name(unicodedata.normalize("NFD", local.name))
+    if not alias.exists() or not alias.samefile(local):
+        pytest.skip("requires a normalizing filesystem, such as macOS APFS")
+    meta = read_torrent(make_torrent(local))
+    item = scan_item(alias)
+    qbit, store = FakeQbit(), Store(tmp_path / "s.db")
+    found = match(item, meta.files)
+    assert found is not None
+
+    h = start_reseed(qbit, store, item, meta, found, meta.infohash, sleep=lambda _: None)
+
+    assert qbit.calls == ["recheck"]
+    qbit.finish_check(h, 1.0)
+    assert check_verifications(qbit, store)[0].started
+    assert local.read_bytes() == b"movie" * 4000
 
 
 def partial_pack(tmp_path: Path) -> tuple[LocalItem, bytes]:

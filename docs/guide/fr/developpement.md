@@ -23,6 +23,16 @@ Python 3.11 ou plus récent est nécessaire. Pour lancer les contrôles locaux :
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest -q
 ```
 
+Pour une installation Linux depuis les sources, enregistrez le lanceur pour que Wayland associe la fenêtre au nom et à l’icône du dock. Exécutez ces commandes depuis le dépôt utilisé, puis quittez et relancez complètement l’application :
+
+```bash
+desktop-file-install --dir="$HOME/.local/share/applications" \
+  --set-key=Exec --set-value="\"$PWD/.venv/bin/torrentlinker\"" \
+  --set-key=Icon --set-value="$PWD/src/torrentlinker/assets/icon.png" \
+  packaging/torrentlinker.desktop
+update-desktop-database "$HOME/.local/share/applications"
+```
+
 ## Traductions
 
 Les textes de l’interface sont en anglais dans le code ; leur traduction française se trouve dans `src/torrentlinker/i18n/`. Après modification d’un texte :

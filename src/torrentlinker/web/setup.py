@@ -137,6 +137,7 @@ class FolderRemoval(BaseModel):
 
 
 class FolderSetup(FolderRemoval):
+    original_local: str = Field(default="", max_length=4096)
     client_path: str = Field(default="", max_length=4096)
     kind: ContentKind = ContentKind.OTHER
     depth: int | None = Field(default=1, ge=0, le=10)  # None: Automatic
@@ -248,6 +249,7 @@ class Setup:
             return {
                 "client_id": self.settings.active_client_id,
                 "name": self.settings.profile().name,
+                "reseed_link_root": self.settings.profile().reseed_link_root,
                 "default_client_id": (self._root or self).settings.default_client_id,
                 "clients": [
                     {"id": p.id, "name": p.name, "client": p.client, "enabled": p.enabled}
@@ -261,6 +263,8 @@ class Setup:
                     self.secrets.get(self.settings.secret_name(name + "-password"))
                 ),
                 "has_api_key": bool(self.secrets.get(self.settings.secret_name("qbit-api-key"))),
+                "has_proxy_password": bool(self.secrets.get("proxy-password")),
+                "has_announce_url": bool(self.secrets.get("announce-url")),
                 # Without adult content, XXX is left out of every picker (read-only here).
                 "indexer_categories": {
                     str(key): asdict(self.settings.indexer_categories[key])
@@ -542,18 +546,74 @@ class Setup:
         parent = str(path.parent) if any(path.parent.is_relative_to(r) for r in self.roots) else ""
         return {"path": str(path), "parent": parent, "folders": sorted(set(children))[:1000]}
 
+    def preview_folder(self, body: FolderSetup) -> dict[str, Any]:
+        """Read grouping examples without saving settings or contacting a client."""
+        from torrentlinker.item_detection import detect_items
+
+        root = self.path_under_root(body.local)
+        errors: list[str] = []
+        if body.depth is None:
+            found = [
+                (item.path, item.within)
+                for item in detect_items(
+                    root, body.kind, on_error=lambda path, error: errors.append(str(error))
+                )
+            ]
+        else:
+            # Fixed grouping needs names only, not recursive size calculation.
+            level = [root]
+            files: list[Path] = []
+            for _ in range(body.depth):
+                children: list[Path] = []
+                for path in level:
+                    self.path_under_root(str(path))
+                    try:
+                        children.extend(sorted(path.iterdir()))
+                    except OSError as error:
+                        errors.append(str(error))
+                level = []
+                for path in children:
+                    self.path_under_root(str(path), directory=False)
+                    (level if path.is_dir() else files).append(path)
+            found = [(path, None) for path in files + level]
+        for path, _within in found:
+            self.path_under_root(str(path), directory=False)
+        return {
+            "count": sum(within is None for _, within in found),
+            "episodes": sum(within is not None for _, within in found),
+            "items": [
+                {"name": path.name, "within": str(within) if within else None}
+                for path, within in found[:8]
+            ],
+            "errors": errors,
+        }
+
     def folder(
         self, body: FolderSetup, *, save: bool = False, probe: bool = False
     ) -> dict[str, Any]:
         with self.lock:
             local = self.path_under_root(body.local)
+            if (
+                body.original_local
+                and Path(body.original_local) != local
+                and self.store.verification_hashes()
+            ):
+                raise ValueError(
+                    "Finish pending Reseed Verifications before changing folder paths."
+                )
+            if body.original_local and not any(
+                str(f.path) == body.original_local for f in self.settings.library_folders
+            ):
+                raise ValueError("The Library Folder no longer exists. Reopen the dialog.")
             if body.purpose == "library" and not body.client_path.strip():
                 # Register readable storage independently of a Torrent Client connection.
                 with os.scandir(local) as entries:
                     next(entries, None)
                 if save:
                     self.settings.library_folders = [
-                        f for f in self.settings.library_folders if f.path != local
+                        f
+                        for f in self.settings.library_folders
+                        if f.path != local and str(f.path) != body.original_local
                     ] + [LibraryFolder(local, body.depth, body.kind)]
                     self.save()
                 return {

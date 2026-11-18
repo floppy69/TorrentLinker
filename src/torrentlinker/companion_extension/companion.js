@@ -15,8 +15,8 @@ async function update(action = "status") {
     : "No update received yet.";
   $("pause").disabled = !data.connected;
   $("pause").textContent = data.paused
-    ? "Resume automatic sync"
-    : "Pause automatic sync";
+    ? "Resume companion"
+    : "Pause companion";
   $("forget").disabled = !data.connected;
 }
 $("pause").onclick = () => update("pause");

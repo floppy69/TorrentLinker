@@ -9,18 +9,19 @@ from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
-    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
 from torrentlinker.domain import ContentKind, LibraryFolder
 from torrentlinker.gui.library_folder_dialog import grouping, grouping_box
 from torrentlinker.gui.settings_dialog import choose_directory, kind_label, offered_kinds
+from torrentlinker.gui.workspace_tabs import WorkspaceTabs
 from torrentlinker.scan import ScanError
 
 
@@ -197,13 +199,13 @@ class LibraryWorkspace(QWidget):
         super().__init__()
         self.owner = window
         self.scan_errors: list[ScanError] = []
+        self.scanned = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        heading = QLabel(self.tr("Explore your folders. Review Candidates. Verify before seeding."))
-        heading.setProperty("role", "muted")
-        layout.addWidget(heading)
-        self.sections = QTabWidget()
+        self.setProperty("ownsScrolling", True)
+        self.sections = WorkspaceTabs()
         self.sections.setObjectName("librarySections")
+        self.sections.setDocumentMode(True)
         layout.addWidget(self.sections)
         explorer = QWidget()
         body = QHBoxLayout(explorer)
@@ -223,7 +225,7 @@ class LibraryWorkspace(QWidget):
         self.rail.currentRowChanged.connect(self.select_folder)
         rail_layout.addWidget(self.rail)
         add = QPushButton(self.tr("Manage folders"))
-        add.clicked.connect(lambda: self.sections.setCurrentIndex(1))
+        add.clicked.connect(self.open_folders)
         rail_layout.addWidget(add)
         body.addWidget(rail)
         content = QWidget()
@@ -242,24 +244,21 @@ class LibraryWorkspace(QWidget):
         stack.addWidget(self.grip)
         stack.addWidget(window.review, 1)
         body.addWidget(content, 1)
+        self.explorer = explorer
         self.sections.addTab(explorer, self.tr("Local Items"))
-        self.editor = FolderEditor(
-            window.settings.library_folders, adult=window.settings.adult_content
+        from torrentlinker.gui.reseed_workspace import ReseedBoard
+
+        self.reseed = ReseedBoard(window)
+        self.sections.insertTab(1, self.reseed, self.tr("Reseed"))
+        self.sections.currentChanged.connect(
+            lambda _index: (
+                self.reseed.refresh() if self.sections.currentWidget() is self.reseed else None
+            )
         )
-        save = QPushButton(self.tr("Save folders"))
-        save.setProperty("role", "primary")
-        save.clicked.connect(self.save_folders)
-        editor_layout = self.editor.layout()
-        assert editor_layout is not None
-        editor_layout.addWidget(save)
-        self.sections.addTab(self.editor, self.tr("Folders"))
-        self.activity = QPlainTextEdit()
-        self.activity.setReadOnly(True)
-        self.activity.setMaximumBlockCount(300)
-        self.activity.setPlaceholderText(
-            self.tr("Scan, search and Verification progress appears here.")
-        )
-        self.sections.addTab(self.activity, self.tr("Activity"))
+        # The guided view owns navigation. Keep the advanced comparison tools in
+        # a dialog, rather than a second Library landing page.
+        self.sections.tabBar().hide()
+        self.sections.setCurrentWidget(self.reseed)
         self.items = items
         self.toolbar, self.matches = toolbar, matches
         window.review.expand_button.clicked.connect(self.expand_review)
@@ -268,9 +267,46 @@ class LibraryWorkspace(QWidget):
         window.statusBar().messageChanged.connect(self.record_activity)
         self.refresh()
 
+    def open_folders(self):
+        review = self.explorer.window()
+        if isinstance(review, QDialog):
+            review.accept()
+        self.sections.setCurrentWidget(self.reseed)
+        self.reseed.requested_tab = "folders"
+        self.reseed.refresh()
+
+    def open_review(self, path: str) -> None:
+        entry = next(
+            (e for e in self.owner.library_model.entries if str(e.item.path) == path), None
+        )
+        if entry is None:
+            raise ValueError("Scan the Library and select a current Local Item.")
+        dialog = QDialog(self)
+        dialog.setWindowTitle(self.tr("Compare files and repair"))
+        dialog.resize(1100, 760)
+        layout = QVBoxLayout(dialog)
+        index = self.sections.indexOf(self.explorer)
+        self.sections.removeTab(index)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self.explorer)
+        layout.addWidget(scroll)
+        self.explorer.show()
+        self.owner.review.set_entry(entry)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
+        scroll.takeWidget()
+        self.sections.insertTab(index, self.explorer, self.tr("Local Items"))
+        self.sections.setCurrentWidget(self.reseed)
+
     def record_activity(self, message: str) -> None:
         if message:
-            self.activity.appendPlainText(message)
+            import time
+
+            self.reseed.activity.append({"at": time.time(), "name": "", "message": message})
+            self.reseed.activity[:] = self.reseed.activity[-300:]
 
     def expand_review(self) -> None:
         expanded = not self.items.isHidden()
@@ -329,9 +365,6 @@ class LibraryWorkspace(QWidget):
 
     def set_scan_errors(self, errors: list[ScanError]) -> None:
         self.scan_errors = list(errors)
-        self.editor.set_scan_errors(errors)
+        self.scanned = True
+        self.reseed.scan_errors = [str(e.path) for e in errors]
         self.refresh()
-
-    def save_folders(self) -> None:
-        if self.owner.save_library_folders(self.editor.folders()):
-            self.sections.setCurrentIndex(0)

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from torrentlinker.config import Settings
 from torrentlinker.domain import ContentKind, LibraryFolder, PathMapping
 
@@ -61,13 +63,14 @@ def test_the_categories_chosen_for_plans_survive_a_save_and_load(tmp_path: Path)
     assert Settings.load(tmp_path / "settings.json").plan_categories == [2000, 7000]
 
 
-def test_plan_goal_and_both_limits_survive_a_save_and_load(tmp_path: Path) -> None:
+@pytest.mark.parametrize("goal", ["zen", "note"])
+def test_plan_goal_and_both_limits_survive_a_save_and_load(tmp_path: Path, goal: str) -> None:
     from torrentlinker.plan import PlanGoal, PlanOptions
     from torrentlinker.zen import GB
 
     settings = Settings()
     settings.plan_options = PlanOptions(
-        PlanGoal.NOTE, 25 * GB, 100, max_seeders=10, min_size=GB // 2, max_size=8 * GB
+        PlanGoal(goal), 25 * GB, 100, max_seeders=10, min_size=GB // 2, max_size=8 * GB
     )
     settings.save(tmp_path / "settings.json")
 
@@ -75,12 +78,19 @@ def test_plan_goal_and_both_limits_survive_a_save_and_load(tmp_path: Path) -> No
 
 
 def test_old_settings_default_to_zen_and_unlimited_plan_limits(tmp_path: Path) -> None:
-    from torrentlinker.plan import PlanOptions
+    from torrentlinker.plan import PlanGoal, PlanOptions
 
     path = tmp_path / "settings.json"
     path.write_text("{}")
 
-    assert Settings.load(path).plan_options == PlanOptions()
+    assert Settings.load(path).plan_options == PlanOptions(PlanGoal.ZEN)
+
+
+def test_new_settings_default_to_note(tmp_path: Path) -> None:
+    from torrentlinker.plan import PlanGoal
+
+    assert Settings().plan_options.goal is PlanGoal.NOTE
+    assert Settings.load(tmp_path / "new.json").plan_options.goal is PlanGoal.NOTE
 
 
 def test_the_excluded_plan_titles_survive_a_save_and_load(tmp_path: Path) -> None:

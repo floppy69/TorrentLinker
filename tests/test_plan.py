@@ -55,7 +55,7 @@ def test_greedy_keeps_the_best_of_several_orderings() -> None:
     # rare torrent pays more.
     candidates = [cand("big", 60, seeders=3), cand("small", 6, 3)]
 
-    plan = make_plan(KEEPER, candidates, {"A": int(60 * GB)})
+    plan = make_plan(KEEPER, candidates, {"A": int(60 * GB)}, options=PlanOptions(PlanGoal.ZEN))
 
     assert names(plan) == ["big"]
 
@@ -67,7 +67,7 @@ def test_note_and_zen_goals_can_select_different_torrents(reseed: bool) -> None:
         cand("high zen", 60, seeders=60, reseed=reseed),
     ]
 
-    zen = make_plan(KEEPER, candidates, {"A": 60 * GB}, slots=1)
+    zen = make_plan(KEEPER, candidates, {"A": 60 * GB}, slots=1, options=PlanOptions(PlanGoal.ZEN))
     contribution = make_plan(
         KEEPER, candidates, {"A": 60 * GB}, slots=1, options=PlanOptions(PlanGoal.NOTE)
     )
@@ -76,6 +76,51 @@ def test_note_and_zen_goals_can_select_different_torrents(reseed: bool) -> None:
     assert names(contribution) == ["high note"]
     assert contribution.average_note > zen.average_note
     assert zen.zen_added > contribution.zen_added
+
+
+def test_plan_average_note_and_zen_use_the_new_size_weights() -> None:
+    candidates = [cand("small", 1, seeders=200), cand("reference", 4, seeders=5)]
+
+    plan = make_plan(KEEPER, candidates, {"A": 5 * GB})
+
+    assert names(plan) == ["reference", "small"]
+    # Notes 1.0 and 1.35, weighted by 0.25 and 1.0 respectively.
+    assert plan.average_note == pytest.approx(1.28)
+    assert plan.zen_added == pytest.approx(1.6 / 7)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_note_prefers_smaller_downloads_when_initial_notes_tie(reverse: bool) -> None:
+    candidates = [cand("large", 4), cand("small-a", 1), cand("small-b", 1)]
+    if reverse:
+        candidates.reverse()
+
+    plan = make_plan(KEEPER, candidates, {"A": 4 * GB}, slots=2, options=PlanOptions(PlanGoal.NOTE))
+
+    assert [i.candidate.title for i in plan.items] == ["small-a", "small-b"]
+    assert [i.note for i in plan.items] == pytest.approx([1.35, 1.35])
+
+
+def test_note_ranks_individual_initial_scores_without_weight_or_seed_age() -> None:
+    candidates = [
+        cand("small lower note", 1, seeders=100),
+        cand("large high note", 10, seeders=1),
+        cand("huge lower note", 200, seeders=100),
+    ]
+    # Existing torrents' age and future age bonuses must not enter new scores.
+    seeding = [ZenTorrent(4 * GB, 5, seed_days=180)]
+
+    plan = make_plan(
+        KEEPER,
+        candidates,
+        {"A": 300 * GB},
+        seeding,
+        slots=1,
+        options=PlanOptions(PlanGoal.NOTE),
+    )
+
+    assert names(plan) == ["large high note"]
+    assert plan.items[0].note == 1.5
 
 
 @pytest.mark.parametrize("goal", [PlanGoal.ZEN, PlanGoal.NOTE])
@@ -156,9 +201,12 @@ def test_reseed_alternatives_are_filtered_before_choosing_the_best_match(
 
 
 @pytest.mark.parametrize("goal", [PlanGoal.ZEN, PlanGoal.NOTE])
-@pytest.mark.parametrize("size,count,expected", [(5, None, 5), (5, 1, 3), (0, 1, 9), (0, None, 14)])
+@pytest.mark.parametrize(
+    "size,count,zen_size,note_size",
+    [(5, None, 5, 5), (5, 1, 3, 2), (0, 1, 9, 2), (0, None, 14, 14)],
+)
 def test_download_and_optional_torrent_limits_apply_together(
-    goal: PlanGoal, size: int, count: int | None, expected: int
+    goal: PlanGoal, size: int, count: int | None, zen_size: int, note_size: int
 ) -> None:
     candidates = [cand("large", 9), cand("medium", 3, disk="B"), cand("small", 2)]
 
@@ -169,7 +217,7 @@ def test_download_and_optional_torrent_limits_apply_together(
         options=PlanOptions(goal, size * GB, count),
     )
 
-    assert plan.download_size == expected * GB
+    assert plan.download_size == (zen_size if goal is PlanGoal.ZEN else note_size) * GB
     assert count is None or len(plan.items) <= count
 
 
@@ -192,7 +240,7 @@ def test_reseeds_use_a_torrent_slot_but_no_download_or_disk_budget() -> None:
         KEEPER,
         candidates,
         {"A": 8 * GB},
-        options=PlanOptions(max_download_bytes=4 * GB, max_torrents=2),
+        options=PlanOptions(PlanGoal.ZEN, max_download_bytes=4 * GB, max_torrents=2),
         disk_spaces=spaces,
     )
 

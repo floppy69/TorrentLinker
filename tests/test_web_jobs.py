@@ -147,6 +147,106 @@ def test_browser_sessions_share_pending_refresh(tmp_path):
         assert finished(browser, blocking["id"])["status"] == "completed"
 
 
+def test_browser_reuses_running_and_queued_requests_with_the_same_parameters(tmp_path):
+    from torrentlinker.web.operations import Operations
+
+    entered, release = threading.Event(), threading.Event()
+    calls = []
+
+    class BlockingOperations(Operations):
+        def run(self, request, stop, progress):
+            if request.kind in {"scan", "check"}:
+                calls.append((request.kind, request.path))
+                if request.kind == "scan":
+                    entered.set()
+                    assert release.wait(5)
+                return {"path": request.path}
+            return super().run(request, stop, progress)
+
+    root = tmp_path / "library"
+    root.mkdir()
+    with TestClient(
+        create_app(
+            tmp_path / "config",
+            password="test-password-long",
+            roots=(root,),
+            connector=lambda *args: Client(),
+            operation_factory=BlockingOperations,
+            monitor_verifications=False,
+        )
+    ) as browser:
+        login(browser)
+        assert browser.post(
+            "/api/setup/client", json={"client": "deluge", "host": "https://box.example"}
+        ).is_success
+        assert browser.post(
+            "/api/setup/folder", json={"local": str(root), "client_path": str(root)}
+        ).is_success
+
+        def submit(body):
+            response = browser.post("/api/jobs", json=body)
+            assert response.status_code == 202, response.text
+            return response.json()["id"]
+
+        try:
+            scan = submit({"kind": "scan"})
+            assert entered.wait(2)
+            assert submit({"kind": "scan", "client_id": "default", "cached_only": False}) == scan
+            first = submit({"kind": "check", "path": str(root / "a")})
+            assert submit({"path": str(root / "a"), "kind": "check"}) == first
+            second = submit({"kind": "check", "path": str(root / "b")})
+            assert len({scan, first, second}) == 3
+        finally:
+            release.set()
+        for identifier in (scan, first, second):
+            assert finished(browser, identifier)["status"] == "completed"
+        again = submit({"kind": "scan"})
+        assert again != scan
+        assert finished(browser, again)["status"] == "completed"
+        assert calls == [
+            ("scan", ""),
+            ("check", str(root / "a")),
+            ("check", str(root / "b")),
+            ("scan", ""),
+        ]
+
+
+def test_pending_confirmed_delete_is_reused_without_replaying_confirmation(tmp_path):
+    class DeletingClient(Client):
+        def remove(self, infohash, *, delete_files=False):
+            self.started.set()
+            assert self.release.wait(5)
+            self.paused.append((infohash, delete_files))
+
+    client = DeletingClient()
+    with TestClient(
+        create_app(
+            tmp_path,
+            password="test-password-long",
+            connector=lambda *args: client,
+            monitor_verifications=False,
+        )
+    ) as browser:
+        login(browser)
+        browser.post("/api/setup/client", json={"client": "deluge", "host": "https://box.example"})
+        body = {"kind": "manage", "action": "delete", "hashes": ["a" * 40]}
+        body["confirmation"] = browser.post("/api/confirm", json=body).json()["token"]
+        first = browser.post("/api/jobs", json=body)
+        assert first.status_code == 202
+        try:
+            assert client.started.wait(2)
+            repeated = browser.post("/api/jobs", json=body)
+            assert repeated.status_code == 202
+            assert repeated.json()["id"] == first.json()["id"]
+            # A matching target without the token is still unauthorized.
+            assert browser.post("/api/jobs", json={**body, "confirmation": ""}).status_code == 409
+        finally:
+            client.release.set()
+        assert finished(browser, first.json()["id"])["status"] == "completed"
+        assert client.paused == [("a" * 40, True)]
+        assert browser.post("/api/jobs", json=body).status_code == 409
+
+
 def test_delete_requires_a_single_use_confirmation_bound_to_selected_torrents(tmp_path: Path):
     class DeletingClient(Client):
         def remove(self, hash, *, delete_files=False):

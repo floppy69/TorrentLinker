@@ -68,9 +68,22 @@ class Library:
                     )
                 self.setup.path_under_root(str(child), directory=False)
 
-    def scan(self, stop: threading.Event, progress: Callable[[Any], None]) -> dict:
+    def scan(
+        self,
+        stop: threading.Event,
+        progress: Callable[[Any], None],
+        folders: list[str] | None = None,
+    ) -> dict:
+        selected = self.setup.settings.library_folders
+        if folders is not None:
+            registered = {str(f.path) for f in selected}
+            if not folders or not set(folders) <= registered:
+                raise ValueError("Choose registered Library Folders to scan.")
+            selected = [f for f in selected if str(f.path) in folders]
+        selected_paths = {f.path for f in selected}
+        previous = list(self.entries)
         unavailable = {}
-        for folder in self.setup.settings.library_folders:
+        for folder in selected:
             if stop.is_set():
                 return {"cancelled": True}
             try:
@@ -86,13 +99,27 @@ class Library:
         client_unavailable = False
         try:
             torrents = indexer_contents(
-                self.client(), self.setup.store, self.setup.settings.indexer.url
+                self.client(),
+                self.setup.store,
+                self.setup.settings.indexer.url,
+                stop=stop,
+                progress=lambda done, total, rate: progress(
+                    {
+                        "stage": "client-files",
+                        "done": done,
+                        "total": total,
+                        "requests_per_second": round(rate, 2),
+                    }
+                ),
             )
         except Exception:
             torrents = []
             client_unavailable = True
         result = LibraryResult()
-        for folder in self.setup.settings.library_folders:
+        retained_paths = {f.path for f in self.setup.settings.library_folders} - selected_paths
+        result.extend(e for e in previous if e.folder.path in retained_paths)
+        scanned_paths: set[Path] = set()
+        for folder in selected:
             if stop.is_set():
                 return {"cancelled": True}
             if folder.path in unavailable:
@@ -108,7 +135,22 @@ class Library:
                 )
                 result.extend(scanned)
                 result.errors.extend(scanned.errors)
-            progress({"items": len(result), "folder": str(folder.path)})
+            scanned_paths.add(folder.path)
+            published = (
+                [replace(e, state=ItemState.UNKNOWN) for e in result]
+                if client_unavailable
+                else list(result)
+            )
+            self.entries = published + [
+                e for e in previous if e.folder.path in selected_paths - scanned_paths
+            ]
+            progress(
+                {
+                    "items": len(result),
+                    "folder": str(folder.path),
+                    "discovered": [str(e.item.path) for e in published if e.folder == folder],
+                }
+            )
         if stop.is_set():
             return {"cancelled": True}
         if client_unavailable:

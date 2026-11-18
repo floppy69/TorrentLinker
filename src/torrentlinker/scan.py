@@ -79,6 +79,8 @@ def scan(
 
 def _entries_at_depth(root: Path, depth: int, result: ScanResult) -> list[Path]:
     """Entries `depth` levels below root; a file met earlier is an entry on its own."""
+    if depth == 0:
+        return [root]
     found: list[Path] = []
     level = [root]
     for remaining in range(depth, 0, -1):

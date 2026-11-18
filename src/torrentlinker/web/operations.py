@@ -80,6 +80,7 @@ class JobRequest(BaseModel):
         "check-candidate",
         "search-library",
         "reseed",
+        "reseed-workspace",
         "preview-unpack",
         "unpack-reseed",
         "check-all",
@@ -120,7 +121,7 @@ class JobRequest(BaseModel):
     maximum_bytes: int = Field(default=0, ge=0)
     maximum_torrents: int = Field(default=20, ge=1, le=1_000_000)
     limit_torrents: bool = True
-    plan_goal: PlanGoal = PlanGoal.ZEN
+    plan_goal: PlanGoal = PlanGoal.NOTE
     max_seeders: int | None = Field(default=None, ge=0)
     min_size: int = Field(default=0, ge=0)
     max_size: int = Field(default=0, ge=0)
@@ -141,7 +142,9 @@ class JobRequest(BaseModel):
     repair_id: str = Field(default="", max_length=64)
     torrent_data: str = Field(default="", max_length=12_000_000)
     candidate_key: str = Field(default="", max_length=4096)
-    paths: list[str] = Field(default_factory=list, max_length=1000)
+    paths: list[str] = Field(default_factory=list, max_length=10000)
+    reseed_action: Literal["all", "find", "compare", "prepare", "verify", "seed", "refresh"] = "all"
+    link_root: str = Field(default="", max_length=4096)
     client_path: str = Field(default="", max_length=4096)
     query: str = Field(default="", max_length=500)
     page: int = Field(default=1, ge=1, le=10000)
@@ -161,6 +164,8 @@ class JobRequest(BaseModel):
 
     @model_validator(mode="after")
     def valid_plan_range(self) -> JobRequest:
+        if self.kind != "reseed-workspace" and len(self.paths) > 1000:
+            raise ValueError("Select at most 1000 paths for this operation.")
         if self.kind == "plan" and self.max_size and self.min_size > self.max_size:
             raise ValueError("Minimum torrent size must not exceed maximum torrent size.")
         return self
@@ -185,6 +190,9 @@ class Operations:
     def __init__(self, setup: Setup):
         self.setup = setup
         self.library = Library(setup)
+        from torrentlinker.reseed_workspace import ReseedWorkspace
+
+        self.reseed_workspace = ReseedWorkspace(self.library)
         from torrentlinker.web.plan_session import PlanSession
 
         self.planner = PlanSession(setup, self.library)
@@ -475,6 +483,15 @@ class Operations:
         self, request: JobRequest, stop: threading.Event, progress: Callable[[Any], None]
     ) -> Any:
         self.validate(request)
+        if request.kind == "reseed-workspace":
+            return self.reseed_workspace.run(
+                request.paths,
+                request.reseed_action,
+                request.link_root,
+                stop,
+                progress,
+                request.candidate_key,
+            )
         if request.kind == "edit-queue-selection":
             if request.queue_action == "retry":
                 destinations = self.download_destinations()
@@ -684,7 +701,7 @@ class Operations:
         if request.kind == "search-options":
             return self.search_options(request.category)
         if request.kind == "scan":
-            return self.library.scan(stop, progress)
+            return self.library.scan(stop, progress, request.paths or None)
         if request.kind == "diagnose-repair":
             from torrentlinker.review import candidate_key, remembered_candidates
 

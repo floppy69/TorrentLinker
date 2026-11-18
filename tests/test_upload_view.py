@@ -339,7 +339,7 @@ def test_the_library_offers_an_upload_once_searched_without_a_match(qtbot, tmp_p
     assert button.isEnabled()
     button.click()
 
-    assert window.tabs.currentWidget() is window.upload_tab
+    assert window.tabs.currentWidget() is window.upload_workspace
     assert window.upload_tab.entry == vise
 
 

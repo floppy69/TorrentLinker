@@ -4,14 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TorrentLinker {{ app_version }}</title>
+    <link rel="icon" href="static/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="static/panel/base.css" />
     <link rel="stylesheet" href="static/app.css" />
     <link rel="stylesheet" href="static/media.css" />
     <link rel="stylesheet" href="static/library.css" />
+    <link rel="stylesheet" href="static/reseed.css" />
     <script src="static/app.js" defer></script>
     <script src="static/categories.js" defer></script>
     <script src="static/library.js" defer></script>
+    <script src="static/reseed.js" defer></script>
     <script src="static/zen.js" defer></script>
     <script src="static/profile.js" defer></script>
+    <script src="static/community.js" defer></script>
     <script src="static/plan.js" defer></script>
     <script src="static/feeds.js" defer></script>
     <script src="static/search.js" defer></script>
@@ -19,10 +24,11 @@
     <script src="static/assistant_cards.js" defer></script>
     <script src="static/media.js" defer></script>
     <script src="static/uploads.js" defer></script>
+    <script src="static/upload-workspace.js" defer></script>
   </head>
   <body>
     <section id="login-screen" class="welcome">
-      <div class="brandmark">TL</div>
+      <img class="brandmark" src="static/favicon.svg" alt="" width="64" height="64" />
       <h1>TorrentLinker</h1>
       <p data-i18n="welcome">Your torrents, wherever they live.</p>
       <form id="login-form" class="card">
@@ -43,7 +49,7 @@
       <aside class="sidebar" id="app-sidebar">
         <button id="navigation-close" class="quiet" type="button" data-i18n="closeNavigation">Close navigation</button>
         <a class="brand" href="#torrents"
-          ><span class="brandmark small">TL</span> TorrentLinker</a
+          ><img class="brandmark small" src="static/favicon.svg" alt="" width="32" height="32" /> TorrentLinker</a
         >
         <nav aria-label="Main navigation">
           <button data-view="torrents" data-i18n="torrents">Torrents</button
@@ -183,7 +189,7 @@
                     id="client-password"
                     type="password"
                     autocomplete="new-password"
-                    placeholder="Leave blank to keep saved password"
+                    placeholder="Not saved"
                 /></label>
               </div>
               <details>
@@ -230,6 +236,14 @@
                 </button>
               </div>
             </form>
+            <details id="reseed-folder-settings">
+              <summary data-en="Reseed link folder (optional)" data-fr="Dossier de liens pour la remise en seed (facultatif)">Reseed link folder (optional)</summary>
+              <p data-en="Used by the Reseed board for all clients. Choose a folder outside the Library, accessible to this client, and keep the links while seeding. qBittorrent can also reseed from Local Items without this folder." data-fr="Utilisé par le tableau de remise en seed pour tous les clients. Choisissez un dossier hors bibliothèque, accessible à ce client, et conservez les liens pendant le seed. qBittorrent peut aussi remettre en seed depuis les éléments locaux sans ce dossier.">Used by the Reseed board for all clients. Choose a folder outside the Library, accessible to this client, and keep the links while seeding. qBittorrent can also reseed from Local Items without this folder.</p>
+              <form id="reseed-folder-form">
+                <label><span data-en="Link folder" data-fr="Dossier de liens">Link folder</span><div class="actions"><input id="reseed-root" placeholder="/media/reseed-links" autocomplete="off"><button id="reseed-browse" type="button" data-en="Browse…" data-fr="Parcourir…">Browse…</button></div></label>
+                <button type="submit" data-en="Save link folder" data-fr="Enregistrer le dossier de liens">Save link folder</button>
+              </form>
+            </details>
             <div id="client-result" class="result" role="status"></div>
             <button id="client-partial-names" type="button" class="primary" data-i18n="turnOffPartialNames" hidden>Turn it off in Transmission and try again</button>
           </section>
@@ -508,37 +522,10 @@
             <button id="zen-seeding-tab" role="tab" aria-selected="true" aria-controls="zen-seeding-panel" data-i18n="seedingTab">Seeding</button>
             <button id="zen-plan-tab" role="tab" aria-selected="false" aria-controls="zen-plan-panel" tabindex="-1" data-i18n="planTab">Plan</button>
             <button id="zen-catalogue-tab" role="tab" aria-selected="false" aria-controls="zen-catalogue-panel" tabindex="-1" data-i18n="catalogueTab">Catalogue</button>
+            <button id="zen-community-tab" role="tab" aria-selected="false" aria-controls="zen-community-panel" tabindex="-1">Community</button>
           </div>
-          <section id="zen-profile-panel" role="tabpanel" aria-labelledby="zen-profile-tab">
-            <p id="profile-notice" role="status"></p>
-            <section id="profile-header" class="pf-panel pf-identity" aria-labelledby="profile-username">
-              <div id="profile-avatar" class="pf-avatar" aria-hidden="true">?</div>
-              <div class="pf-who">
-                <h2 id="profile-username"></h2>
-                <div id="profile-meta" class="pf-meta"></div>
-                <div id="profile-badges" class="pf-pills"></div>
-              </div>
-              <div class="pf-actions">
-                <div id="profile-period" class="pf-seg" role="group" aria-label="Period">
-                  <button type="button" data-days="7" aria-pressed="false">7 d</button><button type="button" data-days="30" aria-pressed="true">30 d</button><button type="button" data-days="90" aria-pressed="false">90 d</button><button type="button" data-days="0" aria-pressed="false">All</button>
-                </div>
-                <button id="profile-refresh" class="primary" type="button">Refresh</button>
-              </div>
-            </section>
-            <section id="profile-tiles" class="pf-kpis" aria-label="Key figures"></section>
-            <section class="pf-charts">
-              <div id="profile-volumes" class="pf-panel"></div>
-              <div id="profile-zen-chart" class="pf-panel"></div>
-            </section>
-            <section class="pf-grid2">
-              <div id="profile-progression" class="pf-panel"></div>
-              <div id="profile-zen" class="pf-panel"></div>
-              <div id="profile-transfers" class="pf-panel"></div>
-              <div id="profile-seeding" class="pf-panel" aria-live="polite"></div>
-              <div id="profile-sync" class="pf-panel pf-wide"></div>
-            </section>
-            <p id="profile-privacy" class="muted"></p>
-          </section>
+          <section id="zen-community-panel" role="tabpanel" aria-labelledby="zen-community-tab" hidden></section>
+          <section id="zen-profile-panel" role="tabpanel" aria-labelledby="zen-profile-tab"></section>
           <section id="zen-catalogue-panel" class="card" role="tabpanel" aria-labelledby="zen-catalogue-tab" hidden>
             <h2 data-i18n="catalogueTab">Catalogue</h2>
             <p id="catalogue-status" role="status"></p>
@@ -584,13 +571,14 @@
             <form id="plan-form">
             <div class="form-grid">
               <label><span data-i18n="planCategory">Category / subcategory</span><select id="plan-category" multiple size="5"><option value="" data-i18n="allCategories">All categories</option></select></label>
-              <label><span data-i18n="optimizeFor">Optimize for</span><select id="plan-goal"><option value="zen" data-i18n="zenPerDay">≈ Zen/day</option><option value="note">Note</option></select></label>
+              <label><span data-i18n="optimizeFor">Optimize for</span><select id="plan-goal"><option value="note">Note</option><option value="zen" data-i18n="zenPerDay">≈ Zen/day</option></select></label>
               <label><span data-i18n="maxGiB">Download budget, GiB</span><input id="plan-budget" type="number" value="10" min="0" step="any" required /></label>
               <label><span><input id="plan-limit-count" type="checkbox" checked /><span data-i18n="maxTorrents">Maximum torrents</span></span><input id="plan-count" type="number" value="100" min="1" max="1000000" required /></label>
               <label><span><input id="plan-limit-seeders" type="checkbox" /><span data-i18n="maxSeeders">Maximum seeders</span></span><input id="plan-seeders" type="number" value="10" min="0" required disabled /></label>
               <label><span data-i18n="minTorrentGiB">Minimum torrent size, GiB</span><input id="plan-min-size" type="number" value="0" min="0" step="any" required /></label>
               <label><span data-i18n="maxTorrentGiB">Maximum torrent size, GiB</span><input id="plan-max-size" type="number" value="0" min="0" step="any" required /></label>
             </div>
+            <p class="muted" data-i18n="planNoteHelp">Note prioritizes each torrent's initial score, without a seed-age bonus. Equal scores prefer smaller downloads. Zen/day maximizes estimated earnings.</p>
             <p class="muted" data-i18n="planZeroHelp">A budget or maximum size of 0 means no additional limit. Available disk space still applies to the plan.</p>
             <p class="muted" data-i18n="planReseedHelp">Checked Full Matches from the Library are included as Reseeds for a single destination without a client budget. They use no download budget. Size, seeder and torrent limits still apply.</p>
             <div class="toolbar"><button id="refresh-profile" class="quiet" type="button" data-i18n="refreshProfile">Refresh profile</button><button id="plan-folders" type="button" data-i18n="planFolders">Category folders…</button><button id="plan" type="submit" class="primary" data-i18n="buildPlan">Build plan</button><button id="plan-now" type="button" hidden data-i18n="planNow">Stop fetching and plan now</button></div>
@@ -722,7 +710,7 @@
         </section>
         <section id="view-library" class="view" hidden>
           <p class="muted" data-en="Explore your folders. Review Candidates. Verify before seeding." data-fr="Parcourir les dossiers. Comparer les candidats. Vérifier avant de seeder.">Explore your folders. Review Candidates. Verify before seeding.</p>
-          <nav class="library-nav" aria-label="Library sections"><button data-library-tab="items" aria-pressed="true" data-en="Local Items" data-fr="Éléments locaux">Local Items</button><button data-library-tab="folders" aria-pressed="false" data-en="Folders" data-fr="Dossiers">Folders</button><button data-library-tab="activity" aria-pressed="false" data-en="Activity" data-fr="Activité">Activity</button></nav>
+          <nav class="library-nav" aria-label="Library sections"><button data-library-tab="items" aria-pressed="true" data-en="File inspection" data-fr="Inspection des fichiers">File inspection</button><button data-library-tab="reseed" aria-pressed="false" data-en="Reseed" data-fr="Remise en seed">Reseed</button><button data-library-tab="folders" aria-pressed="false" data-en="Folders" data-fr="Dossiers">Folders</button><button data-library-tab="activity" aria-pressed="false" data-en="Activity" data-fr="Activité">Activity</button></nav>
           <div id="library-items" class="library-explorer">
             <aside class="library-rail"><h3 data-en="Library Folders" data-fr="Dossiers de bibliothèque">Library Folders</h3><div id="library-folders"></div><button id="library-manage-folders" data-en="Manage folders" data-fr="Gérer les dossiers">Manage folders</button></aside>
             <div class="library-main">
@@ -739,8 +727,16 @@
               <p id="library-empty-review" class="muted" data-en="Select a Local Item to review its Candidates." data-fr="Sélectionnez un élément local pour examiner ses candidats.">Select a Local Item to review its Candidates.</p>
             </div>
           </div>
-          <div id="library-folder-manager" hidden><h2 data-en="Library Folders" data-fr="Dossiers de bibliothèque">Library Folders</h2><p data-en="Browse folders on the TorrentLinker server. Your browser computer’s folders are not available here unless mounted on the server." data-fr="Parcourez les dossiers du serveur TorrentLinker. Ceux de l’ordinateur du navigateur doivent être montés sur le serveur pour être accessibles.">Browse folders on the TorrentLinker server. Your browser computer’s folders are not available here unless mounted on the server.</p><p class="muted" data-en="Register folders here. Download destinations and Path Mappings are configured separately in Settings." data-fr="Enregistrez les dossiers ici. Les destinations de téléchargement et les correspondances de chemins se règlent séparément dans les paramètres.">Register folders here. Download destinations and Path Mappings are configured separately in Settings.</p><div id="library-folder-list"></div><form id="library-folder-form" class="card"><h3 id="library-folder-form-title" data-en="Add a Library Folder" data-fr="Ajouter un dossier de bibliothèque">Add a Library Folder</h3><label><span data-en="Folder on the TorrentLinker server" data-fr="Dossier du serveur TorrentLinker">Folder on the TorrentLinker server</span><div class="actions"><input id="library-folder-path" required placeholder="/media/Films" /><button id="library-folder-browse" type="button" data-en="Browse…" data-fr="Parcourir…">Browse…</button></div></label><div class="form-grid"><label><span data-en="Content Kind" data-fr="Type de contenu">Content Kind</span><select id="library-folder-kind"><option value="other" data-en="Other" data-fr="Autre">Other</option><option value="movie" data-en="Movie" data-fr="Films">Movie</option><option value="series" data-en="TV" data-fr="Séries">TV</option><option value="ebook" data-en="Ebook" data-fr="Livres numériques">Ebook</option><option value="music" data-en="Music" data-fr="Musique">Music</option><option value="3d-model" data-en="3D models" data-fr="Modèles 3D">3D models</option><option value="adult" data-adult hidden>XXX</option></select></label><label><span data-en="Scan grouping" data-fr="Regroupement des éléments">Scan grouping</span><select id="library-folder-depth"><option value="auto" selected data-en="Automatic: find releases, season packs and their episodes" data-fr="Automatique : trouver les sorties, packs de saison et leurs épisodes">Automatic: find releases, season packs and their episodes</option><option value="0" data-en="This folder is one Local Item" data-fr="Ce dossier est un élément local">This folder is one Local Item</option><option value="1" data-en="Each direct child is one Local Item" data-fr="Chaque enfant direct est un élément local">Each direct child is one Local Item</option><option value="2" data-en="Group two levels below this folder" data-fr="Regrouper deux niveaux sous ce dossier">Group two levels below this folder</option><option value="3" data-en="Group three levels below this folder" data-fr="Regrouper trois niveaux sous ce dossier">Group three levels below this folder</option><option value="4" data-en="Group four levels below this folder" data-fr="Regrouper quatre niveaux sous ce dossier">Group four levels below this folder</option><option value="5" data-en="Group five levels below this folder" data-fr="Regrouper cinq niveaux sous ce dossier">Group five levels below this folder</option></select></label></div><div class="actions"><button class="primary" data-en="Save folder" data-fr="Enregistrer le dossier">Save folder</button><button type="button" id="library-folder-new" data-en="New folder" data-fr="Nouveau dossier">New folder</button></div><p id="library-folder-feedback" role="status"></p></form></div>
-          <div id="library-activity" hidden><h2 data-en="Library activity" data-fr="Activité de la bibliothèque">Library activity</h2><p data-en="Searches and scans run on the server. Use Cancel to stop an active job." data-fr="Les recherches et analyses tournent sur le serveur. Annuler arrête une tâche active.">Searches and scans run on the server. Use Cancel to stop an active job.</p><div id="library-job-list"></div></div>
+          <section id="library-reseed" hidden aria-label="Reseed workspace">
+            <div class="reseed-heading"><div><h2 data-en="Reseed" data-fr="Remise en seed">Reseed</h2><p data-en="Find torrents, verify their content and share." data-fr="Retrouvez les torrents, vérifiez leur contenu et partagez.">Find torrents, verify their content and share.</p></div><div class="actions"><button id="reseed-refresh" data-en="Refresh" data-fr="Actualiser">Refresh</button><button id="reseed-scan" data-en="Scan folders" data-fr="Analyser les dossiers">Scan folders</button><button id="reseed-run-all" class="primary" data-en="Run all steps" data-fr="Tout enchaîner">Run all steps</button></div></div>
+            <div class="actions"><span id="reseed-root-status" class="muted"></span><button id="reseed-settings" type="button" data-en="Client settings" data-fr="Paramètres du client">Client settings</button></div>
+            <div class="reseed-toolbar"><input id="reseed-query" type="search" aria-label="Filter reseed items" placeholder="Filter…" data-placeholder-en="Filter items…" data-placeholder-fr="Filtrer les éléments…"><div class="actions"><span id="reseed-selection"></span><button id="reseed-select-visible" data-en="Select visible" data-fr="Sélectionner les éléments visibles">Select visible</button><button id="reseed-run-selected" data-en="Run selected" data-fr="Enchaîner la sélection">Run selected</button></div></div>
+            <section id="reseed-progress" class="reseed-run" aria-label="Reseed progress" hidden><div class="reseed-run-controls"><strong id="reseed-progress-text" role="status"></strong><div id="reseed-run-buttons" class="actions"><button id="reseed-pause">Pause</button><button id="reseed-stop" data-en="Stop" data-fr="Arrêter">Stop</button></div></div><progress id="reseed-meter" value="0" max="1" aria-label="Items processed"></progress><p id="reseed-current"></p><small data-en="Pause stops between operations. A client hash check may finish while paused. Completed steps are kept." data-fr="La pause prend effet entre les opérations. Une vérification du client peut se terminer pendant la pause. Les étapes terminées sont conservées.">Pause stops between operations. A client hash check may finish while paused. Completed steps are kept.</small></section>
+            <p id="reseed-empty" data-en="Scan your Library Folders to begin." data-fr="Analysez vos dossiers de bibliothèque pour commencer.">Scan your Library Folders to begin.</p>
+            <div id="reseed-board" class="reseed-board" aria-label="Reseed stages"></div>
+          </section>
+          <dialog id="reseed-details" aria-label="Reseed details"><div id="reseed-detail-content"></div></dialog>
+
         </section>
         <section id="view-upload" class="view" hidden>
           <header class="upload-heading"><div><p class="muted" data-en="Prepare locally. Review. Send to c411." data-fr="Préparer localement. Relire. Envoyer à c411.">Prepare locally. Review. Send to c411.</p></div><button id="upload-new" class="primary" data-en="New draft" data-fr="Nouveau brouillon">New draft</button></header>

@@ -51,6 +51,9 @@ class UploadForm(BaseModel):
             )
         return values
 
+    manual_source: bool = False
+    workflow_step: int = Field(default=1, ge=1, le=5)
+    existing_reviewed: bool = False
     category: int | None = None
     subcategory: int | None = None
     source: str = Field(default="", max_length=200)
@@ -74,7 +77,11 @@ class Uploads:
     def prepare(
         self, path: str, form: UploadForm, stop: threading.Event, *, stored: bool = False
     ) -> tuple[UploadRequest, dict[str, Any]]:
-        if stored:
+        if form.manual_source:
+            from torrentlinker.domain import ContentKind
+
+            content_kind = ContentKind.OTHER
+        elif stored:
             folder = next(
                 (
                     f

@@ -1,0 +1,24 @@
+.reseed-heading,.reseed-toolbar,.reseed-run-controls {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.reseed-heading h2 {margin:12px 0 4px}.reseed-heading p {margin:0 0 14px;color:var(--muted)}
+.reseed-principle {padding:14px 18px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;background:var(--panel);margin:12px 0}
+.reseed-toolbar {margin:16px 0}.reseed-toolbar input {max-width:360px;min-width:0}.reseed-toolbar label {display:flex;gap:10px;align-items:center}
+.reseed-board {display:grid;grid-template-columns:repeat(6,minmax(150px,1fr));gap:12px;overflow:auto;max-width:100%;padding:4px 2px 18px;align-items:start;min-height:350px}
+.reseed-lane {--lane:#63a4d0;border:1px solid var(--line);border-top:3px solid var(--lane);border-radius:12px;background:var(--panel);min-height:330px;padding:12px}
+.reseed-lane[data-stage=candidates]{--lane:#55bcb9}.reseed-lane[data-stage=links]{--lane:#5cc9a5}.reseed-lane[data-stage=verify]{--lane:#72bf80}.reseed-lane[data-stage=incomplete]{--lane:#d5a449}.reseed-lane[data-stage=seeding]{--lane:#60bd67}
+.reseed-lane h3 {font-size:14px;display:flex;align-items:center;justify-content:space-between;margin:2px 0 5px}.reseed-lane h3 span {color:var(--lane);font-variant-numeric:tabular-nums}
+.reseed-lane>p {font-size:12px;color:var(--muted);min-height:36px;margin:0 0 15px}.reseed-card {padding:13px 11px;margin:10px 0;border:1px solid var(--line);border-radius:9px;background:var(--bg);overflow-wrap:anywhere}
+.reseed-card:focus-within {outline:2px solid var(--accent)}.reseed-card label {display:flex;flex-direction:row;gap:8px;align-items:flex-start;font-weight:600;font-size:13px}.reseed-card input {width:auto;margin-top:4px}
+.reseed-card p {font-size:12px;color:var(--muted);margin:8px 0}.reseed-card button {font-size:12px;padding:5px 9px;max-width:100%}.reseed-card .reseed-error {color:var(--danger)}
+.reseed-card.is-active {border-color:var(--lane);box-shadow:0 0 0 2px color-mix(in srgb,var(--lane) 25%,transparent);animation:reseed-pulse 1.5s ease-in-out infinite}
+.reseed-run {position:sticky;top:8px;z-index:3;background:var(--panel);border:1px solid var(--accent);border-radius:12px;padding:14px 18px;margin:12px 0;box-shadow:var(--shadow)}
+.reseed-run progress {width:100%;height:7px;accent-color:var(--accent)}.reseed-run p {margin:6px 0;overflow-wrap:anywhere}.reseed-run small {color:var(--muted)}
+#reseed-details {width:min(780px,calc(100vw - 32px));max-height:85vh;overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:24px}
+#reseed-details::backdrop {background:#0008}#reseed-details pre {white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:12px;border-radius:8px;font-size:12px}
+#reseed-details .actions {position:sticky;bottom:0;background:var(--panel);padding:12px 0 0}
+@keyframes reseed-pulse {50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--lane) 12%,transparent)}}
+@media(prefers-reduced-motion:reduce){.reseed-card.is-active {animation:none}}
+@media(max-width:600px){.reseed-board{grid-template-columns:repeat(6,minmax(250px,85vw))}.reseed-toolbar input{width:100%}.reseed-run-controls{align-items:flex-start}.reseed-heading .actions{width:100%}}
+
+#view-library .library-nav [aria-pressed="true"] {color:var(--ink);background:var(--tint)}
+
+#reseed-root {flex:1;min-width:150px}

@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
+from torrentlinker.community import message_library
 from torrentlinker.companion_downloads import MAX_RESULT
 from torrentlinker.domain import Torrent
 from torrentlinker.profile import ProfileError
@@ -40,7 +41,7 @@ async def companion_request(request: Request, route: str, setup: Setup) -> Respo
         raw = b""
         async for chunk in request.stream():
             raw += chunk
-            if len(raw) > (MAX_RESULT if route == "/api/companion/result" else 8192):
+            if len(raw) > (MAX_RESULT if route == "/api/companion/result" else 65536):
                 raise ValueError("Request too large.")
         body = json.loads(raw)
         if not isinstance(body, dict):
@@ -79,6 +80,24 @@ def profile_routes(app: FastAPI, setup: Setup, torrent_clients: TorrentClients) 
         workspace = setup.profile_workspace()
         state = workspace.state()
         return {**state, "overview": overview(state, workspace.history_days(), days, date.today())}
+
+    @app.get("/api/community")
+    def community_state():
+        try:
+            return setup.profile_workspace().community_state()
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from error
+
+    @app.get("/api/community/messages")
+    def community_messages():
+        return {"entries": message_library()}
+
+    @app.post("/api/community/{operation}")
+    def community_update(operation: str, body: dict[str, Any]):
+        try:
+            return setup.profile_workspace().community_update(operation, body)
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from error
 
     @app.post("/api/zen/profile/session-downloads")
     def session_downloads(body: SessionDownloads, days: int = Period):

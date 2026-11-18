@@ -1,8 +1,14 @@
 # Préparer un upload c411
 
-L’onglet Upload s’ouvre sur les **Brouillons locaux**, avec une liste filtrable à côté de l’éditeur. Choisissez **Nouveau brouillon** pour préparer un élément de la Bibliothèque. Enregistrez localement, puis complétez les sections **Détails**, **Fichiers et NFO**, **Description**, **Illustration** et **Relecture**. L’envoi est disponible uniquement dans **Relecture**, après enregistrement et confirmation de la version actuelle. Toute modification efface cette confirmation. La vue **Brouillons c411** liste les brouillons distants ; la publication finale reste sur c411.
+Upload reprend la même liste et le panneau d’inspection sur bureau et Web, avec **Sources**, **Brouillons** et **Suivi**. Les sources suggèrent les éléments de la Bibliothèque sans candidat ou dont les candidats ont été écartés. Ce sont des pistes à examiner, pas une preuve d’absence sur le site. Vous pouvez aussi choisir un fichier ou un dossier manuellement. Sur le Web, le sélecteur parcourt le stockage du serveur.
 
-Sur le bureau, **Ouvrir les outils 3D…** dans Illustration ouvre la préparation du même brouillon. Enregistrez pour le mettre à jour. L’interface web conserve ces outils dans Illustration. Le menu **⋯** regroupe les actions du brouillon.
+Les étapes sont **Sources → Vérifier l’existant → Préparer → Présentation → Révision → Envoyer et suivre**. Enregistrez le brouillon, relisez la version enregistrée puis confirmez chaque envoi à c411. Une modification invalide cette relecture. La publication finale reste sur c411. Un envoi incertain doit être vérifié sur le site avant de réessayer.
+
+Dans Présentation, **Ajouter une image** ouvre Postimages. Choisissez et hébergez votre image sur cette page ; le lien direct retourné est intégré à la présentation à l’enregistrement. Autorisez la fenêtre surgissante. Si l’hébergement échoue, la description est conservée et vous pouvez réessayer ou coller un lien direct. Les images sont envoyées à cet hébergeur lorsque vous les choisissez sur sa page.
+
+L’éditeur avancé reste disponible pour les options de catégorie, les outils 3D et l’examen détaillé des fichiers. Les sections ci-dessous décrivent cet éditeur.
+
+![Upload guidé avec des données d’exemple](../images/web/upload-guided.png)
 
 
 ## Sections de l’éditeur

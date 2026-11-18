@@ -453,7 +453,7 @@ def test_native_explicit_preview_decodes_h264_without_reading_missing_pieces(qtb
     from PySide6.QtCore import QCoreApplication, Qt, QThreadPool
 
     from torrentlinker.domain import LibraryFolder, Torrent
-    from torrentlinker.gui.media import MediaTab, VerifiedPrefixDevice
+    from torrentlinker.gui.media import DownloadingFileDevice, MediaTab
     from torrentlinker.web.app import create_app
 
     ffmpeg = shutil.which("ffmpeg")
@@ -537,12 +537,11 @@ def test_native_explicit_preview_decodes_h264_without_reading_missing_pieces(qtb
     qtbot.mouseClick(tab.preview_button, Qt.LeftButton)
     qtbot.waitUntil(lambda: tab.preview_device is not None, timeout=10000)
     qtbot.waitUntil(lambda: tab.player.videoSink().videoFrame().isValid(), timeout=15000)
-    assert tab.player.sourceDevice().size() == verified_bytes
+    assert tab.player.sourceDevice().size() == total  # the whole file, read as it downloads
     assert tab.player.source().toString() == "verified-preview.mp4"
     assert tab.refresh_preview.isVisible()
     tab.command("seek", position=1)
     qtbot.waitUntil(lambda: tab.player.position() >= 1000)
-    assert tab.preview_device.size() == verified_bytes
     completed = root / "Complete.mp4"
     shutil.copy(source, completed)
     service.agent.media.scan("default", threading.Event(), lambda _progress: None)
@@ -581,12 +580,26 @@ def test_native_explicit_preview_decodes_h264_without_reading_missing_pieces(qtb
     assert tab.preview_id == ""
     assert tab.preview_device is None
     assert tab.player.playbackState() == tab.player.PlaybackState.StoppedState
-    capped = VerifiedPrefixDevice(source, verified_bytes)
-    assert not capped.seek(verified_bytes + 1)
-    assert capped.readAll().data() == source.read_bytes()[:verified_bytes]
-    assert capped.atEnd()
-    assert capped.read(100).isEmpty()
-    capped.close()
+    states = [True] * verified_pieces + [False] + [True] * (pieces - verified_pieces - 1)
+    data = source.read_bytes()
+    downloading = DownloadingFileDevice(source, total, 4096, states)
+    # Verified pieces are read; the missing one is never read.
+    assert downloading.readData(total) == data[:verified_bytes]
+    assert downloading.seek(verified_bytes + 4096)
+    assert downloading.readData(100) == data[verified_bytes + 4096 :][:100]
+    # A read of the missing piece waits until qBittorrent verifies it.
+    assert downloading.seek(verified_bytes)
+    later = threading.Timer(0.3, downloading.update, ([True] * pieces,))
+    later.start()
+    assert downloading.readData(4096) == data[verified_bytes : verified_bytes + 4096]
+    # Stopping the preview ends a wait at once.
+    waiting = DownloadingFileDevice(source, total, 4096, states)
+    assert waiting.seek(verified_bytes)
+    threading.Timer(0.3, waiting.abort).start()
+    assert waiting.readData(4096) == b""
+    assert waiting.atEnd()  # Qt's reader stops only at end of file; an empty read loops
+    waiting.close()
+    downloading.close()
 
 
 def test_media_profile_editor_keeps_the_player_and_media_workspace(qtbot, tmp_path, request):

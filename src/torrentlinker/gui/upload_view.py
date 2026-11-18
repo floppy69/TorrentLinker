@@ -48,7 +48,7 @@ from torrentlinker import net
 from torrentlinker.archives import Unpacked, is_archive, unpack, unpacked
 from torrentlinker.bbcode import bbcode_to_html
 from torrentlinker.disk_rename import RenameApproval
-from torrentlinker.domain import ContentKind, ItemState, LocalItem
+from torrentlinker.domain import ContentKind, ItemState, LibraryFolder, LocalItem
 from torrentlinker.gui.controls import set_role
 from torrentlinker.gui.errors import error_text, offer_whole_names
 from torrentlinker.gui.library_model import human_size
@@ -548,6 +548,20 @@ class UploadTab(QWidget):
         self.pages.setCurrentIndex(0)
 
     def edit_saved_details(self, record: dict) -> None:
+        if record["form"].get("manual_source") and not any(
+            str(e.item.path) == record["path"] for e in self.entries
+        ):
+            path = Path(record["path"])
+            self.set_entries(
+                [
+                    *self.entries,
+                    LibraryEntry(
+                        LibraryFolder(path.parent, 1, ContentKind.OTHER),
+                        scan_item(path),
+                        ItemState.ORPHAN,
+                    ),
+                ]
+            )
         self.select(Path(record["path"]))
         if self.entry is None or str(self.entry.item.path) != record["path"]:
             QMessageBox.warning(
@@ -1396,7 +1410,11 @@ class UploadTab(QWidget):
         if entry is None or profile is None or not self.files:
             return
         self._sync_description_image()
+        saved_form = self._editing_record["form"] if self._editing_record else {}
         form = UploadForm(
+            manual_source=saved_form.get("manual_source", False),
+            workflow_step=saved_form.get("workflow_step", 1),
+            existing_reviewed=saved_form.get("existing_reviewed", False),
             category=profile.category,
             subcategory=self.subcategory.currentData(),
             source=self.source.text(),

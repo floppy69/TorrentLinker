@@ -1,8 +1,19 @@
 # Library and reseeding
 
+## Guided reseeding
+
+Open **Library → Reseed** on desktop or Web. The same list and inspection panel show each item's state. Stage counters filter the list. **Settings** opens client configuration and **Disk** lets you add or browse folders. Desktop uses a native folder picker; Web browses the server's configured storage roots.
+
+**Run all steps** or **Run selected** advances each item independently. Searches and verification can run at the same time within their resource limits. An ambiguous Candidate, archive or missing file waits for review without blocking other items. Select an item to inspect its progress, continue it, or open the file and repair tools. Pause takes effect at an operation boundary; an already running client check may finish. Retained progress can be continued after a restart.
+
+Choose a **Link Folder** outside Library Folders in the selected client's settings. It must be accessible to the client; Path Mappings apply. Windows needs Developer Mode or symlink permission. Originals keep their names and locations. Keep the links while seeding. This workflow does not download missing content automatically.
+
+![Guided reseeding with example data](../images/web/reseed-workspace.png)
+
+
 ## Folder explorer and Candidate review
 
-Desktop and WebUI use the same Library layout: **Local Items**, **Folders**, and **Activity**. Choose a Library Folder in the left rail, filter the Local Items, then select an item to open its Candidate review below the table. **Expand review** gives the Candidates more room; **Back to Local Items** restores the table without losing the selected Candidate.
+The Library has **Reseed**, **Folders** and **Activity**. Select an item in Reseed and choose **Inspect files and repairs** to open the detailed Candidate comparison and specialist tools.
 
 Review **Summary**, **Files**, **Description**, **NFO**, and **Evidence** before acting. Files shows local counterparts, renamed paths and absent files. A Full Match compares file names and sizes; **Verify & reseed** still requires the Torrent Client's hash Verification. **Reject Candidate** remembers your decision for this Local Item. Searching, checking and rejecting never start a Reseed.
 

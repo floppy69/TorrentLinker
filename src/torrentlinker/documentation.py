@@ -21,6 +21,7 @@ GUIDES = (
     ("rss", "rss", "Abonnements RSS", "RSS subscriptions"),
     ("media", "media", "Médias", "Media"),
     ("zen", "zen", "Zen et Plans", "Zen and Plans"),
+    ("community", "community", "Communauté", "Community"),
     ("companion", "companion", "Extension navigateur", "Browser companion"),
     ("upload", "upload", "Préparer un upload", "Prepare an Upload"),
     ("upload-categories", "upload-categories", "Règles des uploads", "Upload category rules"),

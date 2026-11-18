@@ -23,6 +23,7 @@ Les guides et leurs captures sont aussi disponibles dans **Documentation**, just
 - [Gérer les torrents](guide/fr/torrents.md) : trackers, catégories et commandes.
 - [Extension navigateur](guide/fr/companion.md) : installation Chrome/Brave/Edge, statistiques et téléchargements par session c411.
 - [Zen et Plans](guide/fr/zen.md) : notes, gains estimés, budget et choix des torrents.
+- [Communauté](guide/fr/community.md) : commentaires, votes et chat programmés.
 - [Préparer un upload c411](guide/fr/upload.md) : brouillons et images ; [règles par catégorie](guide/fr/upload-categories.md).
 - [Données, mises à jour et dépannage](guide/fr/donnees.md).
 - [Développer, traduire et tester](guide/fr/developpement.md).
@@ -45,6 +46,7 @@ Les captures montrent l’interface en français, en thème sombre, avec des don
 - [Torrent management](guide/en/torrents.md)
 - [Browser companion](guide/en/companion.md)
 - [Zen and Plans](guide/en/zen.md)
+- [Community](guide/en/community.md): scheduled comments, votes and chat.
 - [Uploads and Drafts](guide/en/upload.md)
 - [Data and troubleshooting](guide/en/data.md)
 - [Development and testing](guide/en/development.md)

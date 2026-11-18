@@ -123,3 +123,51 @@ def test_media_interface_choice_survives_settings_reopen_and_cancel(tmp_path, qt
 
     path.write_text('{"media_layout": "removed-experimental-layout"}')
     assert Settings.load(path).media_layout == "cinematic"
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        (
+            "dark",
+            [
+                "#161d23",
+                "#202932",
+                "#26323c",
+                "#e2e9ed",
+                "#98aab7",
+                "#33404b",
+                "#263e43",
+                "#64c9c0",
+            ],
+        ),
+        (
+            "light",
+            [
+                "#f3f6fa",
+                "#ffffff",
+                "#f7f9fc",
+                "#203047",
+                "#5c6c80",
+                "#d5dfe9",
+                "#d8eeeb",
+                "#087f76",
+            ],
+        ),
+    ],
+)
+def test_native_palette_uses_approved_shared_colors(qapp, desktop, mode, expected):
+    from PySide6.QtGui import QPalette
+
+    theme.set_theme(mode)
+    roles = [
+        QPalette.ColorRole.Window,
+        QPalette.ColorRole.Base,
+        QPalette.ColorRole.AlternateBase,
+        QPalette.ColorRole.Text,
+        QPalette.ColorRole.PlaceholderText,
+        QPalette.ColorRole.Mid,
+        QPalette.ColorRole.Highlight,
+        QPalette.ColorRole.Link,
+    ]
+    assert [qapp.palette().color(role).name() for role in roles] == expected

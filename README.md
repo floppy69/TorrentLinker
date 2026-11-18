@@ -16,11 +16,11 @@ Retrouvez les torrents qui correspondent à vos fichiers et remettez-les en seed
 - **Médias** : lecture vidéo et musicale intégrée, reprise, playlists et discussion avec l’Assistant depuis le lecteur, sur bureau et sur le Web. [Guide](docs/guide/fr/media.md).
 - **Agents MCP** : connecter un assistant, préparer des Plans et approuver ses actions. [Guide](docs/guide/fr/agents.md).
 - **Clients nommés** : plusieurs connexions, une vue commune et des Plans répartis entre les clients choisis.
-- **Bibliothèque** : repérer les fichiers qui ne sont plus partagés, rechercher et vérifier les correspondances, puis les remettre en seed.
+- **Bibliothèque** : parcours guidé, liste avec inspection et progression indépendante des fichiers, de la recherche à la remise en seed.
 - **Recherche** : filtrer les torrents, consulter leurs détails dans des onglets et préparer une file de téléchargement.
 - **Zen** : suivre les gains estimés et les notes, puis préparer un Plan selon l’espace et le budget disponibles.
 - **Torrents** : gérer les téléchargements et le partage, avec une arborescence par tracker et catégorie.
-- **Upload** : préparer les fichiers, la description et le NFO d’un brouillon c411, à relire et publier sur le site.
+- **Upload** : choisir une source, vérifier l’existant et préparer un brouillon avec fichiers, présentation, images et NFO, à relire avant envoi à c411.
 
 Avec qBittorrent, Deluge et Transmission, les fichiers existants ne sont pas renommés sur le disque. Avec rTorrent, µTorrent Classic et BitTorrent Classic, un renommage sur le disque peut être nécessaire et demande une confirmation explicite. Sur l’application de bureau, les clés API et mots de passe sont conservés dans le trousseau système. L’interface est disponible en français et en anglais, avec un thème système, clair ou sombre.
 
@@ -43,7 +43,7 @@ Sous Linux, rendez l’AppImage exécutable avant de l’ouvrir. Sous macOS, l�
 
 1. Activez l’interface Web de votre client torrent.
 2. Lancez TorrentLinker et renseignez sa connexion ainsi que la clé API de votre indexeur dans les Paramètres. Le premier démarrage vous guide vers cet écran.
-3. Dans **Bibliothèque → Ajouter un dossier…**, sélectionnez vos fichiers existants. Pour de nouveaux téléchargements, ouvrez **Recherche** ou **Zen → Plan**.
+3. Dans **Bibliothèque → Remise en seed → Disque**, sélectionnez vos fichiers existants. Pour de nouveaux téléchargements, ouvrez **Recherche** ou **Zen → Plan**.
 
 Le [guide de démarrage illustré](docs/guide/fr/demarrage.md) détaille la configuration, y compris pour Docker et les NAS.
 

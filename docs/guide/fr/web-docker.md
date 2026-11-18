@@ -47,7 +47,7 @@ L'image démarre toujours avec l'UID/GID 1000 par défaut. Les déploiements exi
 La prise en charge de PUID/PGID au démarrage est disponible à partir de **1.0.0-beta.21**. Choisissez cette version ou le tag `beta` ; l'ancienne image stable `latest` ne la contient pas. Pour utiliser un compte du NAS, activez explicitement l'initialisation :
 
 ```bash
-TL_IMAGE_TAG=1.0.0-beta.37 PUID=1001 PGID=100 docker compose \
+TL_IMAGE_TAG=1.0.0-beta.43 PUID=1001 PGID=100 docker compose \
   -f compose.yaml -f deploy/compose.identity.yaml up -d --pull always
 ```
 
@@ -122,6 +122,8 @@ Le volume `torrentlinker_config` conserve les paramètres, le catalogue, la file
 
 Après un arrêt brutal du serveur, une tâche inachevée est marquée interrompue. Vérifiez son résultat dans le client torrent avant de la relancer. Les vérifications de Reseed enregistrées reprennent leur suivi. Un envoi incertain reste visible dans la file ; il n'est pas renvoyé automatiquement.
 
+Répéter la même action pour le même client avec les mêmes paramètres suit la tâche existante tant qu’elle est en attente ou en cours. Des paramètres différents créent des tâches distinctes. Une fois la tâche terminée, vous pouvez relancer la même action. Les confirmations restent nécessaires. Des propositions d’agent distinctes conservent chacune leur approbation et leur budget ; répéter l’approbation d’une même proposition suit sa tâche existante. La mise à jour automatique du Catalogue ne récupère que les nouveautés et reste distincte d’une collecte manuelle de l’historique.
+
 Les identifiants saisis dans l'interface sont chiffrés dans `credentials.enc`. La clé de chiffrement `credentials.key` est dans le même volume : protégez le volume et sauvegardez les deux fichiers ensemble. Le chiffrement ne protège pas contre quelqu'un qui peut lire tout le volume. L'application de bureau continue d'utiliser le trousseau système.
 
 Sauf si un reverse proxy authentifie les utilisateurs, le mot de passe de l’interface web provient de `TL_WEB_PASSWORD_FILE` (recommandé). Si les fichiers sont peu pratiques, par exemple avec une pile Portainer, définissez `TL_WEB_PASSWORD`. Le fichier l’emporte si les deux sont définis. Les variables d’environnement sont visibles via `docker inspect` : préférez le fichier quand c’est possible.
@@ -178,6 +180,8 @@ Les paramètres permettent de retirer un dossier, même si son montage est déj�
 Créer un plan actualise les entrées récentes du catalogue. Les estimations Zen et les notes restent provisoires. Le statut indique les limites de pagination connues et la présence de données Zen Lab. Si l’actualisation est lente ou indisponible, arrêtez-la dans Activité, puis cochez **Utiliser le catalogue en cache sans actualiser** et recréez le plan.
 
 ## Utiliser l’interface web au quotidien
+
+La rubrique et l’onglet sélectionnés sont conservés dans le fragment de l’URL, par exemple `#/library/folders` ou `#/zen/plan`. Un rechargement, une reconnexion et les boutons Précédent/Suivant du navigateur restaurent cet emplacement. Vous pouvez l’ajouter aux favoris, même si TorrentLinker utilise un préfixe d’URL. Le contenu des formulaires et les fichiers sélectionnés ne sont pas enregistrés dans l’URL.
 
 Une fois l’assistant terminé, **Torrents** affiche le client connecté. Filtrez la liste par tracker, catégorie ou état, puis sélectionnez les torrents à gérer. Les commandes demandent confirmation lorsque nécessaire. **Activité** suit leur progression et permet d’annuler une tâche encore en cours.
 

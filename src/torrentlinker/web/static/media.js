@@ -38,6 +38,7 @@ const mediaTime = n => {
 function mediaStatus(text) { $("media-status").textContent = text; }
 function mediaOption(select, value, label) { const option = element("option", label); option.value = value; select.append(option); }
 function mediaViews() {
+  rememberMediaView();
   $("media-player-menu-toggle").setAttribute("aria-label", say("Player options", "Options du lecteur"));
   $("media-player-menu-toggle").title = say("Player options", "Options du lecteur");
   $("media-player-menu").setAttribute("aria-label", say("Player options", "Options du lecteur"));
@@ -58,7 +59,12 @@ function mediaViews() {
   for (const item of document.querySelectorAll("[data-media-music-view]")) item.textContent = ({albums: say("Albums", "Albums"), artists: say("Artists", "Artistes"), tracks: say("Tracks", "Pistes")})[item.dataset.mediaMusicView];
   $("media-playlists").hidden = media.kind !== "music";
 }
+function rememberMediaView() {
+  const defaultView = mediaViewsByKind[media.kind][0];
+  rememberTab("media", media.kind, media.view === defaultView ? undefined : media.view);
+}
 async function loadMedia(append = false) {
+  rememberMediaView();
   if (!$("media-view").options.length) mediaViews();
   const version = ++media.request;
   // The XXX panel is its own view: recent first, from XXX folders only.

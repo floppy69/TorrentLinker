@@ -10,7 +10,6 @@ from tests.test_upload_queue import UploadClient
 from tests.test_web_jobs import finished, login
 from torrentlinker.config import Settings
 from torrentlinker.domain import ContentKind, ItemState, LibraryFolder, LocalItem, Torrent
-from torrentlinker.gui.library_folder_dialog import LibraryFolderDialog
 from torrentlinker.gui.library_model import LibraryModel
 from torrentlinker.library import LibraryEntry, auto_searchable, build_library, pack_episodes
 from torrentlinker.scan import scan
@@ -163,19 +162,20 @@ def test_an_episode_is_seeded_only_by_a_torrent_of_its_own(tmp_path: Path) -> No
     }
 
 
-def test_a_new_folder_is_automatic_and_previews_what_it_finds(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
-    dialog = LibraryFolderDialog(series(tmp_path))
-    qtbot.addWidget(dialog)
-    dialog.kind.setCurrentIndex(dialog.kind.findData(ContentKind.SERIES))
-
-    qtbot.waitUntil(lambda: "Automatic finds" in dialog.preview.text())
-    assert dialog.preview.text().startswith(
-        "Automatic finds 2 Local Items, plus 2 episodes inside packs."
-    )
-    assert dialog.folder().depth is None
-    dialog.scan_depth.setValue(2)
-    assert dialog.folder().depth == 2
-    assert "Depth 2" in dialog.preview.text()
+def test_folder_preview_finds_packs_and_episodes_without_saving(tmp_path: Path) -> None:
+    root = series(tmp_path)
+    with TestClient(
+        create_app(tmp_path / "config", password="test-password-long", roots=(root,))
+    ) as browser:
+        browser.headers["X-TorrentLinker"] = "1"
+        browser.post("/api/login", json={"password": "test-password-long"})
+        response = browser.post(
+            "/api/setup/preview-folder", json={"local": str(root), "kind": "series", "depth": None}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["count"] == 2
+        assert response.json()["episodes"] == 2
+        assert browser.get("/api/setup").json()["folders"] == []
 
 
 def test_the_web_saves_an_automatic_folder_and_lists_episodes(tmp_path: Path) -> None:

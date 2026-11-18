@@ -81,6 +81,8 @@ def test_guided_setup_and_management_on_small_screen(tmp_path: Path):
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
             expect(page.locator("#view-setup")).to_be_visible()
+            for selector in ("#client-password", "#client-key", "#proxy-password", "#announce-url"):
+                expect(page.locator(selector)).to_have_attribute("placeholder", "Not saved")
             page.locator("#client-host").fill("https://seedbox.example/qbittorrent/")
             page.locator("#client-username").fill("reader")
             page.locator("#client-password").fill("client-password")
@@ -245,10 +247,78 @@ def test_guided_setup_and_management_on_small_screen(tmp_path: Path):
             if screenshot:
                 page.wait_for_timeout(250)
                 page.screenshot(path=str(Path(screenshot) / "torrents-small.png"))
+            page.locator("[data-view=setup][data-i18n=settings]").click()
+            page.locator("[data-step=client]").click()
+            expect(page.locator("#client-password")).to_have_attribute(
+                "placeholder", "Saved · leave blank to keep"
+            )
+            expect(page.locator("#client-password")).to_have_value("")
+            # Global secrets update their hints immediately after saving.
+            page.locator("#client-form details summary").click()
+            pending_proxy = []
+
+            def delay_proxy_save(route):
+                pending_proxy.append((route, route.fetch()))
+
+            page.route("**/api/setup/proxy*", delay_proxy_save)
+            page.locator("#save-proxy").click()
+            for _ in range(50):
+                if pending_proxy:
+                    break
+                page.wait_for_timeout(20)
+            assert pending_proxy
+            page.locator("#proxy-password").fill("test-proxy-secret")
+            pending_proxy[0][0].fulfill(response=pending_proxy[0][1])
+            expect(page.locator("#toast")).to_contain_text("Proxy settings saved")
+            expect(page.locator("#proxy-password")).to_have_value("test-proxy-secret")
+            expect(page.locator("#proxy-password")).to_have_attribute("placeholder", "Not saved")
+            page.unroute("**/api/setup/proxy*", delay_proxy_save)
+            page.locator("#save-proxy").click()
+            expect(page.locator("#proxy-password")).to_have_value("")
+            expect(page.locator("#proxy-password")).to_have_attribute(
+                "placeholder", "Saved · leave blank to keep"
+            )
+            page.locator("[data-step=indexer][data-i18n=stepIndexer]").click()
+            page.locator("#indexer-form details summary").click()
+            page.locator("#announce-url").fill("https://tracker.example/announce/test-secret")
+            page.locator("#save-announce").click()
+            expect(page.locator("#announce-url")).to_have_value("")
+            expect(page.locator("#announce-url")).to_have_attribute(
+                "placeholder", "Saved · leave blank to keep"
+            )
+            page.locator("[data-step=client]").click()
+            page.locator("#language").select_option("fr")
+            expect(page.locator("#client-password")).to_have_attribute(
+                "placeholder", "Enregistré · laisser vide pour conserver"
+            )
+            expect(page.locator("#proxy-password")).to_have_attribute(
+                "placeholder", "Enregistré · laisser vide pour conserver"
+            )
+            if screenshot:
+                page.locator("#client-form").screenshot(
+                    path=str(Path(screenshot) / "saved-secrets-fr.png")
+                )
+            page.locator("#language").select_option("en")
+            # Leaving Add client must restore editing, not silently create a duplicate (#70).
+            page.locator("[data-view=setup][data-i18n=settings]").click()
+            page.locator("[data-step=client]").click()
+            page.locator("#add-client").click()
+            expect(page.locator("#client-password")).to_have_attribute("placeholder", "Not saved")
+            expect(page.locator("#client-key")).to_have_attribute("placeholder", "Not saved")
+            page.locator("[data-view=torrents]").click()
+            page.locator("[data-view=setup][data-i18n=settings]").click()
+            page.locator("[data-step=client]").click()
+            page.locator("#client-name").fill("Seedbox renamed")
+            page.locator("#client-form button.primary").click()
+            expect(page.locator("#step-storage")).to_be_visible()
+            expect(page.locator("#target-client option")).to_have_count(2)
+            expect(page.locator("#target-client option:checked")).to_have_text("Seedbox renamed")
             # The second profile is independent of the existing form and default.
             page.locator("[data-view=setup][data-i18n=settings]").click()
             page.locator("[data-step=client]").click()
             page.locator("#add-client").click()
+            expect(page.locator("#client-password")).to_have_attribute("placeholder", "Not saved")
+            expect(page.locator("#client-key")).to_have_attribute("placeholder", "Not saved")
             page.locator("#client-name").fill("Remote Deluge")
             page.locator("#client-kind").select_option("deluge")
             page.locator("#client-host").fill("https://other-seedbox.example")
@@ -302,7 +372,7 @@ def test_guided_setup_and_management_on_small_screen(tmp_path: Path):
             expect(page.locator("#agent-token-box")).to_be_hidden()
             expect(page.locator("#agent-connections")).to_contain_text("My assistant")
             expect(page.locator("#agent-connections")).to_contain_text("Proposals only")
-            expect(page.locator("#agent-connections")).to_contain_text("qBittorrent")
+            expect(page.locator("#agent-connections")).to_contain_text("Seedbox renamed")
             expect(page.locator("#agent-connections")).to_contain_text("10.0 GiB")
             expect(page.locator("#agent-connections")).to_contain_text("None")
             page.locator("#language").select_option("fr")
@@ -501,6 +571,14 @@ def test_local_upload_queue_review_edit_and_explicit_send(tmp_path, monkeypatch,
             page.locator("#login-form button").click()
             page.locator("#navigation-toggle").click()
             page.locator('[data-view="upload"]').click()
+            # This test covers the retained specialist tools, reached through the guided view.
+            upload = page.frame_locator("#upload-frame")
+            upload.locator("[data-tab=drafts]").click()
+            upload.locator(".item").first.click()
+            upload.locator("[data-action=edit]").click()
+            upload.locator("[data-action=drawer-close]").click()
+            upload.locator("[data-step='2']").click()
+            upload.locator("[data-action=advanced]").click()
             expect(page.locator("#upload-local-queue")).to_contain_text("Cable.Holder.NOTAG.STL")
             page.locator("#upload-local-queue button").first.click()
             page.locator("[data-upload-section=review]").click()

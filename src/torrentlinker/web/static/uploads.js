@@ -177,6 +177,7 @@ function uploadForm() {
         .filter(Boolean);
     });
   return {
+    ...state.uploadDraft?.form,
     category: Number($("upload-category").value) || null,
     subcategory: Number($("upload-subcategory").value) || null,
     source: $("upload-source").value,
@@ -411,6 +412,7 @@ function showUploadSection(section) {
   uploadEditorState();
 }
 function showUploadView(view) {
+  rememberTab("upload", view);
   uploadUI.view = view;
   $("upload-workspace").hidden = view !== "local";
   $("upload-remote").hidden = view !== "remote";

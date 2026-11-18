@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -77,9 +78,12 @@ def save_local(
             ]
         )
     )
+    history = store.local_draft(identifier).get("history", []) if identifier else []
+    history = [*history, {"at": time.time(), "revision": revision + 1, "action": "saved"}]
     # Saving is metadata-only: no hashing, announce key, remote Draft or seeding.
     return store.save_local_draft(
         {
+            "history": history,
             "path": str(request.item.path),
             "form": {**form, "reviewed": False},
             "files": file_state(request),

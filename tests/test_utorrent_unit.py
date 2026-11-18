@@ -417,4 +417,4 @@ def test_settings_roundtrip_and_app_factory(qtbot, tmp_path):
     w = MainWindow(saved, tmp_path / "settings.json", Store(tmp_path / "s.db"))
     qtbot.addWidget(w)
     w.qbit()
-    assert isinstance(w._qbit[1], UtorrentApi)
+    assert isinstance(w.qbit()._inner, UtorrentApi)

@@ -27,12 +27,24 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from torrentlinker import net
+from torrentlinker.community import CommunityActions
 from torrentlinker.companion_downloads import CompanionDownloads, SessionFetchError
 from torrentlinker.profile import ProfileClient, ProfileError, ProfileProblem, UserProfile
 from torrentlinker.profile_history import ProfileDay, ProfileHistory
 
 COMPANION_ROUTES = {
-    f"/api/companion/{name}" for name in ("pair", "snapshot", "disconnect", "commands", "result")
+    f"/api/companion/{name}"
+    for name in (
+        "pair",
+        "snapshot",
+        "disconnect",
+        "commands",
+        "result",
+        "actions-demand",
+        "actions-observe",
+        "actions-claim",
+        "actions-receipt",
+    )
 }
 DETAILS = {
     "actualDownloaded",
@@ -204,6 +216,7 @@ class ProfileWorkspace:
         self.clock = clock
         self.history = history
         self.downloads = CompanionDownloads(lambda: self.clock())
+        self.community = CommunityActions(directory, lambda: self.clock())
         self.lock = threading.RLock()
         self.data: dict[str, Any] = {}
         try:
@@ -357,7 +370,12 @@ class ProfileWorkspace:
     def state(self) -> dict[str, Any]:
         with self.lock:
             companion = self.data.get("companion")
+            try:
+                contribution = self.community.daily_contribution(self.community_account())
+            except ValueError:
+                contribution = None
             return {
+                "community_contribution": contribution,
                 "api": self.data.get("api"),
                 "source": self.data.get("source"),
                 "api_updated_at": self.data.get("api_updated_at"),
@@ -433,6 +451,24 @@ class ProfileWorkspace:
             if route == "/api/companion/disconnect":
                 self.disconnect()
                 return {"disconnected": True}
+            if route.startswith("/api/companion/actions-"):
+                if (
+                    body.get("accountId") != account
+                    or self.data.get("source") != "https://c411.org"
+                ):
+                    raise PermissionError("Different c411 account.")
+                identity = str(account)
+                if route.endswith("actions-demand"):
+                    return self.community.demand(identity)
+                if route.endswith("actions-observe"):
+                    self.community.observe(identity, body.get("snapshot", {}))
+                elif route.endswith("actions-claim"):
+                    return {"command": self.community.claim(identity)}
+                elif route.endswith("actions-receipt"):
+                    self.community.receipt(identity, body)
+                else:
+                    raise ValueError("Unknown action route.")
+                return {"accepted": True}
             if route == "/api/companion/commands":
                 limit = body.get("limit", 1)
                 if not self.session_downloads:
@@ -460,6 +496,36 @@ class ProfileWorkspace:
                 if ledger and balance is not None:
                     self.history.record_ledger(self.data["binding"], balance, ledger)
             return {"accepted": True}
+
+    def community_account(self) -> str:
+        with self.lock:
+            account = (self.data.get("api") or {}).get("account_id")
+            if self.data.get("source") != "https://c411.org" or not account:
+                raise ValueError("Refresh the c411 profile first.")
+            return str(account)
+
+    def community_state(self) -> dict[str, Any]:
+        with self.lock:
+            account = self.community_account()
+            self.community.discover(account)
+            return {**self.community.state(account), "paired": bool(self._pair)}
+
+    def community_update(self, operation: str, body: dict[str, Any]) -> dict[str, Any]:
+        with self.lock:
+            account = self.community_account()
+            if operation == "settings":
+                self.community.settings(account, body)
+            elif operation == "refresh":
+                self.community.refresh(account, body.get("page", 1))
+            elif operation == "save":
+                self.community.save(account, body)
+            elif operation == "control":
+                self.community.control(
+                    account, body.get("id", ""), body.get("action", ""), body.get("revision", 0)
+                )
+            else:
+                raise ValueError("Unknown community operation.")
+            return self.community_state()
 
     def test_download(self, infohash: str, request_id: str, actor: str = "owner") -> dict[str, Any]:
         with self.lock:

@@ -91,7 +91,14 @@ def plan_disk_renames(item: LocalItem, meta: TorrentMeta, match: Match) -> DiskR
     return DiskRenamePlan(meta.infohash, meta.name, tuple(moves))
 
 
-def verify_local_data(item: LocalItem, meta: TorrentMeta, match: Match) -> None:
+def verify_local_data(
+    item: LocalItem,
+    meta: TorrentMeta,
+    match: Match,
+    *,
+    checkpoint: Callable[[], None] = lambda: None,
+    progress: Callable[[int, int], None] = lambda done, total: None,
+) -> None:
     """Check all pieces against original files before any disk rename or client add."""
     torrent = torf.Torrent.read_stream(io.BytesIO(meta.data), validate=False)
     hashes = torrent.metainfo["info"]["pieces"]
@@ -100,6 +107,8 @@ def verify_local_data(item: LocalItem, meta: TorrentMeta, match: Match) -> None:
         raise DiskRenameError("The torrent has no valid piece hashes")
     piece = hashlib.sha1()
     filled = index = 0
+    read = 0
+    total = sum(meta.files.values())
 
     def finish() -> None:
         nonlocal piece, filled, index
@@ -115,8 +124,11 @@ def verify_local_data(item: LocalItem, meta: TorrentMeta, match: Match) -> None:
             raise DiskRenameError(f"File size differs from the torrent: {source}")
         with source.open("rb") as stream:
             while chunk := stream.read(min(length - filled, 1024 * 1024)):
+                checkpoint()
                 piece.update(chunk)
                 filled += len(chunk)
+                read += len(chunk)
+                progress(read, total)
                 if filled == length:
                     finish()
         if _identity(source) != before:

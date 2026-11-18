@@ -8,6 +8,7 @@ from PySide6.QtCore import QSignalBlocker, Qt, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -29,6 +30,7 @@ from torrentlinker.domain import ContentKind, ItemState, LocalItem
 from torrentlinker.gui.controls import set_role
 from torrentlinker.gui.errors import error_text, offer_whole_names
 from torrentlinker.gui.library_model import human_size
+from torrentlinker.gui.rename_dialog import RenameDialog
 from torrentlinker.gui.tables import EmptyState, NumberItem, sortable_table
 from torrentlinker.gui.tasks import run_in_background, run_with_progress
 from torrentlinker.gui.torrent_details import DescriptionBrowser
@@ -857,21 +859,11 @@ class ReviewPanel(QWidget):
         return answer == QMessageBox.StandardButton.Yes
 
     def _confirm_renames(self, renames: dict[str, str]) -> bool:
-        shown = sorted(renames.items())[:15]
-        lines = "\n".join(f"{old}\n    → {new}" for old, new in shown)
-        if len(renames) > len(shown):
-            lines += "\n" + self.tr("…and {0} more").format(len(renames) - len(shown))
-        answer = QMessageBox.question(
-            self,
-            self.tr("Rename inside the torrent"),
-            self.tr(
-                "These files will be renamed inside your torrent client to match yours "
-                "(your files are not touched):"
-            )
-            + "\n\n"
-            + lines,
-        )
-        return answer == QMessageBox.StandardButton.Yes
+        dialog = RenameDialog(renames, self)
+        try:
+            return dialog.exec() == QDialog.DialogCode.Accepted
+        finally:
+            dialog.deleteLater()
 
     def _reseed_failed(self, error: Exception) -> None:
         self._update_actions()

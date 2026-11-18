@@ -19,21 +19,33 @@
       <p id="destination">Not connected</p>
       <p role="status" id="status"></p>
       <p id="last-sync"></p>
-      <button id="pause" disabled>Pause automatic sync</button>
+      <button id="pause" disabled>Pause companion</button>
       <button id="forget" disabled>Disconnect and forget</button>
     </section>
     <section>
       <h2>What is synced</h2>
       <p>
         Account identity, Zen balance, class, level, transfer totals, total seed
-        time, validated upload count and active seed count. No torrent names,
-        hashes, cookies or API keys leave c411.
+        time, validated upload count and active seed count. When you import or enable
+        Community, active seed titles/hashes, writable general/class channels and
+        action counters are also sent to your connected TorrentLinker app.
+        Cookies, CSRF tokens and API keys stay in the browser.
       </p>
       <p>
         Sign in to c411 with the account shown in TorrentLinker. If your session
         expires or the account changes, updates wait until that account is
         signed in again.
       </p>
+    </section>
+    <section>
+      <h2>Actions you schedule</h2>
+      <p>Manage comments, votes and general/class chat in Zen → Community.
+        Only drafts you explicitly queue can be sent, while the queue is enabled.
+        The app controls timers and daily limits. Pausing this companion pauses
+        profile updates, descriptor downloads and community actions.</p>
+      <p>Posting receipts are retained until the app acknowledges them, including
+        across browser restarts and reconnects. An uncertain send is never repeated
+        automatically. No media uploads are performed.</p>
     </section>
   </main>
   <script type="module" src="companion.js"></script>

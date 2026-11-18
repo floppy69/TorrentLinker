@@ -252,38 +252,30 @@ def test_browser_reconciles_interrupted_upload_only_after_confirmation(tmp_path,
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
             expect(page.locator("#workspace")).to_be_visible()
-            page.evaluate("async () => { await navigate('upload'); }")
-            page.locator("#upload-local-queue button").click()
-            expect(page.locator("#upload-save-state")).to_contain_text(
-                "Send started; verify the result on c411"
-            )
-            page.locator("[data-upload-section=review]").click()
-            expect(page.locator("#upload-send-local")).to_be_disabled()
-            expect(page.locator("#upload-reviewed")).to_be_disabled()
-            page.locator("summary[aria-label='Draft actions']").click()
+            page.locator("[data-view=upload]").first.click()
+            frame = page.frame_locator("#upload-frame")
+            frame.locator("[data-tab=tracking]").click()
+            expect(frame.locator(".track")).to_contain_text("Envoi lancé · vérifier sur c411")
             store = app.state.agent_service.setup.store
             recovered = store.local_draft(before["id"])
-            prompts = []
-
-            def dismiss(dialog):
-                prompts.append(dialog.message)
-                dialog.dismiss()
-
-            page.once("dialog", dismiss)
-            page.get_by_role("button", name="Allow retry…", exact=True).click()
-            assert "Check c411" in prompts[0]
-            assert "no draft was created" in prompts[0]
+            frame.get_by_role("button", name="Voir le détail →").click()
+            expect(frame.locator("#dialog")).to_contain_text("Vérifiez les brouillons sur c411")
+            # Dismissing the reconciliation dialog must preserve the uncertain send.
+            frame.get_by_role("button", name="Fermer", exact=True).click()
             assert store.local_draft(before["id"]) == recovered
-            page.once("dialog", lambda dialog: dialog.accept())
-            page.get_by_role("button", name="Allow retry…", exact=True).click()
-            expect(page.locator("#upload-save-state")).to_contain_text(
-                f"Revision {before['revision'] + 1} · Awaiting review"
-            )
+            frame.get_by_role("button", name="Voir le détail →").click()
+            frame.get_by_role(
+                "button", name="J’ai vérifié c411, autoriser un nouvel essai", exact=True
+            ).click()
+            expect(frame.locator(".editor")).to_be_visible()
             revised = store.local_draft(before["id"])
+            assert revised["revision"] == before["revision"] + 1
+            assert revised["status"] == "queued"
             assert revised["form"] == recovered["form"]
-            expect(page.locator("#upload-reviewed")).not_to_be_checked()
-            expect(page.locator("#upload-send-local")).to_be_disabled()
-            expect(page.get_by_role("button", name="Allow retry…", exact=True)).to_have_count(0)
+            expect(frame.locator("#reviewed")).not_to_be_checked()
+            frame.locator('[data-step="5"]').click()
+            expect(frame.get_by_role("button", name="Créer le brouillon c411…")).to_be_disabled()
+            expect(frame.locator('[data-action="reset-send"]')).not_to_be_visible()
             assert not posts
             assert source.read_bytes() == original
             assert not errors

@@ -40,6 +40,40 @@ def test_a_refused_add_says_when_the_torrent_is_already_there(
     assert ("already in the Torrent Client" in str(raised.value)) == listed
 
 
+class Recording:
+    """qBittorrent's API accepting an add and keeping its arguments."""
+
+    def __init__(self) -> None:
+        self.added: dict[str, object] = {}
+
+    def torrents_add(self, **kwargs: object) -> str:
+        self.added = kwargs
+        return "Ok."
+
+    def torrents_info(self, torrent_hashes: str) -> list[object]:
+        return [object()]
+
+
+def test_a_reseed_is_checked_in_its_save_path_not_the_incomplete_folder(tmp_path: Path) -> None:
+    # With "Keep incomplete torrents in" on, qBittorrent would check a renamed Reseed in
+    # that folder, where its files are not, unless the add turns it off.
+    api = QbitApi("http://127.0.0.1:1", "", "")
+    api._client = client = Recording()
+
+    api.add(torrent(tmp_path), str(tmp_path), [])
+
+    assert client.added["use_download_path"] is False
+
+
+def test_a_download_keeps_the_clients_incomplete_folder(tmp_path: Path) -> None:
+    api = QbitApi("http://127.0.0.1:1", "", "")
+    api._client = client = Recording()
+
+    api.download(torrent(tmp_path), str(tmp_path), [])
+
+    assert client.added.get("use_download_path") is None
+
+
 class Synced:
     """qBittorrent's sync API: the whole list first, then only what changed."""
 

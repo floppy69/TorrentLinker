@@ -57,10 +57,10 @@ def test_choosing_deluge_saves_it_and_the_app_connects_through_deluge(  # type: 
     window = MainWindow(settings, tmp_path / "settings.json", Store(tmp_path / "s.db"))
     qtbot.addWidget(window)
     window.qbit()
-    assert window._qbit is not None and isinstance(window._qbit[1], DelugeApi)
+    assert isinstance(window.qbit()._inner, DelugeApi)
     settings.client = TorrentClient.QBITTORRENT
     window.qbit()
-    assert isinstance(window._qbit[1], QbitApi)  # a new choice takes effect at once
+    assert isinstance(window.qbit()._inner, QbitApi)  # a new choice takes effect at once
 
 
 def test_choosing_transmission_saves_it_and_the_app_connects_through_it(  # type: ignore[no-untyped-def]
@@ -90,7 +90,7 @@ def test_choosing_transmission_saves_it_and_the_app_connects_through_it(  # type
     window = MainWindow(settings, tmp_path / "settings.json", Store(tmp_path / "s.db"))
     qtbot.addWidget(window)
     window.qbit()
-    assert window._qbit is not None and isinstance(window._qbit[1], TransmissionApi)
+    assert isinstance(window.qbit()._inner, TransmissionApi)
 
 
 @pytest.mark.parametrize("accept", [True, False])
@@ -1533,3 +1533,20 @@ def test_seeding_views_wait_while_hidden_and_catch_up_when_shown(qtbot):
     tab.show()
     qtbot.waitUntil(lambda: "a" in tab.seeding_view.table.torrents, timeout=3000)
     qtbot.waitUntil(lambda: "<b>" in tab.comparison.labels[ZenClass.TANKER].text(), timeout=3000)
+
+
+def test_seeding_and_catalogue_refreshes_wait_while_a_video_plays(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    window = MainWindow(Settings(), tmp_path / "settings.json", Store(tmp_path / "s.db"))
+    qtbot.addWidget(window)
+    refreshed = []
+    window.zen_tab.seeding_view.refresh = lambda quiet=False: refreshed.append(quiet)  # type: ignore[method-assign]
+    window.media_tab.video_playing = True
+    window._refresh_seeding_quietly()
+    window._refresh_seeding_quietly()
+    assert refreshed == []  # reading every seeded torrent would drop frames
+    assert not window.refresh_whole_catalogue()
+    window.media_tab.video_playing = False
+    window.media_tab.video_playing_changed.emit(False)
+    assert refreshed == [True]  # once, when the video stops
+    window.media_tab.video_playing_changed.emit(False)
+    assert refreshed == [True]

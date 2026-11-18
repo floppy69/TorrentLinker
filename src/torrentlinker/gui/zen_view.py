@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
-    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -25,16 +24,16 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
-    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
-    QTabWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 from shiboken6 import isValid
 
+from torrentlinker.gui.controls import ScrollDoubleSpinBox as QDoubleSpinBox
+from torrentlinker.gui.controls import ScrollSpinBox as QSpinBox
 from torrentlinker.gui.controls import icon_button, set_role
 from torrentlinker.gui.errors import error_text
 from torrentlinker.gui.library_model import human_size
@@ -551,12 +550,13 @@ class PlanView(QGroupBox):
         self._show_times()
         options = QHBoxLayout()
         self.goal = QComboBox()
-        self.goal.addItem(self.tr("Zen/day"), PlanGoal.ZEN.value)
         self.goal.addItem(self.tr("Note"), PlanGoal.NOTE.value)
+        self.goal.addItem(self.tr("Zen/day"), PlanGoal.ZEN.value)
         self.goal.setToolTip(
             self.tr(
                 "Zen/day maximizes estimated earnings. "
-                "Note prefers the highest-note torrents first."
+                "Note prioritizes each torrent's initial score, without a seed-age bonus. "
+                "Equal scores prefer smaller downloads."
             )
         )
         label = QLabel(self.tr("Optimize for"))
@@ -792,7 +792,9 @@ class PlanView(QGroupBox):
         )
 
     def invalidate(self) -> None:
-        self.begin()
+        # Editing must not disable the focused input: Qt advances focus and scrolls
+        # to the next enabled control when a spin box is disabled mid-keystroke.
+        self._clear_result()
         self.busy(False)
         self.summary.setText(self.tr("Plan options changed. Make a new Plan to apply them."))
 
@@ -857,15 +859,19 @@ class PlanView(QGroupBox):
 
     def begin(self) -> None:
         """Clear the previous result while a new Plan is being prepared."""
-        self.plan = None
+        self._clear_result()
         self.empty_state.label.setText(self.tr("Making a Plan…"))
+        self.busy(True)
+
+    def _clear_result(self) -> None:
+        self.plan = None
+        self.empty_state.label.setText(self.tr("Make a Plan to see suggested torrents here."))
         self.catalogue_notice.clear()
         self.catalogue_notice.hide()
         self._show_times()
         self.table.setRowCount(0)
         self.space_table.setRowCount(0)
         self.space_table.hide()
-        self.busy(True)
 
     def busy(self, busy: bool, text: str | None = None) -> None:
         self._busy = busy
@@ -1102,13 +1108,11 @@ class ZenTab(QWidget):
         self.catalogue = CatalogueBox()
         self.plan_view = PlanView()
         layout.setContentsMargins(0, 0, 0, 0)
-        self.pages = QTabWidget()
+        from torrentlinker.gui.workspace_tabs import WorkspaceTabs
+
+        self.pages = WorkspaceTabs()
         self.profile_view = ProfileView()
-        profile_scroll = QScrollArea()
-        profile_scroll.setWidgetResizable(True)
-        profile_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        profile_scroll.setWidget(self.profile_view)
-        self.pages.addTab(profile_scroll, self.tr("Profile"))
+        self.pages.addTab(self.profile_view, self.tr("Profile"))
         seeding_page = QWidget()
         seeding_layout = QVBoxLayout(seeding_page)
         seeding_layout.setContentsMargins(0, 0, 0, 0)

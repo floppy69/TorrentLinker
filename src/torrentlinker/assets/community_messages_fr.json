@@ -1,0 +1,1606 @@
+{
+  "version": 1,
+  "language": "fr",
+  "entries": [
+    {
+      "id": "fr-quote-petit",
+      "kind": "quote",
+      "text": "« On a souvent besoin d’un plus petit que soi. »\nJean de La Fontaine",
+      "author": "Jean de La Fontaine",
+      "source": "https://fr.wikisource.org/wiki/Fables_de_La_Fontaine_(%C3%A9d._1874)/Le_Lion_et_le_Rat",
+      "original": false
+    },
+    {
+      "id": "fr-quote-patience",
+      "kind": "quote",
+      "text": "« Patience et longueur de temps\nFont plus que force ni que rage. »\nJean de La Fontaine",
+      "author": "Jean de La Fontaine",
+      "source": "https://fr.wikisource.org/wiki/Fables_de_La_Fontaine_(%C3%A9d._1874)/Le_Lion_et_le_Rat",
+      "original": false
+    },
+    {
+      "id": "fr-quote-tortue",
+      "kind": "quote",
+      "text": "« Rien ne sert de courir ; il faut partir à point. »\nJean de La Fontaine",
+      "author": "Jean de La Fontaine",
+      "source": "https://fr.wikisource.org/wiki/Fables_de_La_Fontaine_(%C3%A9d._1874)/Le_Li%C3%A8vre_et_la_Tortue",
+      "original": false
+    },
+    {
+      "id": "fr-quote-travail",
+      "kind": "quote",
+      "text": "« Travaillez, prenez de la peine :\nC’est le fonds qui manque le moins. »\nJean de La Fontaine",
+      "author": "Jean de La Fontaine",
+      "source": "https://fr.wikisource.org/wiki/Fables_de_La_Fontaine_(%C3%A9d._1874)/Le_Laboureur_et_ses_enfants",
+      "original": false
+    },
+    {
+      "id": "fr-quote-roseau",
+      "kind": "quote",
+      "text": "« Je plie et ne romps pas. »\nJean de La Fontaine",
+      "author": "Jean de La Fontaine",
+      "source": "https://fr.wikisource.org/wiki/Fables_de_La_Fontaine_(%C3%A9d._1874)/Le_Ch%C3%AAne_et_le_Roseau",
+      "original": false
+    },
+    {
+      "id": "fr-quote-clarte",
+      "kind": "quote",
+      "text": "« Ce que l’on conçoit bien s’énonce clairement,\nEt les mots pour le dire arrivent aisément. »\nNicolas Boileau",
+      "author": "Nicolas Boileau",
+      "source": "https://fr.wikisource.org/wiki/Boileau_-_%C5%92uvres_po%C3%A9tiques/L%E2%80%99Art_po%C3%A9tique/Texte_Entier",
+      "original": false
+    },
+    {
+      "id": "fr-quote-ouvrage",
+      "kind": "quote",
+      "text": "« Hâtez-vous lentement ; et, sans perdre courage,\nVingt fois sur le métier remettez votre ouvrage. »\nNicolas Boileau",
+      "author": "Nicolas Boileau",
+      "source": "https://fr.wikisource.org/wiki/Boileau_-_%C5%92uvres_po%C3%A9tiques/L%E2%80%99Art_po%C3%A9tique/Texte_Entier",
+      "original": false
+    },
+    {
+      "id": "fr-quote-effacer",
+      "kind": "quote",
+      "text": "« Ajoutez quelquefois, et souvent effacez. »\nNicolas Boileau",
+      "author": "Nicolas Boileau",
+      "source": "https://fr.wikisource.org/wiki/Boileau_-_%C5%92uvres_po%C3%A9tiques/L%E2%80%99Art_po%C3%A9tique/Texte_Entier",
+      "original": false
+    },
+    {
+      "id": "fr-quote-rime",
+      "kind": "quote",
+      "text": "« Que toujours le bon sens s’accorde avec la rime. »\nNicolas Boileau",
+      "author": "Nicolas Boileau",
+      "source": "https://fr.wikisource.org/wiki/Boileau_-_%C5%92uvres_po%C3%A9tiques/L%E2%80%99Art_po%C3%A9tique/Texte_Entier",
+      "original": false
+    },
+    {
+      "id": "fr-quote-conseil",
+      "kind": "quote",
+      "text": "« Aimez qu’on vous conseille, et non pas qu’on vous loue. »\nNicolas Boileau",
+      "author": "Nicolas Boileau",
+      "source": "https://fr.wikisource.org/wiki/Boileau_-_%C5%92uvres_po%C3%A9tiques/L%E2%80%99Art_po%C3%A9tique/Texte_Entier",
+      "original": false
+    },
+    {
+      "id": "fr-quote-limites",
+      "kind": "quote",
+      "text": "« Qui ne sait se borner ne sut jamais écrire. »\nNicolas Boileau",
+      "author": "Nicolas Boileau",
+      "source": "https://fr.wikisource.org/wiki/Boileau_-_%C5%92uvres_po%C3%A9tiques/L%E2%80%99Art_po%C3%A9tique/Texte_Entier",
+      "original": false
+    },
+    {
+      "id": "fr-quote-ciel",
+      "kind": "quote",
+      "text": "« Le ciel est, par-dessus le toit,\nSi bleu, si calme ! »\nPaul Verlaine",
+      "author": "Paul Verlaine",
+      "source": "https://fr.wikisource.org/wiki/Sagesse_(1893)/Le_ciel_est_par-dessus_le_toit",
+      "original": false
+    },
+    {
+      "id": "fr-quote-arbre",
+      "kind": "quote",
+      "text": "« Un arbre, par-dessus le toit\nBerce sa palme. »\nPaul Verlaine",
+      "author": "Paul Verlaine",
+      "source": "https://fr.wikisource.org/wiki/Sagesse_(1893)/Le_ciel_est_par-dessus_le_toit",
+      "original": false
+    },
+    {
+      "id": "fr-quote-printemps",
+      "kind": "quote",
+      "text": "« Le temps a laissié son manteau\nDe vent, de froidure et de pluye,\nEt s’est vestu de brouderie,\nDe soleil luyant, cler et beau. »\nCharles d’Orléans",
+      "author": "Charles d’Orléans",
+      "source": "https://fr.wikisource.org/wiki/Le_temps_a_laissi%C3%A9_son_manteau",
+      "original": false
+    },
+    {
+      "id": "fr-joke-clavier",
+      "kind": "joke",
+      "text": "Le clavier a demandé des vacances. La touche Échap avait déjà réservé le billet.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-cafe",
+      "kind": "joke",
+      "text": "La cafetière refuse les réunions avant neuf heures. Elle exige d'abord un entretien avec les grains.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-imprimante",
+      "kind": "joke",
+      "text": "L'imprimante a suivi un cours de théâtre. Depuis, elle fait un bourrage à chaque entrée en scène.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-chaussettes",
+      "kind": "joke",
+      "text": "La chaussette solitaire a créé un club de rencontre. Le sèche-linge refuse de transmettre les dossiers.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-parapluie",
+      "kind": "joke",
+      "text": "Le parapluie a consulté la météo. Il espérait secrètement une journée de chômage technique.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-frigo",
+      "kind": "joke",
+      "text": "Le réfrigérateur a tenté une carrière de chanteur. Son public reste froid, mais il ronronne toujours.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-marque-page",
+      "kind": "joke",
+      "text": "Le marque-page connaît tous les romans de la maison. Il n'en a pourtant jamais terminé un seul.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-aspirateur",
+      "kind": "joke",
+      "text": "L'aspirateur a écrit ses mémoires. Il a tout raconté, même les histoires qu'on avait mises sous le tapis.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-biscuit",
+      "kind": "joke",
+      "text": "Le biscuit avait prévu de tenir jusqu'au goûter. Le café lui a proposé un plongeon, et son planning s'est effondré.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-montre",
+      "kind": "joke",
+      "text": "La montre connectée félicite son propriétaire pour ses pas. Elle n'a pas remarqué qu'il cherche seulement son chargeur.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-puzzle",
+      "kind": "joke",
+      "text": "Le puzzle annonce une grande réunion de famille. Une pièce manque encore, probablement coincée sous le canapé.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-plante",
+      "kind": "joke",
+      "text": "La plante verte a obtenu un bureau près de la fenêtre. Elle appelle ça le télétravail avec vue sur ses racines.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-agenda",
+      "kind": "joke",
+      "text": "L'agenda réclame une journée libre. Malheureusement, quelqu'un y a déjà inscrit « organiser la journée libre ».",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-miroir",
+      "kind": "joke",
+      "text": "Le miroir voulait prendre un jour de repos. Personne ne l'a cru quand il a dit qu'il ne se sentait pas lui-même.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-nuage",
+      "kind": "joke",
+      "text": "Le nuage a ouvert un compte épargne. Il met un peu de pluie de côté pour le week-end.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-velo",
+      "kind": "joke",
+      "text": "Le vélo a refusé de déménager au troisième étage. Il trouvait que sa carrière prenait une pente inquiétante.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-reveil",
+      "kind": "joke",
+      "text": "Le réveil a remporté le concours du voisin le plus ponctuel. Personne n'est venu lui remettre son prix.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-pain",
+      "kind": "joke",
+      "text": "La baguette voulait voyager incognito. Les miettes ont immédiatement révélé son itinéraire.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-telecommande",
+      "kind": "joke",
+      "text": "La télécommande a demandé un passeport. Avec tous ses séjours entre les coussins, elle se croit expatriée.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-casserole",
+      "kind": "joke",
+      "text": "La casserole s'est inscrite au conservatoire. Pour l'instant, elle travaille surtout avec des couvercles débutants.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-lampe",
+      "kind": "joke",
+      "text": "La lampe de bureau a une idée brillante chaque soir. Le matin, elle préfère laisser quelqu'un d'autre réfléchir.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-calendrier",
+      "kind": "joke",
+      "text": "Le calendrier prépare sa reconversion. Il pense ouvrir une boutique de jours de congé.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-gomme",
+      "kind": "joke",
+      "text": "La gomme adore les secondes chances. Elle trouve simplement qu'on lui demande souvent d'en payer le prix.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-chargeur",
+      "kind": "joke",
+      "text": "Le chargeur est parti se reposer derrière le lit. Son propriétaire lui rend visite à quatre pattes chaque soir.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-tasse",
+      "kind": "joke",
+      "text": "La tasse a rejoint un club de randonnée. Elle attend encore qu'on lui explique pourquoi on l'attrape toujours par l'anse.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-confiture",
+      "kind": "joke",
+      "text": "Le pot de confiture se croit célèbre. Chaque matin, plusieurs tartines lui demandent une petite dédicace.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-poussiere",
+      "kind": "joke",
+      "text": "La poussière a entendu parler du grand ménage. Elle a immédiatement demandé l'asile derrière la bibliothèque.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-fenetre",
+      "kind": "joke",
+      "text": "La fenêtre aimerait voir du pays. Pour le moment, elle n'a obtenu qu'un changement de rideaux.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-bureau",
+      "kind": "joke",
+      "text": "Le bureau a essayé de se mettre au minimalisme. Le tiroir du haut a refusé de coopérer.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-carton",
+      "kind": "joke",
+      "text": "Le carton de déménagement a pris goût aux voyages. Il porte toujours trois anciennes adresses et beaucoup d'espoir.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-chat",
+      "kind": "joke",
+      "text": "Le chat a approuvé le nouveau fauteuil. Il reste à trouver une place assise pour la personne qui l'a acheté.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-chien",
+      "kind": "joke",
+      "text": "Le chien a terminé son audit du jardin. Il recommande davantage de promenades et moins de clôtures.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-poisson",
+      "kind": "joke",
+      "text": "Le poisson rouge voudrait agrandir son salon. L'agence lui propose toujours une visite du même château.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-herisson",
+      "kind": "joke",
+      "text": "Le hérisson a commandé un pull. Le service retouches a demandé une semaine de réflexion.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-escargot",
+      "kind": "joke",
+      "text": "L'escargot a installé un GPS. L'appareil annonce désormais les virages trois jours à l'avance.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-abeille",
+      "kind": "joke",
+      "text": "L'abeille a demandé un agenda plus grand. Il lui faut une colonne pour chaque fleur et aucune pour les réunions.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-canard",
+      "kind": "joke",
+      "text": "Le canard a ouvert une école de natation. Les premiers élèves ont surtout appris à réclamer des miettes.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-papillon",
+      "kind": "joke",
+      "text": "Le papillon a perdu sa carte de fidélité. Il change de fleur avant d'avoir obtenu le moindre tampon.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-fourmi",
+      "kind": "joke",
+      "text": "La fourmi a acheté une valise à roulettes. Elle dit que les miettes méritent elles aussi de voyager confortablement.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-chouette",
+      "kind": "joke",
+      "text": "La chouette a testé le travail de jour. Son compte rendu tient en deux mots : rideaux fermés.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-pingouin",
+      "kind": "joke",
+      "text": "Le pingouin a reçu un tapis de course. Il l'utilise pour perfectionner son entrée au prochain repas de famille.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-grenouille",
+      "kind": "joke",
+      "text": "La grenouille voulait un appartement avec terrasse. Elle a signé dès qu'elle a vu le nénuphar.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-lapin",
+      "kind": "joke",
+      "text": "Le lapin a commencé un potager. Il appelle la clôture « la limite entre le déjeuner et demain ».",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-renard",
+      "kind": "joke",
+      "text": "Le renard a demandé une photo d'identité. Il a insisté pour qu'on garde aussi la queue dans le cadre.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-tortue",
+      "kind": "joke",
+      "text": "La tortue a acheté des chaussures de sport. Elle les garde pour les grandes occasions de la prochaine décennie.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-moineau",
+      "kind": "joke",
+      "text": "Le moineau a trouvé une miette géante. Il envisage maintenant de louer un garde-meuble.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-libellule",
+      "kind": "joke",
+      "text": "La libellule a créé un service de livraison. Elle refuse seulement les colis plus larges que son étang.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-chenille",
+      "kind": "joke",
+      "text": "La chenille a réservé un séjour tout compris. Le descriptif précisait simplement : chambre fermée, sortie avec ailes.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-radis",
+      "kind": "joke",
+      "text": "Le radis veut devenir discret. Sa première difficulté reste sa tenue rose vif.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-carotte",
+      "kind": "joke",
+      "text": "La carotte a raté sa photo de groupe. On lui avait demandé de sourire, elle a montré ses fanes.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-poireau",
+      "kind": "joke",
+      "text": "Le poireau a ouvert un salon de coiffure. Tous ses clients ressortent avec la raie au milieu du potager.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-tomate",
+      "kind": "joke",
+      "text": "La tomate a acheté une valise. Elle refuse désormais de partir en coulis sans préparation.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-courgette",
+      "kind": "joke",
+      "text": "La courgette a reçu un vélo d'appartement. Elle se prépare pour la grande ratatouille de dimanche.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-patate",
+      "kind": "joke",
+      "text": "La pomme de terre a demandé une augmentation. Elle assure qu'elle occupe déjà plusieurs postes, dont purée et gratin.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-champignon",
+      "kind": "joke",
+      "text": "Le champignon propose des locations de vacances. Attention, le toit est compris, mais les murs restent en option.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-oignon",
+      "kind": "joke",
+      "text": "L'oignon a annoncé son départ de la cuisine. Toute l'équipe a fondu en larmes pendant le pot d'adieu.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-citron",
+      "kind": "joke",
+      "text": "Le citron a décidé de sourire davantage. Il garde tout de même quelques réserves sur la limonade.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-banane",
+      "kind": "joke",
+      "text": "La banane a commencé le yoga. Elle est particulièrement fière de sa posture du croissant.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-poire",
+      "kind": "joke",
+      "text": "La poire a engagé un garde du corps. Elle craignait surtout les conversations qui commencent par « belle maturité ».",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-cerise",
+      "kind": "joke",
+      "text": "La cerise cherchait un logement tranquille. Elle a découvert trop tard que le gâteau était un lieu de fête.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-melon",
+      "kind": "joke",
+      "text": "Le melon a invité ses voisins. Il a fallu agrandir la porte pour faire entrer tout le monde et son ego.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-noisette",
+      "kind": "joke",
+      "text": "La noisette a reçu une lettre de sa banque. Son épargne est toujours gérée par un écureuil très prévoyant.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-fromage",
+      "kind": "joke",
+      "text": "Le fromage a mis son CV à jour. Dans la rubrique expérience, il a simplement écrit « beaucoup de cave ».",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-spaghetti",
+      "kind": "joke",
+      "text": "Le spaghetti s'est inscrit à un cours de danse. Son partenaire réclame déjà un peu moins de souplesse.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-riz",
+      "kind": "joke",
+      "text": "Le grain de riz aime les voyages en groupe. Tout seul, il trouve toujours les assiettes beaucoup trop grandes.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-chocolat",
+      "kind": "joke",
+      "text": "Le carré de chocolat a préparé un plan de retraite. Il lui manque seulement un endroit où personne n'a faim.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-film",
+      "kind": "joke",
+      "text": "Le générique de fin a demandé un rôle principal. On lui a répondu qu'il arrivait toujours trop tard au casting.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-cinema",
+      "kind": "joke",
+      "text": "Le siège de cinéma se plaint du manque de reconnaissance. Il porte pourtant tous les spectateurs pendant les scènes difficiles.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-sous-titres",
+      "kind": "joke",
+      "text": "Les sous-titres ont pris une journée de congé. Les personnages parlent maintenant très lentement pour les attendre.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-projecteur",
+      "kind": "joke",
+      "text": "Le projecteur a tenté la photographie. Il trouvait dommage de ne montrer qu'une seule image à la fois.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-bibliotheque",
+      "kind": "joke",
+      "text": "La bibliothèque a organisé une soirée dansante. Les dictionnaires ont passé la soirée à définir les pas.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-roman",
+      "kind": "joke",
+      "text": "Le roman policier a perdu ses lunettes. Depuis, même l'auteur trouve les indices un peu flous.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-atlas",
+      "kind": "joke",
+      "text": "L'atlas veut partir en vacances. Le choix de la destination risque de prendre quelques chapitres.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-crayon",
+      "kind": "joke",
+      "text": "Le crayon a découvert la randonnée. Il ne sort plus sans une bonne mine et un petit carnet.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-carnet",
+      "kind": "joke",
+      "text": "Le carnet neuf attend une idée exceptionnelle. Une liste de courses vient de lui annoncer la réalité du métier.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-enveloppe",
+      "kind": "joke",
+      "text": "L'enveloppe rêvait de grands voyages. Elle a été recrutée pour transporter une facture jusqu'à la pièce voisine.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-post-it",
+      "kind": "joke",
+      "text": "Le pense-bête a oublié son rendez-vous. Il avait collé le rappel sur un autre pense-bête.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-regle",
+      "kind": "joke",
+      "text": "La règle a rejoint une chorale. Elle insiste pour mesurer chaque silence avant de chanter.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-compas",
+      "kind": "joke",
+      "text": "Le compas voulait changer de quartier. Après une longue promenade, il est revenu exactement chez lui.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-calculatrice",
+      "kind": "joke",
+      "text": "La calculatrice s'est mise à la poésie. Son premier recueil contient surtout des vers bien comptés.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-ordinateur",
+      "kind": "joke",
+      "text": "L'ordinateur a demandé une chaise plus confortable. Il prétend être le seul à travailler même pendant la pause café.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-souris",
+      "kind": "joke",
+      "text": "La souris d'ordinateur a obtenu un tapis neuf. Elle considère désormais le bureau comme un appartement meublé.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-usb",
+      "kind": "joke",
+      "text": "La clé USB a suivi un stage de rangement. Elle contient maintenant un dossier nommé « rangement définitif nouveau vrai ».",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-routeur",
+      "kind": "joke",
+      "text": "Le routeur a reçu un bouquet. Il a aussitôt vérifié si les tiges étaient compatibles avec ses ports.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-casque",
+      "kind": "joke",
+      "text": "Le casque audio aimerait raconter ses journées. Heureusement pour les voisins, il sait garder les conversations pour lui.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-ventilateur",
+      "kind": "joke",
+      "text": "Le ventilateur a écrit un roman d'aventure. Les critiques trouvent qu'il revient souvent au même endroit.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-sauvegarde",
+      "kind": "joke",
+      "text": "La sauvegarde a organisé une fête surprise. Tout le monde était invité, même la version d'avant-hier.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-disque",
+      "kind": "joke",
+      "text": "Le disque dur a commencé la méditation. Il essaie de faire le vide, mais personne ne veut supprimer les photos.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-curseur",
+      "kind": "joke",
+      "text": "Le curseur a suivi un cours de patience. Il clignote toujours, mais avec beaucoup plus de conviction.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-barre-espace",
+      "kind": "joke",
+      "text": "La barre d'espace a demandé un logement plus grand. Les autres touches lui ont rappelé qu'elle avait déjà le double salon.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-lune",
+      "kind": "joke",
+      "text": "La lune a commandé un manteau neuf. Elle a demandé qu'il soit ajustable à toutes ses phases.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-soleil",
+      "kind": "joke",
+      "text": "Le soleil a voulu essayer les horaires de bureau. Le boulanger lui a expliqué qu'il arrivait déjà un peu tard.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-pluie",
+      "kind": "joke",
+      "text": "La pluie a pris des cours de percussion. Le toit en tôle regrette de lui avoir prêté la salle.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-neige",
+      "kind": "joke",
+      "text": "Le flocon avait prévu un voyage au soleil. Son assurance lui conseille de revoir la destination.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-vent",
+      "kind": "joke",
+      "text": "Le vent a ouvert une librairie. Il tourne toutes les pages avant même que les clients aient choisi un livre.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-joke-arc-en-ciel",
+      "kind": "joke",
+      "text": "L'arc-en-ciel a refait sa garde-robe. Après réflexion, il a gardé toutes les couleurs.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-tasse-matin",
+      "kind": "poem",
+      "text": "La vapeur quitte la tasse.\nUn petit nuage prend son service dans la cuisine.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-fenetre-aube",
+      "kind": "poem",
+      "text": "Au bord de la fenêtre,\nle jour déplie doucement sa première page.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-chat-soleil",
+      "kind": "poem",
+      "text": "Un rectangle de soleil glisse sur le parquet.\nLe chat déménage sans ouvrir les yeux.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-pluie-vitres",
+      "kind": "poem",
+      "text": "La pluie écrit sur la vitre.\nChaque goutte emporte un mot que personne n'a lu.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-mer-lointaine",
+      "kind": "poem",
+      "text": "Au fond du coquillage,\nla mer garde une chambre pour les oreilles curieuses.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-chemin",
+      "kind": "poem",
+      "text": "Le chemin disparaît derrière la colline.\nLes pas, eux, continuent de raconter le voyage.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-feuille",
+      "kind": "poem",
+      "text": "Une feuille tombe dans la cour.\nL'automne vient de glisser un mot sous la porte.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-lanterne",
+      "kind": "poem",
+      "text": "La lanterne balance au bout du quai.\nMême immobile, la lumière voyage sur l'eau.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-livre-ouvert",
+      "kind": "poem",
+      "text": "Un livre attend, ouvert sur la table.\nLe silence a gardé la place du lecteur.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-crayon-soir",
+      "kind": "poem",
+      "text": "Le crayon s'arrête au milieu d'une phrase.\nDehors, un oiseau termine la journée.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-neige-cour",
+      "kind": "poem",
+      "text": "La neige efface les marches du jardin.\nIl faudra inventer le chemin demain.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-pain-chaud",
+      "kind": "poem",
+      "text": "Le pain craque dans son papier.\nLe matin a trouvé une façon de parler.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-train",
+      "kind": "poem",
+      "text": "Le train longe les champs.\nÀ la fenêtre, les nuages prennent leur temps.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-banc",
+      "kind": "poem",
+      "text": "Deux feuilles se posent sur le banc.\nLa place est réservée à ceux qui passent.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-rose",
+      "kind": "poem",
+      "text": "La rose penche après l'averse.\nDans ses pétales, le ciel a laissé quelques pièces d'argent.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-herbe",
+      "kind": "poem",
+      "text": "L'herbe repousse entre les pavés.\nLa ville a oublié de fermer une couture.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-mare",
+      "kind": "poem",
+      "text": "Un cercle s'élargit sur la mare.\nLa grenouille est partie, son passage reste encore.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-etoile",
+      "kind": "poem",
+      "text": "Une étoile apparaît au-dessus du toit.\nLa nuit allume une fenêtre de plus.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-parapluies",
+      "kind": "poem",
+      "text": "Les parapluies avancent dans la rue.\nDe petites maisons se croisent sous la pluie.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-velos",
+      "kind": "poem",
+      "text": "Les vélos dorment contre le mur.\nLeurs roues gardent en rond les chemins de la veille.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-confiture-aube",
+      "kind": "poem",
+      "text": "Sur la tartine, un peu d'abricot.\nL'été sait se faire une place en novembre.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-port",
+      "kind": "poem",
+      "text": "Les cordages grincent au port.\nLes bateaux se racontent leurs rêves de marée.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-brouillard",
+      "kind": "poem",
+      "text": "Le brouillard descend entre les maisons.\nLe village devient un dessin qu'on n'a pas fini.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-ruisseau",
+      "kind": "poem",
+      "text": "Le ruisseau contourne une pierre.\nIl connaît depuis toujours l'art de continuer.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-mousse",
+      "kind": "poem",
+      "text": "La mousse couvre le vieux mur.\nLe jardin pose sa douceur sur les années.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-cerf-volant",
+      "kind": "poem",
+      "text": "Le cerf-volant tire sur sa ficelle.\nLe ciel voudrait garder le jouet encore un peu.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-sentier",
+      "kind": "poem",
+      "text": "Au bout du sentier, une clairière.\nLa forêt ouvre enfin les bras.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-chausson",
+      "kind": "poem",
+      "text": "Un chausson attend près du lit.\nL'autre explore encore le dessous des meubles.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-clefs",
+      "kind": "poem",
+      "text": "Les clés tintent dans l'entrée.\nLa maison reconnaît le bruit du retour.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-guitare",
+      "kind": "poem",
+      "text": "Une corde vibre dans la pièce.\nLe silence se souvient soudain qu'il sait danser.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-piano",
+      "kind": "poem",
+      "text": "Une note tombe du piano.\nLe tapis la reçoit sans faire de bruit.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-radio",
+      "kind": "poem",
+      "text": "La radio murmure dans la cuisine.\nUne chanson tient compagnie aux assiettes.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-ecran-soir",
+      "kind": "poem",
+      "text": "L'écran s'éteint.\nLa fenêtre retrouve les étoiles qu'elle gardait en réserve.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-cinema-nuit",
+      "kind": "poem",
+      "text": "La salle se vide après le film.\nUne histoire marche encore avec chacun dehors.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-marque-page-nuit",
+      "kind": "poem",
+      "text": "Le marque-page veille entre deux pages.\nIl connaît l'endroit exact où le rêve a fait une pause.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-lettre",
+      "kind": "poem",
+      "text": "La lettre attend dans son enveloppe.\nQuelques mots ont déjà commencé leur voyage.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-encre",
+      "kind": "poem",
+      "text": "Une goutte d'encre touche le papier.\nLe blanc devient un endroit où l'on peut rester.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-carte",
+      "kind": "poem",
+      "text": "La carte est grande ouverte.\nLe doigt voyage avant les chaussures.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-valise",
+      "kind": "poem",
+      "text": "Dans la valise, entre deux pulls,\nun peu de place pour ce qu'on ne connaît pas encore.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-retour",
+      "kind": "poem",
+      "text": "Le train arrive au petit matin.\nSur le quai, un sourire suffit à reconnaître la ville.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-fenetre-train",
+      "kind": "poem",
+      "text": "Un clocher traverse la vitre du train.\nPuis les champs reprennent toute la phrase.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-montagne",
+      "kind": "poem",
+      "text": "La montagne garde son bonnet de neige.\nDans la vallée, les fleurs ont déjà changé de saison.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-lac",
+      "kind": "poem",
+      "text": "Le lac prête son miroir aux sapins.\nIls se penchent sans jamais se recoiffer.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-foret",
+      "kind": "poem",
+      "text": "Sous les branches, les pas ralentissent.\nLa forêt parle assez bas pour qu'on écoute.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-pommes",
+      "kind": "poem",
+      "text": "Une pomme mûrit derrière les feuilles.\nLe soleil travaille sans faire de bruit.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-potager",
+      "kind": "poem",
+      "text": "Le potager dort après l'arrosage.\nSous la terre, demain remue déjà.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-menthe",
+      "kind": "poem",
+      "text": "Une feuille de menthe froissée entre les doigts.\nLe jardin tient un instant dans la main.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-abeille-fleur",
+      "kind": "poem",
+      "text": "L'abeille repart, chargée de pollen.\nLa fleur reste ouverte pour la suivante.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-papillon-air",
+      "kind": "poem",
+      "text": "Le papillon traverse la terrasse.\nDeux battements d'ailes changent la couleur de l'après-midi.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-moineau-toit",
+      "kind": "poem",
+      "text": "Un moineau se pose sur la gouttière.\nLe toit possède maintenant sa propre chanson.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-hirondelle",
+      "kind": "poem",
+      "text": "L'hirondelle rase le champ.\nL'air garde une couture que personne ne voit.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-chouette-nuit",
+      "kind": "poem",
+      "text": "La chouette appelle derrière les arbres.\nLa nuit répond avec tout son silence.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-chien-porte",
+      "kind": "poem",
+      "text": "Le chien s'endort devant la porte.\nMême en rêve, il garde un peu de place pour le retour.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-chat-livre",
+      "kind": "poem",
+      "text": "Une patte se pose sur la page.\nLe chat propose une autre fin au chapitre.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-escargot-pluie",
+      "kind": "poem",
+      "text": "L'escargot avance après la pluie.\nSur le mur, il laisse un chemin pour la lumière.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-fourmi-miette",
+      "kind": "poem",
+      "text": "Une fourmi emporte une miette.\nLe goûter continue à l'autre bout du jardin.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-libellule-eau",
+      "kind": "poem",
+      "text": "La libellule s'arrête au-dessus de l'eau.\nL'été tient tout entier dans ce petit équilibre.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-galet",
+      "kind": "poem",
+      "text": "Le galet chauffe au bord de l'eau.\nIl a tout son temps pour devenir rond.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-vague",
+      "kind": "poem",
+      "text": "La vague revient sur le sable.\nLa mer aime raconter deux fois la même histoire.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-phares",
+      "kind": "poem",
+      "text": "Les phares passent sur le mur.\nUne voiture emporte le dernier éclat du soir.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-reverbere",
+      "kind": "poem",
+      "text": "Le réverbère s'allume sous la pluie.\nChaque goutte trouve un instant de lumière.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-marche",
+      "kind": "poem",
+      "text": "Les cageots se vident sur le marché.\nL'odeur des pêches reste un peu plus longtemps.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-boulangerie",
+      "kind": "poem",
+      "text": "La porte de la boulangerie s'ouvre.\nToute la rue reçoit un morceau de matin.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-cafe-terrasse",
+      "kind": "poem",
+      "text": "Une cuillère tourne dans la tasse.\nSur la terrasse, le temps fait un petit cercle.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-nappe",
+      "kind": "poem",
+      "text": "La nappe flotte au fil à linge.\nLe repas de dimanche a laissé partir ses voiles.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-rideau",
+      "kind": "poem",
+      "text": "Le rideau respire près de la fenêtre.\nUn courant d'air visite la maison sans frapper.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-lampe-soir",
+      "kind": "poem",
+      "text": "La lampe éclaire un coin de table.\nC'est assez de jour pour finir une page.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-bougie",
+      "kind": "poem",
+      "text": "La bougie penche sa flamme.\nQuelqu'un vient de passer tout près du silence.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-horloge",
+      "kind": "poem",
+      "text": "L'horloge avance dans la pièce vide.\nElle garde le rythme pour ceux qui reviendront.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-fenetre-hiver",
+      "kind": "poem",
+      "text": "Le givre dessine sur la fenêtre.\nL'hiver expose ses fougères avant le lever du jour.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-buche",
+      "kind": "poem",
+      "text": "Une bûche craque dans le feu.\nLe bois se souvient d'un après-midi de soleil.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-the",
+      "kind": "poem",
+      "text": "Le thé colore l'eau chaude.\nL'attente prend doucement le goût des feuilles.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-soupe",
+      "kind": "poem",
+      "text": "La soupe fume sur la table.\nLe froid s'arrête juste devant la chaise.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-noix",
+      "kind": "poem",
+      "text": "Une noix s'ouvre dans la paume.\nL'automne avait gardé un petit secret à manger.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-clementine",
+      "kind": "poem",
+      "text": "La peau de la clémentine se déroule.\nUn peu de soleil parfume les doigts.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-premiere-pluie",
+      "kind": "poem",
+      "text": "La première pluie touche la terre chaude.\nLe jardin retrouve un parfum qu'il connaissait par cœur.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-orage-loin",
+      "kind": "poem",
+      "text": "L'orage roule derrière les collines.\nIci, les feuilles attendent sans bouger.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-arc-ciel",
+      "kind": "poem",
+      "text": "Un arc-en-ciel traverse l'averse.\nLe ciel a laissé sa boîte de couleurs ouverte.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-vent-champs",
+      "kind": "poem",
+      "text": "Le vent passe dans le blé.\nLe champ salue quelque chose qu'on ne voit pas.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-ombres",
+      "kind": "poem",
+      "text": "Les ombres s'allongent sur le chemin.\nLe soir donne de grandes jambes aux petites choses.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-heure-bleue",
+      "kind": "poem",
+      "text": "Les toits deviennent bleus avant la nuit.\nLa ville hésite encore à fermer les yeux.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-lune-flaque",
+      "kind": "poem",
+      "text": "La lune est tombée dans une flaque.\nUn pas suffit à la mettre en mille morceaux.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-nuages",
+      "kind": "poem",
+      "text": "Deux nuages se rejoignent au-dessus du pré.\nPersonne n'a besoin de savoir lequel est arrivé le premier.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-constellation",
+      "kind": "poem",
+      "text": "Les étoiles se lèvent une à une.\nLe ciel prépare une carte sans noms de rues.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-matin-dimanche",
+      "kind": "poem",
+      "text": "Le dimanche entre sans réveil.\nLa maison garde un peu de nuit sous ses couvertures.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-sieste",
+      "kind": "poem",
+      "text": "Le livre glisse sur les genoux.\nUne page attend que le sommeil ait fini son histoire.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-partage",
+      "kind": "poem",
+      "text": "Le panier passe autour de la table.\nLe pain trouve sa place dans toutes les mains.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-sourire",
+      "kind": "poem",
+      "text": "Un sourire traverse la rue.\nDeux inconnus emportent un peu moins de gris.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-petit-pont",
+      "kind": "poem",
+      "text": "Le petit pont relie deux rives.\nSous ses planches, l'eau continue de choisir sa route.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    },
+    {
+      "id": "fr-poem-derniere-page",
+      "kind": "poem",
+      "text": "La dernière page se referme.\nL'histoire garde pourtant une porte ouverte dans la mémoire.",
+      "author": "TorrentLinker",
+      "source": null,
+      "original": true
+    }
+  ]
+}

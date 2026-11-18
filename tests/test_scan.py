@@ -99,3 +99,11 @@ def test_a_full_rescan_catches_a_file_rewritten_in_place_and_refreshes_the_cache
     assert scan(LibraryFolder(lib), store)[0].files == {"Show/e01.mkv": 5}  # cached
     assert scan(LibraryFolder(lib), store, refresh=True)[0].files == {"Show/e01.mkv": 9}
     assert scan(LibraryFolder(lib), store)[0].files == {"Show/e01.mkv": 9}
+
+
+def test_depth_zero_keeps_the_selected_folder_whole(tmp_path: Path) -> None:
+    write(tmp_path / "Book.epub", 4)
+    items = scan(LibraryFolder(tmp_path, depth=0))
+    assert len(items) == 1
+    assert items[0].path == tmp_path
+    assert items[0].size == 4

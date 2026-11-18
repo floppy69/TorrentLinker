@@ -3300,6 +3300,10 @@ Fait aussi partie du pack {1}. Il n’est en seed seul qu’avec son propre torr
 <context>
     <name>LibraryWorkspace</name>
     <message>
+        <source>Compare files and repair</source>
+        <translation>Comparer les fichiers et réparer</translation>
+    </message>
+    <message>
         <location filename="../gui/library_workspace.py" line="170"/>
         <source>Explore your folders. Review Candidates. Verify before seeding.</source>
         <translation>Parcourir les dossiers. Examiner les candidats. Vérifier avant de seeder.</translation>
@@ -3373,6 +3377,10 @@ Fait aussi partie du pack {1}. Il n’est en seed seul qu’avec son propre torr
         <location filename="../gui/library_workspace.py" line="267"/>
         <source>Combine Local Items</source>
         <translation>Combiner les éléments locaux</translation>
+    </message>
+    <message>
+        <source>Reseed</source>
+        <translation>Remise en seed</translation>
     </message>
 </context>
 <context>
@@ -3654,6 +3662,10 @@ Fait aussi partie du pack {1}. Il n’est en seed seul qu’avec son propre torr
 </context>
 <context>
     <name>MainWindow</name>
+    <message>
+        <source>Community</source>
+        <translation>Communauté</translation>
+    </message>
     <message>
         <source>At parity with c411</source>
         <translation>À parité avec c411</translation>
@@ -4407,6 +4419,31 @@ Chaque .torrent est téléchargé directement depuis c411 avec votre clé et ajo
         <translation>Recherche groupée terminée : {0} recherchés</translation>
     </message>
     <message>
+        <location filename="../gui/main_window.py" line="2800"/>
+        <source>Processing {0}/{1}: {2}</source>
+        <translation>Traitement {0}/{1} : {2}</translation>
+    </message>
+    <message>
+        <location filename="../gui/main_window.py" line="2800"/>
+        <source>Searching {0}/{1}: {2}</source>
+        <translation>Recherche {0}/{1} : {2}</translation>
+    </message>
+    <message>
+        <location filename="../gui/main_window.py" line="2800"/>
+        <source> · {0} failed</source>
+        <translation> · {0} en échec</translation>
+    </message>
+    <message>
+        <location filename="../gui/main_window.py" line="2800"/>
+        <source>Search failed {0}/{1}: {2}: {3}</source>
+        <translation>Échec de la recherche {0}/{1} : {2} : {3}</translation>
+    </message>
+    <message>
+        <location filename="../gui/main_window.py" line="2800"/>
+        <source>Searching…</source>
+        <translation>Recherche…</translation>
+    </message>
+    <message>
         <location filename="../gui/main_window.py" line="2549"/>
         <source>Scanning…</source>
         <translation>Analyse…</translation>
@@ -4564,6 +4601,10 @@ La mettre à la corbeille ?</translation>
         <location filename="../gui/main_window.py" line="934"/>
         <source>Browser connection unavailable. Close the other TorrentLinker instance; retrying automatically.</source>
         <translation>Connexion navigateur indisponible. Fermez l’autre instance de TorrentLinker ; nouvelle tentative automatique.</translation>
+    </message>
+<message>
+        <source>Reading client files: {0}/{1} · up to {2} requests/s</source>
+        <translation>Lecture des fichiers du client : {0}/{1} · jusqu’à {2} requêtes/s</translation>
     </message>
 </context>
 <context>
@@ -4979,8 +5020,8 @@ La mettre à la corbeille ?</translation>
     </message>
     <message>
         <location filename="../gui/media.py" line="2634"/>
-        <source>Only downloaded pieces are exposed to the player. Refresh preview after more pieces arrive. Some formats need the missing end before they can play.</source>
-        <translation>Le lecteur n’accède qu’aux blocs téléchargés. Actualisez l’aperçu après le téléchargement de nouveaux blocs. Certains formats nécessitent la fin du fichier pour être lus.</translation>
+        <source>Playing while it downloads: playback waits for the next pieces when it catches up. Some formats need the missing end before they can play.</source>
+        <translation>Lecture pendant le téléchargement : quand elle rattrape le téléchargement, la lecture attend les morceaux suivants. Certains formats nécessitent la fin du fichier pour être lus.</translation>
     </message>
     <message>
         <location filename="../gui/media.py" line="2898"/>
@@ -5632,8 +5673,8 @@ La mettre à la corbeille ?</translation>
     </message>
     <message>
         <location filename="../gui/zen_view.py" line="400"/>
-        <source>Zen/day maximizes estimated earnings. Note prefers the highest-note torrents first.</source>
-        <translation>Zen/jour maximise les gains estimés. Note privilégie les torrents ayant les meilleures notes.</translation>
+        <source>Zen/day maximizes estimated earnings. Note prioritizes each torrent's initial score, without a seed-age bonus. Equal scores prefer smaller downloads.</source>
+        <translation>Zen/jour maximise les gains estimés. Note privilégie la note initiale de chaque torrent, sans bonus de durée de seed. À note égale, les téléchargements plus petits sont prioritaires.</translation>
     </message>
     <message>
         <location filename="../gui/zen_view.py" line="404"/>
@@ -9086,6 +9127,22 @@ Le torrent est ensuite ajouté à votre client torrent avec les fichiers décomp
         <source>Retry Agent access</source>
         <translation>Réessayer l’accès des agents</translation>
     </message>
+    <message>
+        <source>Reseed link folder (optional)</source>
+        <translation>Dossier de liens pour la remise en seed (facultatif)</translation>
+    </message>
+    <message>
+        <source>Link folder</source>
+        <translation>Dossier de liens</translation>
+    </message>
+    <message>
+        <source>Used by the Reseed board for all clients. Choose a folder outside the Library, accessible to this client, and keep the links while seeding. qBittorrent can also reseed from Local Items without this folder.</source>
+        <translation>Utilisé par le tableau de remise en seed pour tous les clients. Choisissez un dossier hors bibliothèque, accessible à ce client, et conservez les liens pendant le seed. qBittorrent peut aussi remettre en seed depuis les éléments locaux sans ce dossier.</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Parcourir…</translation>
+    </message>
 </context>
 <context>
     <name>SizeField</name>
@@ -11257,6 +11314,745 @@ c411 refuse un upload dont l’uploader ne partage pas : ne le publiez pas avant
     <message>
         <source>c411&apos;s listing does not show it</source>
         <translation>absent de la liste de c411</translation>
+    </message>
+</context>
+<context>
+    <name>ReseedBoard</name>
+    <message>
+        <source>Choose folder</source>
+        <translation>Choisir un dossier</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Parcourir…</translation>
+    </message>
+    <message>
+        <source>Candidates found</source>
+        <translation>Candidats trouvés</translation>
+    </message>
+    <message>
+        <source>Check the bytes before seeding</source>
+        <translation>Vérifier le contenu avant de seeder</translation>
+    </message>
+    <message>
+        <source>Checking original files</source>
+        <translation>Vérification des originaux</translation>
+    </message>
+    <message>
+        <source>Choose an existing link folder outside the Library.</source>
+        <translation>Choisissez un dossier de liens existant hors de la bibliothèque.</translation>
+    </message>
+    <message>
+        <source>Client verification</source>
+        <translation>Vérification du client</translation>
+    </message>
+    <message>
+        <source>Compare</source>
+        <translation>Comparer</translation>
+    </message>
+    <message>
+        <source>Compare files before proceeding</source>
+        <translation>Comparer les fichiers avant de continuer</translation>
+    </message>
+    <message>
+        <source>Expected names, originals preserved</source>
+        <translation>Les bons noms, originaux conservés</translation>
+    </message>
+    <message>
+        <source>Expected names, without renaming originals. A persistent symlink folder reproduces the torrent layout. Keep it while seeding.</source>
+        <translation>Les bons noms, sans renommer vos fichiers. Un dossier de liens symboliques reprend l’arborescence du torrent. Conservez-le pendant le seed.</translation>
+    </message>
+    <message>
+        <source>Filter items…</source>
+        <translation>Filtrer les éléments…</translation>
+    </message>
+    <message>
+        <source>Find candidates</source>
+        <translation>Chercher les candidats</translation>
+    </message>
+    <message>
+        <source>Find → Compare → Prepare links → Verify → Seed. Incomplete or ambiguous matches stop for review.</source>
+        <translation>Chercher → Comparer → Préparer les liens → Vérifier → Partager. Les correspondances incomplètes ou ambiguës attendent votre examen.</translation>
+    </message>
+    <message>
+        <source>Finished · {0} seeded · {1} error(s)</source>
+        <translation>Terminé · {0} en partage · {1} erreur(s)</translation>
+    </message>
+    <message>
+        <source>Inspect</source>
+        <translation>Examiner</translation>
+    </message>
+    <message>
+        <source>Item processed</source>
+        <translation>Élément traité</translation>
+    </message>
+    <message>
+        <source>Keep the links while seeding</source>
+        <translation>Conserver les liens pendant le seed</translation>
+    </message>
+    <message>
+        <source>Link folder</source>
+        <translation>Dossier de liens</translation>
+    </message>
+    <message>
+        <source>Link folder (outside Library Folders, accessible to the client)</source>
+        <translation>Dossier de liens (hors bibliothèque, accessible au client)</translation>
+    </message>
+    <message>
+        <source>Links to prepare</source>
+        <translation>Liens à préparer</translation>
+    </message>
+    <message>
+        <source>Missing</source>
+        <translation>Manquant</translation>
+    </message>
+    <message>
+        <source>Needs attention</source>
+        <translation>À compléter</translation>
+    </message>
+    <message>
+        <source>Nothing here yet</source>
+        <translation>Rien ici pour l’instant</translation>
+    </message>
+    <message>
+        <source>Open this Local Item in the Local Items tab to review missing files or archives.</source>
+        <translation>Ouvrez cet élément dans l’onglet Éléments locaux pour examiner les fichiers manquants ou les archives.</translation>
+    </message>
+    <message>
+        <source>Pause</source>
+        <translation>Pause</translation>
+    </message>
+    <message>
+        <source>Pause requested. Waiting for the current operation.</source>
+        <translation>Pause demandée. En attente de la fin de l’opération en cours.</translation>
+    </message>
+    <message>
+        <source>Pause stops between operations. A client hash check may finish while paused. Completed steps are kept.</source>
+        <translation>La pause prend effet entre les opérations. Une vérification du client peut se terminer pendant la pause. Les étapes terminées sont conservées.</translation>
+    </message>
+    <message>
+        <source>Persistent link folder: </source>
+        <translation>Dossier de liens à conserver : </translation>
+    </message>
+    <message>
+        <source>Prepare links</source>
+        <translation>Préparer les liens</translation>
+    </message>
+    <message>
+        <source>Reseed</source>
+        <translation>Remise en seed</translation>
+    </message>
+    <message>
+        <source>Resume</source>
+        <translation>Reprendre</translation>
+    </message>
+    <message>
+        <source>Review missing files and archives</source>
+        <translation>Examiner les fichiers manquants et archives</translation>
+    </message>
+    <message>
+        <source>Run all steps</source>
+        <translation>Tout enchaîner</translation>
+    </message>
+    <message>
+        <source>Run selected</source>
+        <translation>Enchaîner la sélection</translation>
+    </message>
+    <message>
+        <source>Run stopped. Completed steps are kept.</source>
+        <translation>Parcours arrêté. Les étapes terminées sont conservées.</translation>
+    </message>
+    <message>
+        <source>Scan folders</source>
+        <translation>Analyser les dossiers</translation>
+    </message>
+    <message>
+        <source>Search for compatible torrents</source>
+        <translation>Chercher des torrents compatibles</translation>
+    </message>
+    <message>
+        <source>Seeding</source>
+        <translation>En partage</translation>
+    </message>
+    <message>
+        <source>Select visible</source>
+        <translation>Sélectionner les éléments visibles</translation>
+    </message>
+    <message>
+        <source>Start seeding</source>
+        <translation>Partager</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation>Arrêter</translation>
+    </message>
+    <message>
+        <source>To find</source>
+        <translation>À retrouver</translation>
+    </message>
+    <message>
+        <source>Use this Candidate</source>
+        <translation>Utiliser ce candidat</translation>
+    </message>
+    <message>
+        <source>Verification</source>
+        <translation>Vérification</translation>
+    </message>
+    <message>
+        <source>Verified</source>
+        <translation>Vérifié</translation>
+    </message>
+    <message>
+        <source>Verify</source>
+        <translation>Vérifier</translation>
+    </message>
+    <message>
+        <source>{0} Local Item(s). Originals keep their names. Keep the link folder while seeding.</source>
+        <translation>{0} élément(s). Les originaux gardent leur nom. Conservez le dossier de liens pendant le seed.</translation>
+    </message>
+    <message>
+        <source>{0} selected</source>
+        <translation>{0} sélectionné(s)</translation>
+    </message>
+    <message>
+        <source>Compare again</source>
+        <translation>Comparer à nouveau</translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation>Actualiser</translation>
+    </message>
+    <message>
+        <source>Show more</source>
+        <translation>Afficher la suite</translation>
+    </message>
+    <message>
+        <source>Client settings</source>
+        <translation>Paramètres du client</translation>
+    </message>
+    <message>
+        <source>Link folder configured</source>
+        <translation>Dossier de liens configuré</translation>
+    </message>
+    <message>
+        <source>Choose a link folder in Client settings</source>
+        <translation>Choisissez un dossier de liens dans les paramètres du client</translation>
+    </message>
+</context>
+<context>
+    <name>CommunityView</name>
+    <message>
+        <source>40-character torrent info hash</source>
+        <translation>Hash du torrent de 40 caractères</translation>
+    </message>
+    <message>
+        <source>Action</source>
+        <translation>Action</translation>
+    </message>
+    <message>
+        <source>Already sending or sent. Check c411 for uncertain results.</source>
+        <translation>En cours d’envoi ou déjà envoyé. Vérifiez c411 si le résultat est incertain.</translation>
+    </message>
+    <message>
+        <source>Approve</source>
+        <translation>Approuver</translation>
+    </message>
+    <message>
+        <source>Disapprove</source>
+        <translation>Désapprouver</translation>
+    </message>
+    <message>
+        <source>Chat channel</source>
+        <translation>Canal du chat</translation>
+    </message>
+    <message>
+        <source>Choose your vote</source>
+        <translation>Choisissez votre vote</translation>
+    </message>
+    <message>
+        <source>Choose…</source>
+        <translation>Choisir…</translation>
+    </message>
+    <message>
+        <source>Connect the updated companion in Settings → Companion.</source>
+        <translation>Connectez le compagnon mis à jour dans Réglages → Compagnon.</translation>
+    </message>
+    <message>
+        <source>Connected. Queued actions run when due.</source>
+        <translation>Connecté. Les actions en file seront exécutées à leur échéance.</translation>
+    </message>
+    <message>
+        <source>Due; waiting for companion</source>
+        <translation>À échéance ; en attente du compagnon</translation>
+    </message>
+    <message>
+        <source>Editable template</source>
+        <translation>Modèle modifiable</translation>
+    </message>
+    <message>
+        <source>French message suggestions</source>
+        <translation>Suggestions de messages en français</translation>
+    </message>
+    <message>
+        <source>Import seeds &amp;&amp; channels</source>
+        <translation>Importer seeds et canaux</translation>
+    </message>
+    <message>
+        <source>In {0} h {1} min {2} s</source>
+        <translation>Dans {0} h {1} min {2} s</translation>
+    </message>
+    <message>
+        <source>Limits apply per action. General and class chat share one limit. Site limits and slow mode also apply. Local sends are capped over a rolling 24 hours. A signed-in c411 tab and a running app/server are required. Editing a queued item returns it to draft.</source>
+        <translation>Les limites s’appliquent par action. Les canaux général et de classe partagent une limite. Les limites du site et le mode lent s’appliquent aussi. Les envois locaux sont plafonnés sur 24 heures glissantes. Gardez un onglet c411 connecté et l’application/serveur actif. Une modification remet l’élément en brouillon.</translation>
+    </message>
+    <message>
+        <source>Maximum per day (0 disables)</source>
+        <translation>Maximum par jour (0 désactive)</translation>
+    </message>
+    <message>
+        <source>Message, or reason for disapproval. Maximum 500 characters.</source>
+        <translation>Message ou raison de désapprobation. Maximum 500 caractères.</translation>
+    </message>
+    <message>
+        <source>Minimum interval (seconds)</source>
+        <translation>Intervalle minimum (secondes)</translation>
+    </message>
+    <message>
+        <source>Next seeds page</source>
+        <translation>Page de seeds suivante</translation>
+    </message>
+    <message>
+        <source>Pause queue</source>
+        <translation>Suspendre la file</translation>
+    </message>
+    <message>
+        <source>Resume queue</source>
+        <translation>Reprendre la file</translation>
+    </message>
+    <message>
+        <source>Run queued actions automatically while the companion is connected</source>
+        <translation>Exécuter les actions en attente automatiquement lorsque le compagnon est connecté</translation>
+    </message>
+    <message>
+        <source>Save settings</source>
+        <translation>Enregistrer les réglages</translation>
+    </message>
+    <message>
+        <source>Seeded torrent</source>
+        <translation>Torrent en seed</translation>
+    </message>
+    <message>
+        <source>Send after (local time)</source>
+        <translation>Envoyer après (heure locale)</translation>
+    </message>
+    <message>
+        <source>Settings &amp;&amp; templates</source>
+        <translation>Réglages et modèles</translation>
+    </message>
+    <message>
+        <source>Suggestions</source>
+        <translation>Suggestions</translation>
+    </message>
+    <message>
+        <source>Text / reason</source>
+        <translation>Texte / raison</translation>
+    </message>
+    <message>
+        <source>Torrent hash</source>
+        <translation>Hash du torrent</translation>
+    </message>
+    <message>
+        <source>Vote</source>
+        <translation>Vote</translation>
+    </message>
+    <message>
+        <source>Waiting for the companion to import seeds and channels…</source>
+        <translation>En attente de l’import des seeds et canaux par le compagnon…</translation>
+    </message>
+    <message>
+        <source>Waitlist</source>
+        <translation>File d’attente</translation>
+    </message>
+    <message>
+        <source>XP pending, 24 h</source>
+        <translation>XP en attente, 24 h</translation>
+    </message>
+    <message>
+        <source>XP unconfirmed</source>
+        <translation>XP non confirmée</translation>
+    </message>
+    <message>
+        <source>Comment</source>
+        <translation>Commentaire</translation>
+    </message>
+    <message>
+        <source>Trust vote</source>
+        <translation>Vote de confiance</translation>
+    </message>
+    <message>
+        <source>Chat message</source>
+        <translation>Message du chat</translation>
+    </message>
+    <message>
+        <source>Comments</source>
+        <translation>Commentaires</translation>
+    </message>
+    <message>
+        <source>Votes</source>
+        <translation>Votes</translation>
+    </message>
+    <message>
+        <source>Chat messages</source>
+        <translation>Messages du chat</translation>
+    </message>
+    <message>
+        <source>Chat</source>
+        <translation>Chat</translation>
+    </message>
+    <message>
+        <source>New draft</source>
+        <translation>Nouveau brouillon</translation>
+    </message>
+    <message>
+        <source>Use saved template</source>
+        <translation>Utiliser le modèle</translation>
+    </message>
+    <message>
+        <source>Save draft</source>
+        <translation>Enregistrer le brouillon</translation>
+    </message>
+    <message>
+        <source>Destination / text</source>
+        <translation>Destination / texte</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>État</translation>
+    </message>
+    <message>
+        <source>Send after</source>
+        <translation>Envoyer après</translation>
+    </message>
+    <message>
+        <source>Reward / result</source>
+        <translation>Récompense / résultat</translation>
+    </message>
+    <message>
+        <source>Edit selected</source>
+        <translation>Modifier la sélection</translation>
+    </message>
+    <message>
+        <source>Queue selected</source>
+        <translation>Mettre en file</translation>
+    </message>
+    <message>
+        <source>Pause selected</source>
+        <translation>Suspendre la sélection</translation>
+    </message>
+    <message>
+        <source>Move first</source>
+        <translation>En premier</translation>
+    </message>
+    <message>
+        <source>Cancel selected</source>
+        <translation>Annuler la sélection</translation>
+    </message>
+    <message>
+        <source>local</source>
+        <translation>local</translation>
+    </message>
+    <message>
+        <source>site today</source>
+        <translation>site aujourd’hui</translation>
+    </message>
+    <message>
+        <source>Draft</source>
+        <translation>Brouillon</translation>
+    </message>
+    <message>
+        <source>Queued</source>
+        <translation>En attente</translation>
+    </message>
+    <message>
+        <source>Paused</source>
+        <translation>Suspendu</translation>
+    </message>
+    <message>
+        <source>Sending</source>
+        <translation>Envoi</translation>
+    </message>
+    <message>
+        <source>Posted</source>
+        <translation>Publié</translation>
+    </message>
+    <message>
+        <source>Uncertain</source>
+        <translation>Incertain</translation>
+    </message>
+    <message>
+        <source>Refused</source>
+        <translation>Refusé</translation>
+    </message>
+    <message>
+        <source>Cancelled</source>
+        <translation>Annulé</translation>
+    </message>
+    <message>
+        <source>Queue paused</source>
+        <translation>File suspendue</translation>
+    </message>
+    <message>
+        <source>Action disabled</source>
+        <translation>Action désactivée</translation>
+    </message>
+    <message>
+        <source>Waiting for fresh site limits</source>
+        <translation>En attente des limites du site</translation>
+    </message>
+    <message>
+        <source>Site permission required</source>
+        <translation>Permission du site requise</translation>
+    </message>
+    <message>
+        <source>Site daily limit reached</source>
+        <translation>Limite quotidienne du site atteinte</translation>
+    </message>
+<message>
+            <source>Refresh library</source>
+            <translation>Actualiser la bibliothèque</translation>
+        </message>
+        <message>
+            <source>Prepare / waitlist</source>
+            <translation>Préparer / file d’attente</translation>
+        </message>
+        <message>
+            <source>Plan automatically</source>
+            <translation>Planifier automatiquement</translation>
+        </message>
+        <message>
+            <source>Automatic comments from my template</source>
+            <translation>Commentaires automatiques depuis mon modèle</translation>
+        </message>
+        <message>
+            <source>Schedule my prepared votes</source>
+            <translation>Programmer mes votes préparés</translation>
+        </message>
+        <message>
+            <source>Automatic chat from my selected messages</source>
+            <translation>Chat automatique depuis mes messages sélectionnés</translation>
+        </message>
+        <message>
+            <source>Publication starts</source>
+            <translation>Début des publications</translation>
+        </message>
+        <message>
+            <source>Publication ends</source>
+            <translation>Fin des publications</translation>
+        </message>
+        <message>
+            <source>Timezone</source>
+            <translation>Fuseau horaire</translation>
+        </message>
+        <message>
+            <source>General channel</source>
+            <translation>Canal général</translation>
+        </message>
+        <message>
+            <source>Class channel</source>
+            <translation>Canal de classe</translation>
+        </message>
+        <message>
+            <source>One selected message per line. At least five words each.</source>
+            <translation>Un message sélectionné par ligne. Au moins cinq mots chacun.</translation>
+        </message>
+        <message>
+            <source>Selected chat messages</source>
+            <translation>Messages sélectionnés pour le chat</translation>
+        </message>
+        <message>
+            <source>Add current suggestion to automatic chat</source>
+            <translation>Ajouter la suggestion actuelle au chat automatique</translation>
+        </message>
+        <message>
+            <source>Plans up to seven days ahead. Comments use {titre}. Votes keep your prepared choice. Disabling an action cancels only its automatic slots. Keep the companion connected; calendar times are estimates.</source>
+            <translation>Planifie jusqu’à sept jours à l’avance. Les commentaires utilisent {titre}. Les votes conservent votre choix. Désactiver une action annule uniquement ses créneaux automatiques. Gardez le compagnon connecté ; les horaires sont estimés.</translation>
+        </message>
+        <message>
+            <source>Your torrents, ready to contribute</source>
+            <translation>Vos torrents, prêts à contribuer</translation>
+        </message>
+        <message>
+            <source>Seeds load automatically through the companion. Choose a torrent to see its actions.</source>
+            <translation>Les torrents en seed se chargent automatiquement via le compagnon. Choisissez un torrent pour voir ses actions.</translation>
+        </message>
+        <message>
+            <source>Search torrents…</source>
+            <translation>Rechercher un torrent…</translation>
+        </message>
+        <message>
+            <source>Write a comment</source>
+            <translation>Écrire un commentaire</translation>
+        </message>
+        <message>
+            <source>Prepare a vote</source>
+            <translation>Préparer un vote</translation>
+        </message>
+        <message>
+            <source>Write in chat</source>
+            <translation>Écrire dans le chat</translation>
+        </message>
+        <message>
+            <source>Torrents</source>
+            <translation>Torrents</translation>
+        </message>
+        <message>
+            <source>No local action yet</source>
+            <translation>Aucune action locale</translation>
+        </message>
+        <message>
+            <source>No matching torrents. Discovery continues while the companion is connected.</source>
+            <translation>Aucun torrent correspondant. La recherche continue lorsque le compagnon est connecté.</translation>
+        </message>
+        <message>
+            <source>Selected day</source>
+            <translation>Jour sélectionné</translation>
+        </message>
+        <message>
+            <source>Week</source>
+            <translation>Semaine</translation>
+        </message>
+        <message>
+            <source>Month</source>
+            <translation>Mois</translation>
+        </message>
+        <message>
+            <source>Inspect selected operation</source>
+            <translation>Examiner l’opération sélectionnée</translation>
+        </message>
+        <message>
+            <source>Estimated local times. Site quotas and companion availability can delay sending.</source>
+            <translation>Heures locales estimées. Les quotas du site et la disponibilité du compagnon peuvent retarder l’envoi.</translation>
+        </message>
+        <message>
+            <source>Calendar</source>
+            <translation>Calendrier</translation>
+        </message>
+        <message>
+            <source>Search titles, messages or results…</source>
+            <translation>Rechercher un titre, un message ou un résultat…</translation>
+        </message>
+        <message>
+            <source>All actions</source>
+            <translation>Toutes les actions</translation>
+        </message>
+        <message>
+            <source>All time</source>
+            <translation>Tout l’historique</translation>
+        </message>
+        <message>
+            <source>Today</source>
+            <translation>Aujourd’hui</translation>
+        </message>
+        <message>
+            <source>7 days</source>
+            <translation>7 jours</translation>
+        </message>
+        <message>
+            <source>30 days</source>
+            <translation>30 jours</translation>
+        </message>
+        <message>
+            <source>Custom dates</source>
+            <translation>Dates personnalisées</translation>
+        </message>
+        <message>
+            <source>View operation history</source>
+            <translation>Voir l’historique de l’opération</translation>
+        </message>
+        <message>
+            <source>History</source>
+            <translation>Historique</translation>
+        </message>
+        <message>
+            <source>Edit / reschedule</source>
+            <translation>Modifier / reprogrammer</translation>
+        </message>
+        <message>
+            <source>Queue</source>
+            <translation>Mettre en file</translation>
+        </message>
+        <message>
+            <source>Pause</source>
+            <translation>Suspendre</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Annuler</translation>
+        </message>
+        <message>
+            <source>Automatic</source>
+            <translation>Automatique</translation>
+        </message>
+        <message>
+            <source>Manual</source>
+            <translation>Manuel</translation>
+        </message>
+        <message>
+        <source>Chat / draft</source>
+        <translation>Chat / brouillon</translation>
+    </message>
+    <message>
+        <source>When automatic votes are enabled, saved votes are scheduled using your choice and date.</source>
+        <translation>Si les votes automatiques sont activés, vos votes enregistrés sont programmés selon votre choix et votre date.</translation>
+    </message>
+</context>
+<context>
+    <name>RenameDialog</name>
+    <message>
+        <source>Rename inside the torrent</source>
+        <translation>Renommer dans le torrent</translation>
+    </message>
+    <message>
+        <source>These files will be renamed inside your torrent client to match yours (your files are not touched):</source>
+        <translation>Ces fichiers seront renommés dans votre client torrent pour correspondre aux vôtres (vos fichiers ne sont pas modifiés) :</translation>
+    </message>
+    <message>
+        <source>Path in torrent</source>
+        <translation>Chemin dans le torrent</translation>
+    </message>
+    <message>
+        <source>Local path</source>
+        <translation>Chemin local</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>&amp;Oui</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>&amp;Non</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <translation>O</translation>
+    </message>
+    <message>
+        <source>N</source>
+        <translation>N</translation>
+    </message>
+</context>
+<context>
+    <name>CommunityBridge</name>
+    <message>
+        <source>Export community history</source>
+        <translation>Exporter l’historique de la communauté</translation>
+    </message>
+</context>
+<context>
+    <name>UploadBoard</name>
+    <message>
+        <source>Upload preparation tools</source>
+        <translation>Outils de préparation de l’upload</translation>
     </message>
 </context>
 </TS>

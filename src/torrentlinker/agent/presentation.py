@@ -316,8 +316,8 @@ def tool_description(event: dict, language: str = "en") -> str:
             "Préparer un lot de téléchargement limité.",
         ),
         "refine_selection": (
-            "Exclude items and save a new selection.",
-            "Exclure des éléments et enregistrer une nouvelle sélection.",
+            "Keep or exclude items and save a new selection.",
+            "Garder ou exclure des éléments et enregistrer une nouvelle sélection.",
         ),
         "deduplicate_selection": (
             "Keep one release per verified film.",

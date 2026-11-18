@@ -130,7 +130,11 @@ def test_the_web_avatar_route_serves_the_cached_image(tmp_path, monkeypatch):
         assert response.content == PNG
 
 
-def test_the_desktop_header_shows_the_avatar_or_the_initial(qtbot, tmp_path):
+def test_the_desktop_header_shows_the_avatar_or_the_initial(qtbot, tmp_path, request):
+    from tests.test_profile_view import isolated_profile_test
+
+    if isolated_profile_test(request.node.nodeid):
+        return
     from PySide6.QtCore import QBuffer, QSettings
     from PySide6.QtGui import QColor, QImage
 
@@ -138,8 +142,11 @@ def test_the_desktop_header_shows_the_avatar_or_the_initial(qtbot, tmp_path):
 
     view = ProfileView(QSettings(str(tmp_path / "ui.ini"), QSettings.Format.IniFormat))
     qtbot.addWidget(view)
+    from tests.test_community_interfaces import js, wait_js
+
+    view.show()
     view.show_state({"api": {"username": "viet"}})
-    assert view.avatar.text() == "V"
+    wait_js(qtbot, view, "document.querySelector('#profile-avatar').textContent === 'V'")
     picture = QImage(80, 40, QImage.Format.Format_RGB32)
     picture.fill(QColor("red"))
     buffer = QBuffer()
@@ -149,6 +156,8 @@ def test_the_desktop_header_shows_the_avatar_or_the_initial(qtbot, tmp_path):
     view.show_avatar(bytes(buffer.data()))
     view.show_state({"api": {"username": "viet", "level": 3}})
 
-    assert not view.avatar.pixmap().isNull()
+    wait_js(qtbot, view, "document.querySelector('#profile-avatar img')?.naturalWidth === 80")
     view.show_avatar(b"not an image")
-    assert view.avatar.pixmap().isNull() and view.avatar.text() == "V"
+    wait_js(qtbot, view, "document.querySelector('#profile-avatar').textContent === 'V'")
+    assert js(qtbot, view, "document.querySelectorAll('#profile-avatar img').length") == 0
+    view.close()

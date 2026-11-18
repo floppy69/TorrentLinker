@@ -35,6 +35,7 @@ def run_batch(
     orphans_only: bool = True,
     on_wait: Callable[[LibraryEntry, float], None] = lambda e, seconds: None,
     wait: Callable[[float, Callable[[], bool]], bool] = pause,
+    on_start: Callable[[int, int, LibraryEntry], None] = lambda i, n, e: None,
 ) -> int:
     """Search every Orphan among `entries`; return how many were processed.
 
@@ -45,6 +46,7 @@ def run_batch(
     for i, entry in enumerate(queue, 1):
         if cancelled():
             break
+        on_start(i, len(queue), entry)
         waits = 0
         while True:
             try:

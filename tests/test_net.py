@@ -219,8 +219,7 @@ def test_a_new_proxy_makes_the_kept_connections_again(qtbot, tmp_path) -> None: 
     qtbot.addWidget(window)
     indexer = window.indexer()
     window.qbit()
-    assert window._qbit is not None
-    client = window._qbit[1]
+    client = window.qbit()._inner
     assert window.indexer() is indexer  # kept while nothing changes
 
     settings.proxy.address = "http://proxy.lan:3128"
@@ -229,4 +228,4 @@ def test_a_new_proxy_makes_the_kept_connections_again(qtbot, tmp_path) -> None: 
     assert net.current() == ("http://proxy.lan:3128", None)
     assert window.indexer() is not indexer
     window.qbit()
-    assert window._qbit[1] is not client
+    assert window.qbit()._inner is not client

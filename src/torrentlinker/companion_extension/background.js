@@ -1,3 +1,4 @@
+import { communityInTab } from "./community.js";
 import { collectProfile } from "./collect.js";
 import { collectDescriptors } from "./descriptor.js";
 
@@ -102,6 +103,7 @@ async function connect(pending) {
 // A command keeps the worker polling for a short while, so a queued batch does
 // not wait one alarm period per file. Any refusal ends the run immediately.
 async function commands() {
+  await communityCommands();
   let idle = 0;
   for (let worked = false; idle < 80; ) {
     const outcome = await step();
@@ -169,6 +171,67 @@ async function step() {
     return "stop";
   }
 }
+// A durable receipt is saved before executeScript. If the worker dies, report
+// uncertainty on restart rather than run a second POST. Acknowledgements may retry.
+async function communityCommands() {
+  const {connection, communityReceipts = {}, communityRetry = {}} = await chrome.storage.local.get([
+    "connection", "communityReceipts", "communityRetry",
+  ]);
+  if (!connection || connection.paused) return;
+  const key = connection.target + "/" + connection.accountId;
+  try {
+    const pending = communityReceipts[key];
+    if (pending) {
+      await request(connection, "actions-receipt", pending);
+      delete communityReceipts[key];
+      await chrome.storage.local.set({communityReceipts});
+    }
+    if (Date.now() < (communityRetry[key] || 0)) return;
+    const demand = await request(connection, "actions-demand", {accountId: connection.accountId});
+    if (!demand.collect || Date.now() < demand.retry_at * 1000) return;
+    const tabs = await chrome.tabs.query({url: "https://c411.org/*", status: "complete"});
+    if (!tabs.length) return;
+    const run = async (input) => {
+      let watchdog;
+      const beat = setInterval(() => chrome.runtime.getPlatformInfo(), 10000);
+      try {
+        const frames = await Promise.race([
+          chrome.scripting.executeScript({target: {tabId: tabs[0].id}, world: "ISOLATED",
+            func: communityInTab, args: [input]}),
+          new Promise((_, reject) => {watchdog = setTimeout(() => reject(new Error("Community timeout")), 120000);}),
+        ]);
+        return frames[0]?.result;
+      } finally {clearTimeout(watchdog); clearInterval(beat);}
+    };
+    const observed = await run({accountId: connection.accountId, page: demand.page, seeds: demand.seeds, scan: demand.scan});
+    if (!observed?.snapshot) {
+      communityRetry[key] = Date.now() + Math.max(60, observed?.retryAfter || 60) * 1000;
+      await chrome.storage.local.set({communityRetry});
+      await note("Community: " + (observed?.reason || "read unavailable"));
+      return;
+    }
+    await request(connection, "actions-observe", {accountId: connection.accountId, snapshot: observed.snapshot});
+    const {command} = await request(connection, "actions-claim", {accountId: connection.accountId});
+    if (!command) return;
+    const base = {accountId: connection.accountId, id: command.id, attempt: command.attempt};
+    communityReceipts[key] = {...base, outcome: "uncertain", reason: "network"};
+    await chrome.storage.local.set({communityReceipts});
+    let result;
+    try { result = await run({accountId: connection.accountId, command}); }
+    catch { result = {outcome: "uncertain", reason: "network"}; }
+    const receipt = {...base, ...(result || {outcome: "uncertain", reason: "receipt"})};
+    communityReceipts[key] = receipt;
+    await chrome.storage.local.set({communityReceipts});
+    await request(connection, "actions-receipt", receipt);
+    delete communityReceipts[key];
+    await chrome.storage.local.set({communityReceipts});
+    await note("Community: " + receipt.outcome);
+  } catch (error) {
+    // Keep receipts, even when the app is offline or the pairing has changed.
+    await note("Community waiting: " + String(error.status || "connection").slice(0, 60));
+  }
+}
+
 async function sync() {
   const {
     connection,
@@ -255,7 +318,9 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   serial(async () => {
     if (message.action === "disconnect") {
       const { connection } = await chrome.storage.local.get("connection");
+      const {communityReceipts, communityRetry} = await chrome.storage.local.get(["communityReceipts", "communityRetry"]);
       await chrome.storage.local.clear();
+      await chrome.storage.local.set({communityReceipts: communityReceipts || {}, communityRetry: communityRetry || {}});
       if (connection) {
         try {
           await request(connection, "disconnect", {});
@@ -272,8 +337,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         await chrome.storage.local.set({ connection });
         await note(
           connection.paused
-            ? "Automatic sync paused."
-            : "Automatic sync resumed.",
+            ? "Companion paused. Queued actions wait."
+            : "Companion resumed.",
         );
         if (!connection.paused) await sync();
       }

@@ -1650,6 +1650,33 @@ class MediaLibrary:
         )
 
     def preview_window(self, client_id, identifier, torrent_hash):
+        path, size, piece_size, pieces = self.preview_pieces(client_id, identifier, torrent_hash)
+        count = 0
+        for done in pieces:
+            if not done:
+                break
+            count += 1
+        verified = min(size, count * piece_size, path.stat().st_size)
+        if verified <= 0:
+            raise ValueError(
+                "The start of this file is not downloaded yet. Wait and refresh preview."
+            )
+        return path, verified, size
+
+    def preview_map(self, client_id, preview_id):
+        """The live piece map of an open preview: which pieces qBittorrent has verified, so
+        the player can read the file as it downloads."""
+        with self.lock:
+            preview = self.previews.get(preview_id)
+        if preview is None or preview["client"] != client_id:
+            raise ValueError("Preview expired. Select Preview downloaded portion again.")
+        _, size, piece_size, pieces = self.preview_pieces(
+            client_id, preview["item"], preview["hash"]
+        )
+        return size, piece_size, pieces
+
+    def preview_pieces(self, client_id, identifier, torrent_hash):
+        """The file and its verified pieces, once qBittorrent proves their offsets."""
         setup = self.setup(client_id)
         if setup.settings.client != "qbittorrent":
             raise ValueError(
@@ -1689,17 +1716,7 @@ class MediaLibrary:
         pieces = state.get("piece_states") or []
         if len(pieces) != (size + piece_size - 1) // piece_size:
             raise ValueError("qBittorrent returned an incomplete piece map.")
-        count = 0
-        for piece in pieces:
-            if piece != 2:
-                break
-            count += 1
-        verified = min(size, count * piece_size, path.stat().st_size)
-        if verified <= 0:
-            raise ValueError(
-                "The start of this file is not downloaded yet. Wait and refresh preview."
-            )
-        return path, verified, size
+        return path, size, piece_size, [piece == 2 for piece in pieces]
 
     def create_preview(self, client_id, identifier):
         from torrentlinker.paths import PathMapper

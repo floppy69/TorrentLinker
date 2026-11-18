@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="../panel/base.css" />
+    <link rel="stylesheet" href="view.css" />
+    <script src="../panel/i18n.js" defer></script>
+    <script src="../panel/transport.js" defer></script>
+    <script src="transport.js" defer></script>
+    <script src="view.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <nav class="tabs" aria-label="Espaces Upload">
+        <button class="on" data-tab="sources">
+          Sources <span class="count" id="sources-count"></span></button
+        ><button data-tab="drafts">
+          Brouillons <span class="count" id="drafts-count"></span></button
+        ><button data-tab="tracking">
+          Suivi <span class="count" id="tracking-count"></span>
+        </button>
+      </nav>
+      <div id="content"></div>
+    </main>
+    <p class="error" id="error" role="alert"></p>
+    <dialog id="dialog"><div id="dialog-content"></div></dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+  </body>
+</html>

@@ -1,0 +1,40 @@
+/* Shared palette for Qt, the Web shell and bundled panels.
+   Keep these two token blocks literal: gui/theme.py reads their declarations.
+   Approved panel-specific light overrides remain in each panel's view.css. */
+:root {
+  color-scheme: dark;
+  --bg: #161d23;
+  --panel: #202932;
+  --raised: #26323c;
+  --line: #33404b;
+  --text: #e2e9ed;
+  --muted: #98aab7;
+  --accent: #80bdb6;
+  --accent-text: #102a2b;
+  --tint: #263e43;
+  --hover: #263e43;
+  --danger: #ff9c9c;
+  --warning: #edbf73;
+  --success: #4ad394;
+  --link: #64c9c0;
+  --shadow: none;
+  --ink: var(--text);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f6fa;
+  --panel: #ffffff;
+  --raised: #f7f9fc;
+  --line: #d5dfe9;
+  --text: #203047;
+  --muted: #5c6c80;
+  --accent: #087f76;
+  --accent-text: #ffffff;
+  --tint: #d8eeeb;
+  --hover: #e8f3f2;
+  --danger: #b42332;
+  --warning: #8a5800;
+  --success: #1f9d63;
+  --link: #087f76;
+  --shadow: 0 16px 60px #172b3e12;
+}

@@ -12,6 +12,10 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS reseed_workspace (
+    client_id TEXT NOT NULL, item_path TEXT NOT NULL, payload TEXT NOT NULL,
+    PRIMARY KEY (client_id, item_path)
+);
 CREATE TABLE IF NOT EXISTS local_draft (
     id TEXT PRIMARY KEY,
     client_id TEXT NOT NULL,
@@ -310,6 +314,29 @@ class Store:
 
     def _verification_key(self, hash: str) -> str:
         return hash if self.client_id == "default" else f"{self.client_id}:{hash}"
+
+    def reseed_records(self) -> dict[str, dict]:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT item_path,payload FROM reseed_workspace WHERE client_id=?",
+                (self.client_id,),
+            ).fetchall()
+        return {path: json.loads(payload) for path, payload in rows}
+
+    def reseed_record(self, path: str) -> dict:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT payload FROM reseed_workspace WHERE client_id=? AND item_path=?",
+                (self.client_id, path),
+            ).fetchone()
+        return json.loads(row[0]) if row else {}
+
+    def save_reseed_record(self, path: str, record: dict) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO reseed_workspace VALUES (?,?,?)",
+                (self.client_id, path, json.dumps(record)),
+            )
 
     def local_drafts(self) -> list[dict]:
         with self._lock:

@@ -48,6 +48,10 @@ class ClientSelection(BaseModel):
     client_id: str = ""
 
 
+class ReseedFolder(ClientSelection):
+    path: str = Field(default="", max_length=4096)
+
+
 class Announce(BaseModel):
     value: str = Field(max_length=4096)
 
@@ -220,6 +224,9 @@ def create_app(
                         stop=stop.is_set,
                         progress=lambda p: progress({"phase": "fetching", **asdict(p)}),
                     ),
+                    # This refresh only fetches new releases; a manual Catalogue
+                    # job also fetches history and must remain separate.
+                    parameters={"refresh_newest": True},
                 )
 
     @asynccontextmanager
@@ -323,6 +330,23 @@ def create_app(
             "default-src 'self'; script-src 'self'; style-src 'self'; "
             "img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         )
+        if route in {
+            "/static/community/view.html",
+            "/static/reseed/view.html",
+            "/static/upload/view.html",
+            "/static/profile/view.html",
+        }:
+            # This bundled component may be embedded only by our own Web UI.
+            # Other pages remain unframeable; the component has no network access.
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                + (
+                    "img-src data:; "
+                    if route == "/static/profile/view.html"
+                    else "img-src 'self'; "
+                )
+                + "frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
+            )
         return response
 
     @app.exception_handler(RequestValidationError)
@@ -531,6 +555,21 @@ def create_app(
     def folders(path: str = "") -> dict:
         return service.browse(path)
 
+    @app.post("/api/setup/reseed-folder")
+    def save_reseed_folder(body: ReseedFolder) -> dict:
+        with jobs.lock:
+            idle()
+            setup = for_client(body.client_id).setup
+            value = body.path.strip()
+            path = str(setup.path_under_root(value)) if value else ""
+            setup.settings.profile().reseed_link_root = path
+            setup.save()
+            return {"reseed_link_root": path}
+
+    @app.post("/api/setup/preview-folder")
+    def preview_folder(body: FolderSetup) -> dict:
+        return for_client(body.client_id).setup.preview_folder(body)
+
     @app.post("/api/setup/test-folder")
     def test_folder(body: FolderSetup) -> dict:
         return for_client(body.client_id).setup.folder(body, probe=True)
@@ -607,6 +646,15 @@ def create_app(
             service.secrets.update({"announce-url": body.value})
         return {"ok": True}
 
+    @app.post("/api/upload/workspace/{action}")
+    def upload_workspace(action: str, body: dict, client_id: str = "") -> dict | list:
+        from torrentlinker.upload_workspace import UploadWorkspace
+
+        try:
+            return UploadWorkspace(for_client(client_id).uploads).request(action, body)
+        except (ValueError, KeyError) as error:
+            raise HTTPException(400, str(error)) from error
+
     @app.get("/api/upload/categories")
     def upload_categories() -> list:
         from torrentlinker.upload import PROFILES, category_name
@@ -662,6 +710,32 @@ def create_app(
             "folder_counts": counts,
             "folder_errors": [str(error.path) for error in library.folder_errors],
         }
+
+    @app.get("/api/reseed-workspace")
+    def reseed_workspace(client_id: str = "") -> dict:
+        target = for_client(client_id)
+        return {
+            "rows": target.reseed_workspace.rows(),
+            "folder_errors": [str(e.path) for e in target.library.folder_errors],
+            "link_root": target.setup.settings.profile().reseed_link_root,
+            "paused_paths": sorted(target.reseed_workspace.paused_paths()),
+        }
+
+    @app.post("/api/reseed-workspace/control")
+    def control_reseed(body: dict, client_id: str = "") -> dict:
+        target = for_client(client_id).reseed_workspace
+        paths = body.get("paths", [])
+        if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
+            raise ValueError("Select Local Items first.")
+        if body.get("action") == "enqueue":
+            target.enqueue(paths, body.get("key", ""))
+        elif body.get("action") == "scan":
+            target.request_scan(body.get("folders"))
+        elif body.get("action") == "pause-item":
+            target.control(paths, paused=bool(body.get("paused")))
+        else:
+            raise ValueError("Unknown reseed operation.")
+        return {"paused_paths": sorted(target.paused_paths())}
 
     from torrentlinker.poster_cache import PosterCache, valid_poster_url
 
@@ -937,6 +1011,12 @@ def create_app(
                 update={"client_id": body.client_id or service.settings.default_client_id}
             )
             target = for_client(body.client_id)
+            parameters = body.model_dump(
+                mode="json", exclude_defaults=True, exclude={"kind", "client_id"}
+            )
+            existing = jobs.check_capacity(body.kind, body.client_id, parameters=parameters)
+            if existing is not None:
+                return {"id": existing}
             target.validate(body)
             if (
                 body.kind == "manage"
@@ -957,6 +1037,7 @@ def create_app(
                 body.kind,
                 execute,
                 client_id=body.client_id,
+                parameters=parameters,
             )
         return {"id": identifier}
 
@@ -991,6 +1072,14 @@ def create_app(
     def plan_from_cache(identifier: str) -> dict:
         try:
             jobs.plan_now(identifier)
+        except KeyError:
+            raise HTTPException(404, "Job not found.") from None
+        return {"ok": True}
+
+    @app.post("/api/jobs/{identifier}/pause-reseed")
+    def pause_reseed(identifier: str, paused: bool = True) -> dict:
+        try:
+            jobs.pause_reseed(identifier, paused)
         except KeyError:
             raise HTTPException(404, "Job not found.") from None
         return {"ok": True}

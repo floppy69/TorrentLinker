@@ -73,12 +73,15 @@ def test_folder_explorer_and_candidate_review(tmp_path):
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
             page.locator("[data-view=library]").first.click()
-            page.locator("#library-manage-folders").click()
-            page.locator("#library-folder-path").fill(str(films))
-            page.locator("#library-folder-kind").select_option("movie")
-            page.locator("#library-folder-form .primary").click()
-            expect(page.locator("#library-folder-list .library-folder-row")).to_have_count(2)
-            page.locator("[data-library-tab=items]").click()
+            frame = page.frame_locator("#reseed-frame")
+            frame.get_by_role("button", name="Folders", exact=True).click()
+            frame.get_by_role("button", name="+ Add a folder", exact=True).click()
+            frame.locator("[name=local]").fill(str(films))
+            frame.locator("[name=kind]").select_option("movie")
+            frame.locator("[name=scan]").uncheck()
+            frame.locator("#folder-form .primary").click()
+            expect(frame.locator(".folder-entry")).to_have_count(2)
+            page.evaluate("location.hash='#/library/items'")
             page.locator("#scan").click()
             expect(page.locator("#library-table")).to_contain_text(
                 "The Time Machine.epub", timeout=15000
@@ -135,12 +138,11 @@ def test_folder_explorer_and_candidate_review(tmp_path):
                     path=str(Path(destination) / "library-web-folders.png"), full_page=True
                 )
             page.set_viewport_size({"width": 650, "height": 950})
-            expect(page.locator("#library-folder-form")).to_be_visible()
+            frame.get_by_role("button", name="+ Add a folder", exact=True).click()
+            expect(frame.locator("#folder-form")).to_be_visible()
             page.locator("#language").select_option("fr")
-            expect(page.locator("#library-folder-form-title")).to_have_text(
-                "Ajouter un dossier de bibliothèque"
-            )
-            expect(page.locator("#library-folder-path")).to_be_visible()
+            expect(frame.get_by_role("heading", name="Ajouter à la bibliothèque")).to_be_visible()
+            expect(frame.locator("[name=local]")).to_be_visible()
             assert not errors, errors
             browser.close()
     finally:

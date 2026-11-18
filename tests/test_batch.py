@@ -138,3 +138,24 @@ def test_pause_waits_and_stops_early_when_cancelled() -> None:
 
     assert pause(0.05, lambda: False) is True
     assert pause(600, lambda: True) is False  # returns at once, without waiting
+
+
+def test_each_item_is_announced_before_its_search_even_when_it_fails() -> None:
+    started: list[tuple[int, int, str]] = []
+    failed: list[str] = []
+
+    def search(e: LibraryEntry) -> list[str]:
+        if e.item.path.name == "a":
+            raise RuntimeError("down")
+        return []
+
+    run_batch(
+        [entry("a"), entry("b")],
+        search=search,
+        on_searched=lambda i, n, e, r: None,
+        cancelled=lambda: False,
+        on_error=lambda e, err: failed.append(e.item.path.name),
+        on_start=lambda i, n, e: started.append((i, n, e.item.path.name)),
+    )
+
+    assert started == [(1, 2, "a"), (2, 2, "b")] and failed == ["a"]

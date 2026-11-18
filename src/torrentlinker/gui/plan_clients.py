@@ -5,7 +5,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
-    QDoubleSpinBox,
     QLabel,
     QTableWidget,
     QTableWidgetItem,
@@ -13,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from torrentlinker.config import Settings
+from torrentlinker.gui.controls import ScrollDoubleSpinBox as QDoubleSpinBox
 
 
 class PlanClientsDialog(QDialog):

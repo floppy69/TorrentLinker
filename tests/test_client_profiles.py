@@ -117,6 +117,45 @@ def test_distributed_plan_respects_client_and_shared_disk_budgets(tmp_path):
     assert {s.disk for s in plan.disk_spaces} == {disk_of(tmp_path)}
 
 
+def test_distributed_note_plan_reserves_space_for_highest_initial_score(tmp_path):
+    from torrentlinker.downloads import DownloadFolders
+    from torrentlinker.multi_plan import distributed_plan
+    from torrentlinker.plan import PlanGoal, PlanOptions
+    from torrentlinker.store import CatalogueRow
+    from torrentlinker.zen import GB, ZenClass, ZenProfile
+
+    settings = Settings()
+    settings.zen = ZenProfile(ZenClass.SWARM_KEEPER)
+    settings.plan_options = PlanOptions(PlanGoal.NOTE)
+    settings.download_folders = DownloadFolders(default=str(tmp_path))
+    settings.ensure_profiles()
+    remote = settings.add_client("Remote")
+    remote.download_folders = DownloadFolders(default=str(tmp_path))
+    store = Store(tmp_path / "state.db")
+    store.save_catalogue(
+        [
+            CatalogueRow("a" * 40, "Small A", GB, 100, 2000, "", "", 0),
+            CatalogueRow("b" * 40, "Small B", GB, 100, 2000, "", "", 0),
+            CatalogueRow("c" * 40, "Highest note", 10 * GB, 1, 2000, "", "", 0),
+        ]
+    )
+
+    class Client:
+        def torrents(self, **kwargs):
+            return []
+
+    plan = distributed_plan(
+        settings,
+        store,
+        {"default": Client(), remote.id: Client()},
+        {"default": 10 * GB, remote.id: 10 * GB},
+    )
+
+    assert plan.items[0].candidate.title == "Highest note"
+    assert plan.items[0].note == 1.5
+    assert len(plan.items) == 3
+
+
 def test_saved_distributed_plan_keeps_its_destination(tmp_path):
     from torrentlinker.client_profiles import pending_work
 

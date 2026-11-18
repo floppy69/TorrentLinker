@@ -121,6 +121,7 @@ def test_browser_can_configure_model_chat_and_schedule_on_small_screen(tmp_path)
             page = browser.new_page(viewport={"width": 1000, "height": 740}, locale="en-US")
 
             def new_discussion():
+                expect(page.locator(".assistant-dialog")).to_have_count(0)
                 previous = page.locator("#assistant-prompt").element_handle()
                 page.get_by_role("button", name="New discussion", exact=True).click()
                 # The old controls remain visible until the asynchronous reload replaces them.
@@ -204,9 +205,20 @@ def test_browser_can_configure_model_chat_and_schedule_on_small_screen(tmp_path)
             page.locator("#assistant-more").click()
             page.get_by_role("menuitem", name="Discussion settings", exact=True).click()
             dialog = page.locator(".assistant-dialog")
+            save_reload_dialog_visible = []
+
+            def observe_save_reload(route):
+                # Keep the modal until the refreshed controls are ready, so a
+                # new discussion cannot race this pending settings reload.
+                save_reload_dialog_visible.append(dialog.is_visible())
+                route.continue_()
+
+            page.route("**/api/setup/assistant", observe_save_reload, times=1)
             dialog.get_by_label("Name", exact=True).fill("My films")
             dialog.get_by_label("Allow public Web research", exact=True).check()
             dialog.get_by_role("button", name="Save", exact=True).click()
+            expect(dialog).to_have_count(0)
+            assert save_reload_dialog_visible == [True]
             expect(page.locator("#assistant-prompt")).to_have_value("Keep this unfinished message")
             expect(page.locator("#assistant-transcript")).to_contain_text("Ready to prepare")
             new_discussion()

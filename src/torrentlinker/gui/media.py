@@ -17,6 +17,7 @@ from PySide6.QtCore import (
     QFile,
     QIODevice,
     QLocale,
+    QObject,
     QRect,
     QRectF,
     QSettings,
@@ -24,6 +25,7 @@ from PySide6.QtCore import (
     QSize,
     QSizeF,
     Qt,
+    QThread,
     QTimer,
     QUrl,
     Signal,
@@ -44,7 +46,13 @@ from PySide6.QtGui import (
     QPixmap,
     QTextDocumentFragment,
 )
-from PySide6.QtMultimedia import QMediaMetaData, QMediaPlayer, QVideoSink
+from PySide6.QtMultimedia import (
+    QMediaMetaData,
+    QMediaPlayer,
+    QVideoFrame,
+    QVideoFrameFormat,
+    QVideoSink,
+)
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -86,48 +94,107 @@ from torrentlinker.gui.tasks import run_in_background
 # The Media Center chat panel and the media beside it never shrink below these.
 CHAT_MIN_WIDTH = 320
 MEDIA_MIN_WIDTH = 560
+PREVIEW_WAIT_SECONDS = 300.0  # how long playback waits for the next downloaded pieces
+PREVIEW_WAIT_AHEAD = 64 * 1024 * 1024  # how far past the downloaded part a read waits
 AUTO_REFRESH_MS = 60_000  # Media rescans the Library Folders this often while open
 
 
-class VerifiedPrefixDevice(QIODevice):
-    """A read-only, seekable view of a fixed verified prefix, never of missing pieces."""
+class DownloadingFileDevice(QIODevice):
+    """A read-only, seekable view of a file qBittorrent is downloading, like qBittorrent's own
+    preview: the player sees the whole file, but only verified pieces are ever read.
 
-    def __init__(self, path, verified_bytes: int, parent=None) -> None:
+    A read just past the downloaded part waits for the next pieces; a read far ahead (an
+    index at the end of the file) finds nothing until its pieces arrive. Qt reads off the GUI
+    thread, so waiting never freezes the window; abort() ends a wait before the player stops.
+    """
+
+    def __init__(self, path, size: int, piece_size: int, pieces, parent=None) -> None:
         super().__init__(parent)
         self.file = QFile(str(path))
-        self.limit = int(verified_bytes)
+        self.total, self.piece_size = int(size), int(piece_size)
+        self.pieces = list(pieces)
+        self.changed = threading.Condition()
+        self.aborted = False
+        self.stalled = False  # no new pieces within PREVIEW_WAIT_SECONDS: the preview ends
         if not self.file.open(QIODevice.OpenModeFlag.ReadOnly):
             raise ValueError("The preview file cannot be opened read-only.")
-        if not 0 < self.limit <= self.file.size():
+        if self.total <= 0 or self.piece_size <= 0 or not self.available(0):
             self.file.close()
-            raise ValueError("The verified preview range is no longer available.")
+            raise ValueError("The start of this file is not downloaded yet.")
         self.open(QIODevice.OpenModeFlag.ReadOnly | QIODevice.OpenModeFlag.Unbuffered)
+
+    def update(self, pieces) -> None:
+        """qBittorrent verified more pieces: wake a read waiting for them."""
+        with self.changed:
+            self.pieces = list(pieces)
+            self.changed.notify_all()
+
+    def abort(self) -> None:
+        with self.changed:
+            self.aborted = True
+            self.changed.notify_all()
+
+    def available(self, position: int) -> int:
+        """Verified bytes from `position` on, up to the next missing piece."""
+        piece = position // self.piece_size
+        last = piece
+        while last < len(self.pieces) and self.pieces[last]:
+            last += 1
+        return max(0, min(self.total, last * self.piece_size) - position)
+
+    def downloaded(self) -> int:
+        """The verified bytes from the start of the file."""
+        return self.available(0)
 
     def isSequential(self) -> bool:
         return False
 
     def size(self) -> int:
-        return self.limit
+        return self.total
 
     def seek(self, position: int) -> bool:
-        if position < 0 or position > self.limit:
+        if position < 0 or position > self.total:
             return False
-        return self.file.seek(position) and super().seek(position)
+        return super().seek(position)
 
     def bytesAvailable(self) -> int:
-        return max(0, self.limit - self.pos())
+        return self.available(self.pos())
+
+    def gives_up(self, position: int) -> bool:
+        """Whether a read here ends instead of waiting for pieces."""
+        return (
+            self.aborted
+            or self.stalled
+            or position >= self.total
+            or not self.available(position)
+            and position > self.downloaded() + PREVIEW_WAIT_AHEAD
+        )
 
     def atEnd(self) -> bool:
-        return self.pos() >= self.limit
+        # Qt's FFmpeg reader ends only when atEnd() says so: an empty read alone makes
+        # it read again, forever.
+        return self.gives_up(self.pos())
 
     def readData(self, maximum: int) -> bytes:
-        remaining = self.limit - self.file.pos()
-        return bytes(self.file.read(min(max(0, maximum), max(0, remaining))).data())
+        position = self.pos()
+        deadline = time.monotonic() + PREVIEW_WAIT_SECONDS
+        with self.changed:
+            while not (count := self.available(position)):
+                if self.gives_up(position):
+                    return b""
+                if time.monotonic() >= deadline:
+                    self.stalled = True
+                    return b""
+                self.changed.wait(0.5)
+        if not self.file.seek(position):
+            return b""
+        return bytes(self.file.read(min(max(0, maximum), count)).data())
 
     def writeData(self, _data: bytes | bytearray | memoryview, _length: int) -> int:
         return -1
 
     def close(self) -> None:
+        self.abort()
         super().close()
         self.file.close()
 
@@ -284,6 +351,157 @@ class MediaHero(QWidget):
         painter.end()
 
 
+# Frame layouts DisplayFrames can halve: bytes per sample, and whether chroma is interleaved.
+HALVABLE = {
+    QVideoFrameFormat.PixelFormat.Format_P010: (2, True),
+    QVideoFrameFormat.PixelFormat.Format_P016: (2, True),
+    QVideoFrameFormat.PixelFormat.Format_NV12: (1, True),
+    QVideoFrameFormat.PixelFormat.Format_NV21: (1, True),
+    QVideoFrameFormat.PixelFormat.Format_YUV420P: (1, False),
+    QVideoFrameFormat.PixelFormat.Format_YUV420P10: (2, False),
+    QVideoFrameFormat.PixelFormat.Format_YV12: (1, False),
+}
+
+
+class DisplayFrames(QObject):
+    """Prepares decoded frames for the picture, on the frame thread.
+
+    The picture converts every frame on the GUI thread; a 4K frame took about 50 ms there,
+    longer than a 24 fps frame lasts, so playback stuttered. While a frame is at least twice
+    the picture's size it is halved first, a quarter of the work.
+
+    Qt also draws HDR10 with two faults. It reads the mastering peak brightness 10,000 times
+    too high, so highlights clip; and converting BT.2020's most saturated reds overflows into
+    black blotches. HDR10 frames get the real peak and the BT.601 matrix, whose conversion
+    stays in range at the cost of a slight hue shift.
+
+    Frames reach convert() queued: Qt's video thread only posts them, so it never waits for
+    the interpreter lock, which the GUI thread may hold while stopping it.
+    """
+
+    ready = Signal(QVideoFrame)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.size = QSize()  # the picture, in device pixels; set from the GUI thread
+
+    def convert(self, frame: QVideoFrame) -> None:
+        self.ready.emit(self.prepared(frame, self.size))
+
+    @staticmethod
+    def prepared(frame: QVideoFrame, size: QSize = QSize()) -> QVideoFrame:
+        source = frame.surfaceFormat()
+        hdr = source.colorTransfer() == QVideoFrameFormat.ColorTransfer.ColorTransfer_ST2084
+        layout = HALVABLE.get(source.pixelFormat())
+        step = 1
+        while (
+            layout
+            and size.width() > 0
+            and frame.width() // (step * 2) >= size.width()
+            and frame.height() // (step * 2) >= size.height()
+        ):
+            step *= 2
+        if step == 1 and not hdr:
+            return frame
+        target = QVideoFrameFormat(source)
+        if step > 1:
+            target.setFrameSize(QSize(frame.width() // step & ~1, frame.height() // step & ~1))
+            target.setViewport(QRect(0, 0, target.frameWidth(), target.frameHeight()))
+        if hdr:
+            if target.maxLuminance() > 10_000:  # 1,000 nits read as 10,000,000
+                target.setMaxLuminance(target.maxLuminance() / 10_000)
+            target.setColorSpace(QVideoFrameFormat.ColorSpace.ColorSpace_BT601)
+        copy = QVideoFrame(target)
+        if not frame.map(QVideoFrame.MapMode.ReadOnly):
+            return frame
+        try:
+            if not copy.map(QVideoFrame.MapMode.WriteOnly):
+                return frame
+            if layout:
+                DisplayFrames._sample(frame, copy, step, *layout)
+            else:
+                DisplayFrames._copy(frame, copy)
+            copy.unmap()
+        finally:
+            frame.unmap()
+        copy.setStartTime(frame.startTime())
+        copy.setEndTime(frame.endTime())
+        return copy
+
+    @staticmethod
+    def _plane(video: QVideoFrame, plane: int, rows: int, dtype):
+        import numpy
+
+        line = video.bytesPerLine(plane) // numpy.dtype(dtype).itemsize
+        bits = numpy.frombuffer(video.bits(plane), dtype)
+        rows = min(rows, bits.size // line)
+        return bits[: rows * line].reshape(rows, line)
+
+    @staticmethod
+    def _sample(frame, copy, step: int, size: int, interleaved: bool) -> None:
+        """Every step-th sample of each plane; numpy releases the interpreter lock."""
+        import numpy
+
+        dtype = numpy.uint16 if size == 2 else numpy.uint8
+        width, height = copy.width(), copy.height()
+        planes = [(0, height, width, 1)]
+        planes += (
+            [(1, height // 2, width // 2, 2)]
+            if interleaved
+            else [(1, height // 2, width // 2, 1), (2, height // 2, width // 2, 1)]
+        )
+        for plane, rows, columns, channels in planes:
+            source = DisplayFrames._plane(frame, plane, rows * step, dtype)[::step]
+            target = DisplayFrames._plane(copy, plane, rows, dtype)
+            rows = min(rows, source.shape[0], target.shape[0])
+            # Rows of (sample, channel): an interleaved chroma pair moves as one sample.
+            picked = source[:rows, : columns * step * channels]
+            picked = picked.reshape(rows, columns * step, channels)[:, ::step]
+            placed = target[:rows, : columns * channels].reshape(rows, columns, channels)
+            numpy.copyto(placed, picked)
+
+    @staticmethod
+    def _copy(frame, copy) -> None:
+        import numpy
+
+        for plane in range(frame.planeCount()):
+            source = numpy.frombuffer(frame.bits(plane), numpy.uint8)
+            target = numpy.frombuffer(copy.bits(plane), numpy.uint8)
+            source_line, target_line = frame.bytesPerLine(plane), copy.bytesPerLine(plane)
+            if source_line == target_line:
+                count = min(source.size, target.size)
+                numpy.copyto(target[:count], source[:count])
+                continue
+            rows = min(source.size // source_line, target.size // target_line)
+            width = min(source_line, target_line)
+            numpy.copyto(
+                target[: rows * target_line].reshape(rows, target_line)[:, :width],
+                source[: rows * source_line].reshape(rows, source_line)[:, :width],
+            )
+
+
+_FRAME_THREAD: QThread | None = None
+
+
+def frame_thread() -> QThread:
+    """The one thread that prepares frames, for every player; it stops when Python exits."""
+    global _FRAME_THREAD
+    if _FRAME_THREAD is None:
+        import atexit
+
+        _FRAME_THREAD = QThread()
+        _FRAME_THREAD.setObjectName("TorrentLinker frames")
+        _FRAME_THREAD.start()
+        atexit.register(_stop_frame_thread)
+    return _FRAME_THREAD
+
+
+def _stop_frame_thread() -> None:
+    if _FRAME_THREAD is not None and isValid(_FRAME_THREAD):
+        _FRAME_THREAD.quit()
+        _FRAME_THREAD.wait(5000)
+
+
 class VideoSurface(QGraphicsView):
     """Qt video rendering and ordinary widget controls share one composited surface."""
 
@@ -293,6 +511,7 @@ class VideoSurface(QGraphicsView):
         self.setScene(scene)
         self.item = QGraphicsVideoItem()
         scene.addItem(self.item)
+        self.frames: DisplayFrames | None = None
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
         self.setBackgroundBrush(QColor("black"))
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -312,6 +531,14 @@ class VideoSurface(QGraphicsView):
         self.item.setSize(QSizeF(rect.size()))
         self.overlay.setGeometry(rect)
         self.overlay.raise_()
+        self.measure()
+
+    def measure(self) -> None:
+        """Tell the frame preparer how many device pixels the picture covers."""
+        if self.frames is not None:
+            ratio = self.devicePixelRatioF()
+            size = self.viewport().size()
+            self.frames.size = QSize(round(size.width() * ratio), round(size.height() * ratio))
 
 
 class MediaTab(QWidget):
@@ -320,6 +547,9 @@ class MediaTab(QWidget):
     PICTURE_CACHE_LIMIT = 24 * 1024 * 1024
 
     scan_progress = Signal(object)
+    # A video plays: background work that would hold the interpreter lock should wait,
+    # or the frame thread misses frames.
+    video_playing_changed = Signal(bool)
     layout_changed = Signal(str)
     center_mode_requested = Signal(bool)
     connections_requested = Signal()
@@ -371,7 +601,7 @@ class MediaTab(QWidget):
         self.next_offset: int | None = None
         self.preview_id = ""
         self.preview_item = ""
-        self.preview_device: VerifiedPrefixDevice | None = None
+        self.preview_device: DownloadingFileDevice | None = None
         self.preview_generation = 0
         self.preview_checked = 0.0
         self.preview_check_pending = False
@@ -390,7 +620,8 @@ class MediaTab(QWidget):
     def _build_presentation(self, add_folder) -> None:
         self.media_layout = "cinematic"
         self.adult = False  # the XXX tab, once adult content is enabled in Settings
-        self.anime_filters: dict[str, Any] = {}  # an Anime row's See all: series, OAV, films
+        self.anime_filters: dict[str, Any] = {}
+        self.video_playing = False  # an Anime row's See all: series, OAV, films
         self.featured_id = ""
         self.picture_cache: OrderedDict[str, QImage] = OrderedDict()
         self._picture_cache_bytes = 0
@@ -1265,6 +1496,10 @@ class MediaTab(QWidget):
             )
         )
         self.pause.setToolTip(self.tr("Pause") if playing else self.tr("Play"))
+        video = playing and self.current_row.get("kind") != "music"
+        if video != self.video_playing:
+            self.video_playing = video
+            self.video_playing_changed.emit(video)
         self._show_video_controls()
         if self.kind.currentData() == "video" and self.current_row.get("kind") == "music":
             self._update_panes()  # the music bar follows play and pause while in Video
@@ -1757,9 +1992,15 @@ class MediaTab(QWidget):
                 self.audio = create_audio_output(self)
                 self.player.setAudioOutput(self.audio)
                 self.decoder_sink = QVideoSink(self.player)
+                self.display_frames = DisplayFrames()
+                self.display_frames.moveToThread(frame_thread())
+                self.destroyed.connect(self.display_frames.deleteLater)
+                self.video.frames = self.display_frames
+                self.video.measure()
                 self.decoder_sink.videoFrameChanged.connect(
-                    self.video.item.videoSink().setVideoFrame
+                    self.display_frames.convert, Qt.ConnectionType.QueuedConnection
                 )
+                self.display_frames.ready.connect(self.video.item.videoSink().setVideoFrame)
                 self.decoder_sink.subtitleTextChanged.connect(self._embedded_subtitle_text)
                 self.player.setVideoSink(self.decoder_sink)
                 self.player.playbackStateChanged.connect(self._playback_controls_changed)
@@ -2648,14 +2889,14 @@ class MediaTab(QWidget):
         def work():
             preview = library.create_preview(client, identifier)
             try:
-                path, size = library.preview_source(client, preview["preview_id"])
-                return preview, path, size
+                path, _prefix = library.preview_source(client, preview["preview_id"])
+                return preview, path, library.preview_map(client, preview["preview_id"])
             except Exception:
                 library.close_preview(client, preview["preview_id"])
                 raise
 
         def apply_preview(result):
-            preview, path, size = result
+            preview, path, (size, piece_size, pieces) = result
             if (
                 not isValid(self)
                 or generation != self.preview_generation
@@ -2668,7 +2909,7 @@ class MediaTab(QWidget):
             self._close_preview()
             self.preview_id = preview["preview_id"]
             self.preview_item = identifier
-            self.preview_device = VerifiedPrefixDevice(path, size, self)
+            self.preview_device = DownloadingFileDevice(path, size, piece_size, pieces, self)
             self.preview_checked = time.monotonic()
             self.last_source = identifier
             self.current_row = library.detail(client, identifier)
@@ -2685,9 +2926,9 @@ class MediaTab(QWidget):
             )
             self._set_notice(
                 self.tr(
-                    "Only downloaded pieces are exposed to the player. "
-                    "Refresh preview after more pieces arrive. "
-                    "Some formats need the missing end before they can play."
+                    "Playing while it downloads: playback waits for the next pieces "
+                    "when it catches up. Some formats need the missing end before they "
+                    "can play."
                 )
             )
             self.video.show()
@@ -2722,6 +2963,7 @@ class MediaTab(QWidget):
 
     def _close_preview(self) -> None:
         if self.preview_device is not None:
+            self.preview_device.abort()  # end a read waiting for pieces before stopping
             self.player.setSource(QUrl())
             self.preview_device.close()
             self.preview_device.deleteLater()
@@ -2733,15 +2975,23 @@ class MediaTab(QWidget):
         self.refresh_preview.hide()
 
     def _check_preview(self) -> None:
-        if self.preview_check_pending or time.monotonic() - self.preview_checked < 5:
+        if self.preview_check_pending or time.monotonic() - self.preview_checked < 2:
             return
         preview_id, library, client = self.preview_id, self.library, self.session_client
+        device = self.preview_device
         self.preview_check_pending = True
         self.preview_checked = time.monotonic()
 
-        def done(_result):
+        def done(result):
             if isValid(self):
                 self.preview_check_pending = False
+                if device is not None and device is self.preview_device:
+                    device.update(result[2])
+                    self.now_playing.setText(
+                        self.tr("Preview of downloaded portion · {0}% verified").format(
+                            round(100 * sum(result[2]) / max(1, len(result[2])))
+                        )
+                    )
 
         def failed(error):
             if isValid(self):
@@ -2752,7 +3002,7 @@ class MediaTab(QWidget):
                     self.last_source = ""
                     self._set_notice(str(error))
 
-        run_in_background(lambda: library.preview_source(client, preview_id), done, failed)
+        run_in_background(lambda: library.preview_map(client, preview_id), done, failed)
 
     def _chosen_ids(self) -> list[str]:
         for combo in (self.episodes, self.releases):
@@ -3382,7 +3632,7 @@ class MediaTab(QWidget):
 
     def _auto_scan(self) -> None:
         """Rescan quietly; the screen reloads only when the library changed."""
-        if not self.isVisible() or self.library is None:
+        if not self.isVisible() or self.library is None or self.video_playing:
             return
         if self.library.setup(self.session_client).settings.library_folders:
             self.start_scan(quiet=True)

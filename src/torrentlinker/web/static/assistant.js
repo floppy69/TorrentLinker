@@ -88,7 +88,7 @@ function aDialog(title) {
 }
 function aActions(dialog, form, save) {
   const footer = element("div", undefined, "toolbar");
-  footer.append(button(at("Save", "Enregistrer"), async () => { if (await save() === false) return; dialog.close(); await loadAssistant(); if (state.view === "setup") await loadAssistantConnections(); }, "primary"), button(at("Cancel", "Annuler"), () => dialog.close(), "quiet"));
+  footer.append(button(at("Save", "Enregistrer"), async () => { if (await save() === false) return; await loadAssistant(); if (state.view === "setup") await loadAssistantConnections(); dialog.close(); }, "primary"), button(at("Cancel", "Annuler"), () => dialog.close(), "quiet"));
   form.onsubmit = e => e.preventDefault(); form.append(footer);
 }
 // A small popup menu under an icon button: [[label, action], …]. Clicking elsewhere closes it.

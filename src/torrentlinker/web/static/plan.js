@@ -15,6 +15,8 @@ Object.assign(french, {
   yourUploads: "Vos uploads",
   saveComparison: "Enregistrer le nombre d’uploads",
   planFolders: "Dossiers par catégorie…",
+  planNoteHelp:
+    "Note privilégie la note initiale de chaque torrent, sans bonus de durée de seed. À note égale, les téléchargements plus petits sont prioritaires. Zen/jour maximise les gains estimés.",
   planReseedHelp:
     "Les correspondances complètes vérifiées de la bibliothèque sont incluses comme Reseeds avec une seule destination sans budget par client. Elles ne consomment pas de budget de téléchargement. Les limites de taille, de seeders et de nombre restent applicables.",
   planNow: "Arrêter la collecte et planifier maintenant",

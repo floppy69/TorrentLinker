@@ -11,11 +11,13 @@ from torrentlinker.domain import LibraryFolder, Torrent
 from torrentlinker.plan import (
     Plan,
     PlanCandidate,
+    PlanGoal,
     catalogue_candidates,
     disk_of,
     disk_space,
     explain_inputs,
     make_plan,
+    note_priority,
     on_disk,
 )
 from torrentlinker.plan_diagnostics import PlanIssue
@@ -109,14 +111,16 @@ def distributed_plan(
     for identifier, candidates in available.items():
         for item in candidates:
             by_hash.setdefault(item.infohash, {})[identifier] = item
-    # Prefer smaller high-note torrents when reserving candidate placement.
-    ordered = sorted(
-        by_hash.values(),
-        key=lambda choices: (
-            -note(settings.zen.zen_class, next(iter(choices.values())).as_zen())
-            / max(1, next(iter(choices.values())).size)
-        ),
-    )
+
+    def placement_priority(choices: dict[str, PlanCandidate]) -> tuple[float, int, str]:
+        candidate = next(iter(choices.values()))
+        score = note(settings.zen.zen_class, candidate.as_zen())
+        if options.goal is PlanGoal.NOTE:
+            return note_priority(candidate, score)
+        return -score / max(1, candidate.size), 0, ""
+
+    # Reserve space in goal order so placement cannot discard a higher-note download.
+    ordered = sorted(by_hash.values(), key=placement_priority)
     identifiers = list(clients)
     assigned = []
     cursor = 0

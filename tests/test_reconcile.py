@@ -257,7 +257,7 @@ def test_file_lists_are_read_once_paced_and_again_only_when_asked(tmp_path: Path
         return indexer_contents(client, store, url, clock=lambda: now[0], sleep=pauses.append, **kw)
 
     first = scan()
-    assert len(read) == 2 and pauses == [0.3, 0.3]  # as long as each answer took
+    assert len(read) == 2 and pauses == pytest.approx([1.2, 1.2])  # leave 80% of the cycle idle
     assert scan() == first and len(read) == 2  # the next scan asks for no file list
     store.forget_torrent_files("b" * 40)  # e.g. files renamed inside it by a Reseed
     scan()

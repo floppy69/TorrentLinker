@@ -137,7 +137,7 @@ def test_job_submission_rejection_does_not_spend_budget_or_strand_proposal(catal
             service.jobs.submit("test-blocker", block)
             assert started.wait(2)
             for _ in range(19):
-                service.jobs.submit("test-blocker", lambda stop, progress: None)
+                service.jobs.submit("test-blocker", lambda stop, progress: None, deduplicate=False)
         else:
             service.jobs.closed = True
         denied = browser.post(f"/api/agents/proposals/{pending['id']}/approve")

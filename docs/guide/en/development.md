@@ -23,6 +23,16 @@ Requires Python 3.11 or newer. Run the local checks with:
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest -q
 ```
 
+For a Linux source installation, register the launcher so Wayland can match the window to its name and dock icon. Run this from the checkout you launch, then fully quit and reopen the app:
+
+```bash
+desktop-file-install --dir="$HOME/.local/share/applications" \
+  --set-key=Exec --set-value="\"$PWD/.venv/bin/torrentlinker\"" \
+  --set-key=Icon --set-value="$PWD/src/torrentlinker/assets/icon.png" \
+  packaging/torrentlinker.desktop
+update-desktop-database "$HOME/.local/share/applications"
+```
+
 ## Translations
 
 UI strings are English in the code; French lives in `src/torrentlinker/i18n/`. After changing UI text:

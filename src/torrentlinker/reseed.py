@@ -13,10 +13,12 @@ clients leave names untouched. See ADR-0002/0013.
 from __future__ import annotations
 
 import logging
+import stat
 import threading
 import time
+import unicodedata
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from torrentlinker.disk_rename import (
@@ -95,6 +97,17 @@ def _start_reseed(
     # uses paths relative to the content root for a multifile torrent.
     prepare = getattr(qbit, "reseed_layout", None)
     client_match = prepare(meta, match) if prepare else match
+    # A normalizing filesystem can expose decomposed directory names while the
+    # torrent uses composed accents. Keep the torrent spelling when both names
+    # already address the same regular file: asking the client to rename it could
+    # move user data. Keep `match` intact for local Verification bookkeeping.
+    client_match = replace(
+        client_match,
+        pairs={
+            old: old if _same_unicode_file(item.save_path, old, new) else new
+            for old, new in client_match.pairs.items()
+        },
+    )
     if existing := qbit.torrent(meta.infohash):
         raise AlreadyInClient(existing)
     renames = rename_plan(client_match, set(meta.files))
@@ -160,6 +173,20 @@ POLL_INTERVAL = 0.2
 
 class ReseedAborted(Exception):
     """qBittorrent did not reach a safe state; the torrent was removed, data untouched."""
+
+
+def _same_unicode_file(save_path: Path, old: str, new: str) -> bool:
+    if old == new or unicodedata.normalize("NFC", old) != unicodedata.normalize("NFC", new):
+        return False
+    source, target = save_path / old, save_path / new
+    try:
+        return (
+            stat.S_ISREG(source.lstat().st_mode)
+            and stat.S_ISREG(target.lstat().st_mode)
+            and source.samefile(target)
+        )
+    except OSError:
+        return False  # no proven alias: retain the rename and the occupied-source guard
 
 
 def _require_absent_rename_sources(save_path: Path, renames: list[tuple[str, str]]) -> None:

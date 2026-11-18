@@ -1,8 +1,14 @@
 # Prepare a c411 upload
 
-Upload opens on **Local drafts**, with a searchable list beside the editor. Choose **New draft** to prepare a Library item. Save locally, then use **Details**, **Files & NFO**, **Description**, **Artwork** and **Review** to finish it. Sending is available only in **Review** after saving and confirming the current revision. Any edit clears that confirmation. The **c411 drafts** view lists remote drafts; final publication remains on c411.
+Upload uses the same list and inspection layout on desktop and Web, with **Sources**, **Drafts** and **Tracking**. Sources suggest Library items with no Candidates or rejected Candidates; these are leads to review, not proof that a release is absent. You can also choose a file or folder manually. Web pickers browse the server's storage roots.
 
-On desktop, **Open model tools…** in Artwork opens preparation for the same draft. Save to update it. The WebUI keeps model tools inside Artwork. Draft actions are in the **⋯** menu.
+The guided steps are **Sources → Check existing → Prepare → Presentation → Review → Send and track**. Save the draft, review the saved revision and confirm each send to c411. Editing invalidates that review. Final publication remains on c411. An uncertain send must be checked on the site before retrying.
+
+In Presentation, **Add image** opens Postimages. Choose and upload your image there; its returned direct link is inserted into the presentation when saved. Allow the popup. If hosting fails, the description is preserved and you can retry or paste a direct link. Files and images go to the selected host only when you choose them there.
+
+The advanced editor remains available for category options, model tools and detailed file review. The sections below describe that editor.
+
+![Guided Upload with example data](../images/web/upload-guided.png)
 
 
 ## Editor sections

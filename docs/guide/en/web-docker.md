@@ -47,7 +47,7 @@ The image still starts as UID/GID 1000 by default. Existing deployments with `ca
 Runtime PUID/PGID support is available from **1.0.0-beta.21**. Select that version or the `beta` tag; the older `latest` stable image does not include it. To use a NAS account, enable initialization explicitly:
 
 ```bash
-TL_IMAGE_TAG=1.0.0-beta.37 PUID=1001 PGID=100 docker compose \
+TL_IMAGE_TAG=1.0.0-beta.43 PUID=1001 PGID=100 docker compose \
   -f compose.yaml -f deploy/compose.identity.yaml up -d --pull always
 ```
 
@@ -120,6 +120,8 @@ The `torrentlinker_config` volume holds configuration, catalogue, queue, job his
 
 After an abrupt restart, unfinished jobs are marked interrupted and are not replayed. Check the Torrent Client before retrying. Persisted Reseed Verification is monitored again. A queue entry with an uncertain send remains visible and is not automatically sent a second time.
 
+Repeating the same action for the same client and parameters while it is queued or running follows the existing job. Different parameters create separate jobs, and you can run the same action again after it ends. Confirmation requirements still apply. Separate agent proposals keep their own approval and budget handling, so they remain separate jobs; repeating approval of the same proposal follows its existing job. Automatic Catalogue refreshes only fetch new releases and remain separate from a manual history fetch.
+
 UI-entered credentials are encrypted in `credentials.enc`. Back up it and `credentials.key` together and protect the configuration volume. Someone who can read both files can decrypt the credentials. Desktop credentials still use the operating system keyring.
 
 Unless a reverse proxy signs users in, the Web UI password comes from `TL_WEB_PASSWORD_FILE` (recommended). Where files are impractical, such as a Portainer stack, set `TL_WEB_PASSWORD` instead. The file wins if both are set. Environment variables are visible through `docker inspect`, so prefer the file when you can.
@@ -172,6 +174,8 @@ Archive extraction and the disk-renaming confirmations of µTorrent and rTorrent
 Run API tests with `pytest tests/test_web_setup.py tests/test_web_jobs.py`. For the real browser flow, install `.[browser-test]`, run `playwright install chromium`, then `TL_WEB_BROWSER=1 pytest tests/test_web_browser.py`. Tests use fake clients and temporary media.
 
 ## Use the Web UI day to day
+
+The selected workspace and tab are kept in the URL fragment, such as `#/library/folders` or `#/zen/plan`. Reloading, signing back in and browser Back/Forward restore that location. You can bookmark it, including when TorrentLinker runs under a URL prefix. Form contents and selected files are not saved in the URL.
 
 After setup, **Torrents** shows the connected client. Filter by tracker, category or state, then select the torrents to manage. Commands ask for confirmation when needed. **Activity** tracks progress and lets you cancel a running job.
 

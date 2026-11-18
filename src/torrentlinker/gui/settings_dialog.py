@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -28,7 +27,6 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
-    QSpinBox,
     QStackedWidget,
     QStyle,
     QTableWidget,
@@ -45,6 +43,8 @@ from torrentlinker.config import UI_SCALES, Settings
 from torrentlinker.credentials import TMDB_API_KEY, get_secret, set_secret
 from torrentlinker.domain import ContentKind, LibraryFolder, PathMapping, Torrent, TorrentClient
 from torrentlinker.downloads import DownloadFolders, IndexerCategory
+from torrentlinker.gui.controls import ScrollDoubleSpinBox as QDoubleSpinBox
+from torrentlinker.gui.controls import ScrollSpinBox as QSpinBox
 from torrentlinker.gui.controls import set_role
 from torrentlinker.gui.errors import offer_whole_names
 from torrentlinker.gui.folder_import import FolderImportDialog
@@ -118,7 +118,8 @@ class SettingsDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Settings"))
-        self.resize(1020, 720)
+        available = self.screen().availableGeometry()
+        self.resize(min(1020, available.width() - 40), min(720, available.height() - 60))
         self.settings = settings
         self._secret_values = secret_values
         self._loaded_secrets: dict[str, str] = {}
@@ -434,7 +435,33 @@ class SettingsDialog(QDialog):
         )
         hint.setWordWrap(True)
         layout.addWidget(hint)
+        self.reseed_link_root = QLineEdit(self.settings.profile().reseed_link_root)
+        self.reseed_link_root.setObjectName("reseedLinkRoot")
+        self.reseed_link_root.setPlaceholderText("/media/reseed-links")
+        links = QGroupBox(self.tr("Reseed link folder (optional)"))
+        links_layout = QVBoxLayout(links)
+        link_row = QHBoxLayout()
+        link_row.addWidget(self.reseed_link_root, 1)
+        browse = QPushButton(self.tr("Browse…"))
+        browse.clicked.connect(self._choose_reseed_folder)
+        link_row.addWidget(browse)
+        links_layout.addLayout(link_row)
+        help_text = QLabel(
+            self.tr(
+                "Used by the Reseed board for all clients. Choose a folder outside the Library, "
+                "accessible to this client, and keep the links while seeding. "
+                "qBittorrent can also reseed from Local Items without this folder."
+            )
+        )
+        help_text.setWordWrap(True)
+        links_layout.addWidget(help_text)
+        layout.addWidget(links)
         return box
+
+    def _choose_reseed_folder(self):
+        path = choose_directory(self, self.tr("Link folder"), self.reseed_link_root.text())
+        if path:
+            self.reseed_link_root.setText(path)
 
     def _chosen_client(self) -> TorrentClient:
         return TorrentClient(self.client.currentData())
@@ -1467,6 +1494,7 @@ class SettingsDialog(QDialog):
         self._save_secrets()
         s = self.settings
         s.profile().name = self.client_name.text().strip()
+        s.profile().reseed_link_root = self.reseed_link_root.text().strip()
         s.proxy.address = self.proxy_address.text().strip()
         s.proxy.username = self.proxy_user.text().strip()
         s.proxy.torrent_client = self.proxy_client.isChecked()

@@ -1,7 +1,8 @@
 """Plan: which Catalogue torrents to download and seed for Zen or their note.
 
 A greedy fill under each disk's free space and the torrent cap, tried over several
-orderings for Zen, or highest-note first for Note. It is a heuristic.
+orderings for Zen, or highest initial note first for Note, with smaller downloads
+breaking ties. It is a heuristic.
 Reseeds come first: they cost no download (ADR-0004).
 """
 
@@ -38,7 +39,7 @@ class PlanGoal(StrEnum):
 
 @dataclass(frozen=True)
 class PlanOptions:
-    goal: PlanGoal = PlanGoal.ZEN
+    goal: PlanGoal = PlanGoal.NOTE
     max_download_bytes: int = 0  # 0 = no additional limit
     max_torrents: int | None = None  # additional torrents in this Plan, including Reseeds
     max_seeders: int | None = None  # current swarm, before the user joins
@@ -90,7 +91,13 @@ class PlanCandidate:
         return 0 if self.reseed else self.size
 
     def as_zen(self) -> ZenTorrent:
+        # Plan candidates start with no cumulative seed time, regardless of release age.
         return ZenTorrent(self.size, self.seeders + 1, 0.0, self.category)
+
+
+def note_priority(candidate: PlanCandidate, score: float) -> tuple[float, int, str]:
+    """Highest individual initial note first; smaller downloads break equal-note ties."""
+    return -score, candidate.download_size, candidate.infohash
 
 
 @dataclass(frozen=True)
@@ -322,7 +329,11 @@ def make_plan(
     ]
     reseeds = sorted(
         (cv for cv in valued if cv[0].reseed),
-        key=lambda cv: -(notes[cv[0].infohash] if options.goal is PlanGoal.NOTE else cv[1]),
+        key=lambda cv: (
+            note_priority(cv[0], notes[cv[0].infohash])
+            if options.goal is PlanGoal.NOTE
+            else (-cv[1], 0, "")
+        ),
     )
     reseeded = {c.infohash for c, _ in reseeds}
     downloads = [cv for cv in valued if not cv[0].reseed and cv[0].infohash not in reseeded]
@@ -333,12 +344,14 @@ def make_plan(
     first = reseeds[:room]
     base = estimate(profile, seeding).total
     best = Plan(goal=options.goal, disk_spaces=tuple(disk_spaces))
-    rankings = list(ORDERINGS.values())
     if options.goal is PlanGoal.NOTE:
-        rankings = [lambda c, v: notes[c.infohash]]
-        first.sort(key=lambda cv: -notes[cv[0].infohash])
-    for rank in rankings:
-        ordered = sorted(downloads, key=lambda cv, r=rank: -r(cv[0], cv[1]))  # type: ignore[misc]
+        orderings = [sorted(downloads, key=lambda cv: note_priority(cv[0], notes[cv[0].infohash]))]
+    else:
+        orderings = [
+            sorted(downloads, key=lambda cv, r=rank: -r(cv[0], cv[1]))  # type: ignore[misc]
+            for rank in ORDERINGS.values()
+        ]
+    for ordered in orderings:
         chosen = first + _fill(
             ordered, dict(budgets), room - len(first), options.max_download_bytes
         )

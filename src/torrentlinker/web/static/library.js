@@ -47,58 +47,27 @@ function renderLibraryFolders() {
     if((libraryUI.folderErrors || []).some(path=>path===f.local || path.startsWith(f.local+"/"))) b.textContent+=say(" · Incomplete scan"," · Analyse incomplète");
     b.title=f.local; b.setAttribute("aria-pressed",String(libraryUI.folder===f.local)); rail.append(b);
   }
-  const list=$("library-folder-list"); list.replaceChildren();
-  for (const f of folders) {
-    const row=element("div",undefined,"library-folder-row");
-    const stale=(libraryUI.folderErrors || []).some(path=>path===f.local || path.startsWith(f.local+"/"));
-    const health=stale?say("Scan incomplete · previous items kept","Analyse incomplète · éléments précédents conservés"):say("Scan to check file access","Analyser pour vérifier l’accès aux fichiers");
-    const grouping=f.depth==null?say("Automatic","Automatique"):`${say("Depth","Profondeur")} ${f.depth}`;
-    row.append(element("span",`${f.local} · ${f.kind} · ${grouping} · ${health}`));
-    const actions=element("div",undefined,"actions");
-    actions.append(button(say("Edit","Modifier"),()=>editLibraryFolder(f)),button(say("Remove","Retirer"),async()=>{
-      if (!confirm(say(`Remove ${f.local} from the Library? Files stay on disk.`,`Retirer ${f.local} de la bibliothèque ? Les fichiers sont conservés.`))) return;
-      await api("setup/remove-folder",{local:f.local,purpose:"library"});
-      if (libraryUI.item?.folder === f.local) { libraryUI.item=null; libraryUI.generation++; $("candidates").hidden=true; }
-      await refreshSetup(); renderLibraryFolders();
-    }));
-    row.append(actions); list.append(row);
-  }
 }
+
 async function libraryTab(tab) {
-  document.querySelectorAll("[data-library-tab]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.libraryTab===tab)));
-  $("library-items").hidden=tab!=="items";
-  $("library-folder-manager").hidden=tab!=="folders";
-  $("library-activity").hidden=tab!=="activity";
-  if(tab==="folders") {await refreshSetup();renderLibraryFolders();}
-  if(tab==="items") await loadLibrary();
-  if(tab==="activity") await loadLibraryActivity();
+  tab = tab || "reseed";
+  const shared = ["reseed", "folders", "activity"].includes(tab);
+  document.querySelector(".library-nav").hidden = shared;
+  rememberTab("library", tab);
+  $("library-items").hidden = shared;
+  $("library-reseed").hidden = !shared;
+  if (shared) { reseedUI.tab = tab; await loadReseed(); }
+  else await loadLibrary();
 }
-function editLibraryFolder(folder) {
-  $("library-folder-path").value=folder.local;
-  $("library-folder-path").readOnly=true;
-  $("library-folder-kind").value=folder.kind;
-  const select=$("library-folder-depth"), value=folder.depth==null?"auto":String(folder.depth);
-  if(![...select.options].some(o=>o.value===value)) select.add(new Option(`Depth ${folder.depth}`,value));
-  select.value=value;
-  $("library-folder-form-title").textContent=say("Edit Library Folder","Modifier le dossier");
-  $("library-folder-feedback").textContent="";
-  $("library-folder-browse").disabled=true;
-}
-function newLibraryFolder() {
-  $("library-folder-form").reset(); $("library-folder-path").readOnly=false;
-  $("library-folder-browse").disabled=false;
-  $("library-folder-form-title").textContent=say("Add a Library Folder","Ajouter un dossier");
-  $("library-folder-feedback").textContent="";
-}
-async function browseLibraryFolder(path="") {
+
+async function browseLibraryFolder(path="",target="library-folder-path") {
   const result=await api(`folders?path=${encodeURIComponent(path)}`);
-  $("dialog-title").textContent=say("Folders on the TorrentLinker server","Dossiers du serveur TorrentLinker");
-  const host=$("dialog-content");host.replaceChildren(element("p",result.path || say("Mounted roots","Racines montées")));
+  const host=$("dialog-content");host.replaceChildren(element("h2",say("Folders on the TorrentLinker server","Dossiers du serveur TorrentLinker")),element("p",result.path || say("Mounted roots","Racines montées")));
   if(result.path) {
-    host.append(button(say("Use this folder","Utiliser ce dossier"),()=>{$("library-folder-path").value=result.path;$("dialog").close();},"primary"));
-    host.append(button("↑",()=>browseLibraryFolder(result.parent)));
+    host.append(button(say("Use this folder","Utiliser ce dossier"),()=>{$(target).value=result.path;$("dialog").close();},"primary"));
+    host.append(button("↑",()=>browseLibraryFolder(result.parent,target)));
   }
-  for(const folder of result.folders) host.append(button(folder,()=>browseLibraryFolder(folder),"directory-button"));
+  for(const folder of result.folders) host.append(button(folder,()=>browseLibraryFolder(folder,target),"directory-button"));
   if(!result.path && !result.folders.length) host.append(element("p",say("No mounted roots. Set TL_STORAGE_ROOTS on the TorrentLinker server.","Aucune racine montée. Configurez TL_STORAGE_ROOTS sur le serveur.")));
   if(!$("dialog").open) $("dialog").showModal();
 }
@@ -210,29 +179,9 @@ async function searchLibrary(selected) {
     }
   });
 }
-async function loadLibraryActivity() {
-  const rows=await api("jobs"),host=$("library-job-list");host.replaceChildren();
-  for(const row of rows.filter(r=>["scan","check","check-all","reseed","reseed-all","search-library","library-review","library-reject","check-candidate","preview-unpack","unpack-reseed","library-evidence","import-provenance","find-compatible","combine-library","diagnose-repair","prepare-repair","refresh-repair","start-repair"].includes(r.kind))) {
-    const card=element("div",undefined,"card");card.append(element("p",`${row.kind} · ${row.status}`));
-    if(row.progress?.total) card.append(element("p",`${bytes(row.progress.done)} / ${bytes(row.progress.total)}`));
-    if(row.error) card.append(element("p",row.error));
-    if(["queued","running"].includes(row.status) && row.progress?.cancellable!==false) card.append(button(say("Cancel","Annuler"),async()=>{await api(`jobs/${row.id}/cancel`,{});await loadLibraryActivity();}));
-    card.append(button(say("Details","Détails"),()=>navigate("jobs")));host.append(card);
-  }
-  if(!host.children.length) host.append(element("p",say("No Library activity yet.","Aucune activité pour le moment.")));
-}
 for(const b of document.querySelectorAll("[data-library-tab]")) b.onclick=()=>guard(()=>libraryTab(b.dataset.libraryTab));
 for(const b of document.querySelectorAll("[data-candidate-tab]")) b.onclick=()=>candidateTab(b.dataset.candidateTab);
 $("library-manage-folders").onclick=()=>guard(()=>libraryTab("folders"));
-$("library-folder-browse").onclick=()=>guard(()=>browseLibraryFolder());
-$("library-folder-new").onclick=newLibraryFolder;
-$("library-folder-form").onsubmit=e=>{e.preventDefault();guard(async()=>{
-  const local=$("library-folder-path").value.trim();
-  const depth=$("library-folder-depth").value;
-  await api("setup/folder",{local,kind:$("library-folder-kind").value,depth:depth==="auto"?null:Number(depth),purpose:"library"});
-  await refreshSetup();renderLibraryFolders();newLibraryFolder();
-  $("library-folder-feedback").textContent=say(`Saved ${local}. Scan folders to refresh the Library.`,`${local} enregistré. Analysez les dossiers pour actualiser la bibliothèque.`);
-});};
 $("library-state").onchange=()=>{state.libraryOffset=0;guard(loadLibrary);};
 $("library-search-selected").onclick=()=>guard(()=>searchLibrary(true));
 $("library-search-all").onclick=()=>guard(()=>searchLibrary(false));
@@ -243,7 +192,7 @@ $("candidate-expand").onclick=()=>{
   $("candidate-expand").textContent=expanded?say("Back to Local Items","Retour aux éléments"):say("Expand review","Agrandir");
 };
 
-$("settings-library-folders").onclick=()=>guard(async()=>{await navigate("library");await libraryTab("folders");});
+$("settings-library-folders").onclick=()=>guard(()=>navigate("library", "folders"));
 
 function renderLibraryDownloads() {
   const folders=state.setup.download_folders || {default:"",by_category:{},effective:{}};

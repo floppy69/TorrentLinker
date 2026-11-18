@@ -146,7 +146,7 @@ def test_web_partial_scan_keeps_previous_entries_and_cancellation(tmp_path, monk
     library = web_library.Library(setup)
     library.entries = build_library(folders[:1], [])
     monkeypatch.setattr(library, "client", lambda: None)
-    monkeypatch.setattr(web_library, "indexer_contents", lambda *args: [])
+    monkeypatch.setattr(web_library, "indexer_contents", lambda *args, **kwargs: [])
 
     def check(path, stop):
         if path == bad:

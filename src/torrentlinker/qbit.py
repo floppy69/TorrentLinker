@@ -38,7 +38,10 @@ class Qbit(Protocol):
     def file_listing(self, hash: str) -> list[TorrentFile]: ...
 
     def add(self, data: bytes, save_path: str, tags: list[str]) -> str:
-        """Add stopped, with automatic management off and the original layout; return hash."""
+        """Add stopped, with automatic management off and the original layout; return hash.
+
+        The data already sits in save_path: the client must check it there.
+        """
         ...
 
     def rename_file(self, hash: str, old: str, new: str) -> None:
@@ -295,7 +298,9 @@ class QbitApi:
         )
 
     def add(self, data: bytes, save_path: str, tags: list[str]) -> str:
-        return self._add(data, save_path, tags, stopped=True)
+        # The files are already in save_path: never in the folder qBittorrent may keep
+        # incomplete torrents in, where the check would find nothing after a rename.
+        return self._add(data, save_path, tags, stopped=True, use_download_path=False)
 
     def download(
         self, data: bytes, save_path: str, tags: list[str], *, sequential: bool = False
@@ -303,7 +308,13 @@ class QbitApi:
         return self._add(data, save_path, tags, stopped=False, sequential=sequential)
 
     def _add(
-        self, data: bytes, save_path: str, tags: list[str], stopped: bool, sequential=False
+        self,
+        data: bytes,
+        save_path: str,
+        tags: list[str],
+        stopped: bool,
+        sequential=False,
+        use_download_path: bool | None = None,
     ) -> str:
         h = read_torrent(data).infohash
         order = {"is_sequential_download": True, "is_first_last_piece_priority": True}
@@ -315,6 +326,7 @@ class QbitApi:
                 use_auto_torrent_management=False,
                 content_layout="Original",
                 tags=tags,
+                use_download_path=use_download_path,
                 **(order if sequential else {}),
             )
         except qbittorrentapi.Conflict409Error:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torrentlinker"
-version = "1.0.0-beta.37"
+version = "1.0.0-beta.43"
 description = "Reconcile local files with private-tracker torrents and reseed them in qBittorrent, Deluge or Transmission"
 requires-python = ">=3.11"
 dependencies = [
@@ -41,7 +41,7 @@ torrentlinker-web = "torrentlinker.web.server:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-torrentlinker = ["i18n/*.qm", "assets/*.png", "assets/*.tlcat", "gui/*.qml", "web/static/*", "companion_extension/*"]
+torrentlinker = ["i18n/*.qm", "assets/*.png", "assets/*.svg", "assets/*.tlcat", "assets/*.json", "gui/*.qml", "web/static/*", "web/static/community/*", "web/static/reseed/*", "web/static/upload/*", "web/static/panel/*", "web/static/profile/*", "companion_extension/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

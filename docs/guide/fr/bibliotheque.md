@@ -1,8 +1,19 @@
 # Bibliothèque et remise en seed
 
+## Remise en seed guidée
+
+Ouvrez **Bibliothèque → Remise en seed** sur bureau ou Web. La même liste et le panneau d’inspection montrent l’état de chaque élément. Les compteurs des étapes filtrent la liste. **Réglages** ouvre la configuration du client et **Disque** permet d’ajouter ou de parcourir des dossiers. Le bureau utilise le sélecteur natif ; le Web parcourt les racines de stockage du serveur.
+
+**Tout enchaîner** ou **Enchaîner la sélection** fait avancer chaque élément indépendamment. Recherche et vérification peuvent travailler en parallèle dans leurs limites de ressources. Un candidat ambigu, une archive ou un fichier manquant attend votre examen sans bloquer les autres. Sélectionnez un élément pour consulter son parcours, le continuer ou ouvrir l’examen des fichiers et les réparations. La pause prend effet entre les opérations ; une vérification déjà lancée dans le client peut se terminer. Le parcours conservé peut être repris après un redémarrage.
+
+Choisissez un **dossier de liens**, hors bibliothèque, dans les paramètres du client cible. Il doit être accessible au client ; les correspondances de chemins s’appliquent. Windows nécessite le mode développeur ou la permission de créer des liens symboliques. Les originaux conservent leurs noms et emplacements. Gardez les liens pendant le seed. Ce parcours ne télécharge pas automatiquement les fichiers manquants.
+
+![Remise en seed guidée avec des données d’exemple](../images/web/reseed-workspace.png)
+
+
 ## Explorateur de dossiers et examen des candidats
 
-L’application de bureau et l’interface web partagent trois sections : **Local Items**, **Folders** et **Activity**. Sélectionnez un dossier dans la colonne de gauche, puis un élément local pour examiner ses candidats sous le tableau. **Expand review** agrandit cet espace ; le retour conserve le candidat sélectionné.
+La Bibliothèque propose **Remise en seed**, **Dossiers** et **Activité**. Sélectionnez un élément dans Remise en seed puis **Examiner les fichiers et les réparations** pour ouvrir la comparaison détaillée des candidats et les outils spécialisés.
 
 Les onglets **Summary**, **Files**, **Description** et **NFO** permettent de consulter les détails. Files montre les fichiers correspondants, renommés ou absents. Une correspondance complète compare les noms et tailles ; le client torrent doit encore vérifier les hashes avant le seed. Le rejet d’un candidat est mémorisé pour cet élément local. Chercher, vérifier les fichiers ou rejeter un candidat ne lance pas de reseed.
 

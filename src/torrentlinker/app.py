@@ -7,7 +7,7 @@ from collections.abc import MutableMapping
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QStandardPaths, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication
 
 from torrentlinker import i18n
@@ -199,6 +199,10 @@ def main() -> int:
     QCoreApplication.setApplicationName("TorrentLinker")
     QCoreApplication.setOrganizationName("TorrentLinker")
     apply_ui_scale(Settings.load(data_dir() / "settings.json").ui_scale)
+    from torrentlinker.gui.windows_identity import set_app_id
+
+    set_app_id()
+    QGuiApplication.setDesktopFileName("torrentlinker")
     app = QApplication(sys.argv)
     show_unexpected_errors()
     app.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "icon.png")))
@@ -213,6 +217,9 @@ def main() -> int:
     from torrentlinker.gui.stall_watchdog import install as watch_for_stalls
 
     watch_for_stalls(window)
+    from torrentlinker.gui.garbage import keep_collections_short
+
+    keep_collections_short(window)
     try:
         if "--smoke-test" in sys.argv:  # used by CI on packaged builds
             try:

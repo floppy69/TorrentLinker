@@ -5,3 +5,5 @@ Comment=Reseed the files you already have
 Exec=torrentlinker
 Icon=torrentlinker
 Categories=Network;FileTransfer;
+StartupWMClass=TorrentLinker
+Terminal=false

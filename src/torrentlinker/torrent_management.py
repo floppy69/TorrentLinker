@@ -141,7 +141,23 @@ def manage(
                 torrent = client.torrent(hash, with_files=False)
                 if torrent is None:
                     result = ActionResult(hash, name, "missing")
-                elif reseed.VERIFYING in torrent.tags:
+                elif reseed.VERIFYING in torrent.tags or (
+                    "torrentlinker:link-checking" in torrent.tags and action != "remove"
+                ):
+                    result = ActionResult(hash, torrent.name, "verifying")
+                elif "torrentlinker:links" in torrent.tags and action in {"delete", "want_files"}:
+                    result = ActionResult(
+                        hash,
+                        torrent.name,
+                        "failed",
+                        "This torrent uses links to original files. "
+                        "Remove it without deleting data.",
+                    )
+                elif (
+                    "torrentlinker:links" in torrent.tags
+                    and action == "resume"
+                    and (torrent.progress < 1 or torrent.state in reseed.CHECKING_STATES)
+                ):
                     result = ActionResult(hash, torrent.name, "verifying")
                 else:
                     name = torrent.name
