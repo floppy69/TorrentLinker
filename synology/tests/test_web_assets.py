@@ -25,7 +25,7 @@ class SynologyWebAssetTests(unittest.TestCase):
 
     def test_all_original_ui_links_and_guides_resolve(self) -> None:
         summary = audit_web_assets(self.runtime)
-        self.assertEqual(summary["guide_pages"], 32)
+        self.assertGreaterEqual(summary["guide_pages"], 32)
         self.assertGreaterEqual(summary["guide_images"], 40)
         self.assertGreaterEqual(summary["static_links"], 17)
         self.assertGreaterEqual(summary["local_markdown_links"], 100)

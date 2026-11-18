@@ -228,10 +228,12 @@ def smoke(runtime: Path, payload: Path) -> None:
                                     raise ValueError(f"Empty Web asset: {link}")
 
                             images: set[str] = set()
+                            guide_count = 0
                             for lang in ("fr", "en"):
                                 guides = json.loads(fetch(f"api/documentation?language={lang}"))
                                 if len(guides) < 15:
                                     raise ValueError(f"Missing {lang} guide index")
+                                guide_count += len(guides)
                                 for guide in guides:
                                     name = quote(guide["path"], safe="/")
                                     content = json.loads(fetch(f"api/documentation/page/{name}"))
@@ -258,7 +260,7 @@ def smoke(runtime: Path, payload: Path) -> None:
                                     raise ValueError("Companion ZIP has no manifest.json")
                             print(
                                 f"Web link smoke test: {len(links)} static, "
-                                f"32 guides, {len(images)} images, companion ZIP OK"
+                                f"{guide_count} guides, {len(images)} images, companion ZIP OK"
                             )
                             print("Native runtime server smoke test: OK")
                             break
