@@ -229,6 +229,104 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
 
+# SYNOLOGY_RELEASE_BEGIN
+  synology-build:
+    # The SPK release is independent of desktop / GHCR jobs in the fork.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [dsm73-x86_64, dsm74-x86_64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify upstream integrity
+        run: python3 synology/tools/check_upstream_integrity.py --check-worktree
+      - name: Install DSM build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pax-utils python3-pyelftools binutils
+          python3 -m pip install --upgrade 'build>=1,<2' 'setuptools>=69' 'pillow>=10' 'packaging>=24'
+      - name: Run DSM packaging tests
+        run: python3 -m unittest discover -s synology/tests -v
+      - name: Compute DSM package version
+        id: version
+        shell: bash
+        run: |
+          printf 'version=%s\n' "$(python3 synology/tools/release_version.py "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+      - name: Build native Synology package
+        run: |
+          python3 synology/tools/prepare_runtime.py \
+            --workdir "$RUNNER_TEMP/torrentlinker-release" \
+            --target "${{ matrix.target }}" \
+            --package-version "${{ steps.version.outputs.version }}"
+      - name: Confirm Git checkout unchanged
+        run: |
+          python3 synology/tools/check_upstream_integrity.py --check-worktree
+          git diff --exit-code
+      - name: Store release SPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: synology-${{ matrix.target }}
+          path: ${{ runner.temp }}/torrentlinker-release/dist/*.spk
+          retention-days: 7
+          if-no-files-found: error
+
+  synology-release:
+    # Publish SPKs even if an unrelated Windows/macOS/desktop/container job fails.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [synology-build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: synology-*
+          path: dist/synology
+          merge-multiple: true
+      - name: Verify both Synology SPKs and embedded DSM metadata
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from tarfile import open as taropen
+          import os
+          import re
+          root = Path("dist/synology")
+          files = sorted(root.glob("*.spk"))
+          assert len(files) == 2, f"Expected two Synology SPKs, got {files}"
+          expected = {
+              "dsm73-x86_64": "7.3-81180",
+              "dsm74-x86_64": "7.4-90075",
+          }
+          for target, dsm in expected.items():
+              matches = [p for p in files if p.name.endswith(f"-{target}.spk")]
+              assert len(matches) == 1, f"Missing or duplicate SPK: {target}"
+              with taropen(matches[0]) as archive:
+                  info = archive.extractfile("INFO").read().decode("utf-8")
+                  assert "package=\"TorrentLinkerSynology\"" in info
+                  assert f'os_min_ver="{dsm}"' in info
+                  assert re.search(r'^version="[0-9]+\.[0-9]+\.[0-9]+-[0-9]{4}"$', info, re.M)
+          PY
+      - name: Attach native DSM 7.3 and 7.4 packages to this GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/synology/*.spk
+          fail_on_unmatched_files: true
+          name: TorrentLinker ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+
+# SYNOLOGY_RELEASE_END
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [linux, windows, macos, container]
