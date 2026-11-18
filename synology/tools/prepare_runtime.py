@@ -285,6 +285,7 @@ def smoke(runtime: Path, payload: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workdir", type=Path, required=True)
+    parser.add_argument("--package-version", help="Optional release-specific DSM SPK version")
     parser.add_argument(
         "--target", choices=("dsm73-x86_64", "dsm74-x86_64"), default="dsm73-x86_64"
     )
@@ -415,6 +416,7 @@ def main() -> int:
 
     manifest = {
         "dsm_target": args.target,
+        "spk_version": args.package_version or "1.0.0-0004",
         "upstream_commit": (REPO / "synology/upstream.sha").read_text().strip(),
         "python": PYTHON_RELEASE,
         "python_archive_sha256": PYTHON_SHA256,
@@ -431,13 +433,16 @@ def main() -> int:
     (payload / "synology-build-manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    run(
+    builder_command = [
         sys.executable, str(REPO / "synology/tools/build_spk.py"),
         "--payload", str(payload), "--icon64", str(icons / "icon64.png"),
         "--icon256", str(icons / "icon256.png"),
         "--target", args.target,
         "--output-dir", str(work / "dist"),
-    )
+    ]
+    if args.package_version:
+        builder_command.extend(["--package-version", args.package_version])
+    run(*builder_command)
     print("SPK built with complete wheel manifest; physical NAS acceptance is still required.")
     return 0
 

@@ -158,6 +158,21 @@ class BuildSpkTests(unittest.TestCase):
             self.assertIsNone(archive.testzip())
             self.assertIn("torrentlinker-companion/manifest.json", archive.namelist())
 
+    def test_release_specific_version_in_filename_and_info(self) -> None:
+        result = build(
+            self.payload, self.icon64, self.icon256, self.root / "release",
+            target="dsm74-x86_64", package_version="1.0.0-3043",
+        )
+        self.assertIn("1.0.0-3043-dsm74-x86_64.spk", result.name)
+        with tarfile.open(result, "r") as archive:
+            info = archive.extractfile("INFO").read().decode()
+        self.assertIn('version="1.0.0-3043"', info)
+
+    def test_invalid_release_version_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Invalid DSM package version"):
+            build(self.payload, self.icon64, self.icon256, self.root / "release",
+                  package_version="v1.0.0-beta.43")
+
     def test_dsm74_target_has_separate_metadata_and_filename(self) -> None:
         result = build(
             self.payload, self.icon64, self.icon256, self.root / "output",

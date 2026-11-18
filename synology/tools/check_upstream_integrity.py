@@ -10,6 +10,24 @@ import sys
 from pathlib import Path
 
 ALLOWED_PREFIX = "synology/"
+RELEASE_WORKFLOW = ".github/workflows/release.yml"
+RELEASE_BEGIN = "# SYNOLOGY_RELEASE_BEGIN\n"
+RELEASE_END = "# SYNOLOGY_RELEASE_END\n"
+
+
+def is_additive_synology_release(repo: Path, base_ref: str) -> bool:
+    """Allow ONLY an inserted Synology job block; original workflow stays byte-identical."""
+    original = git(repo, "show", f"{base_ref}:{RELEASE_WORKFLOW}")
+    current = git(repo, "show", f"HEAD:{RELEASE_WORKFLOW}")
+    start, separator, tail = current.partition(RELEASE_BEGIN.encode())
+    if not separator or current.count(RELEASE_BEGIN.encode()) != 1:
+        return False
+    addition, separator, end = tail.partition(RELEASE_END.encode())
+    if not separator or tail.count(RELEASE_END.encode()) != 1:
+        return False
+    required = (b"  synology-build:\n", b"  synology-release:\n",
+                b"needs: [synology-build]", b"softprops/action-gh-release@v2")
+    return all(part in addition for part in required) and start + end == original
 ALLOWED_FILES = frozenset({
     ".github/workflows/synology-integrity.yml",
     ".github/workflows/synology-dsm73-build.yml",
@@ -58,6 +76,8 @@ def check(repo: Path, *, check_worktree: bool = False) -> list[str]:
 
     for path, identity in original.items():
         if current.get(path) != identity:
+            if path == RELEASE_WORKFLOW and is_additive_synology_release(repo, base_ref):
+                continue
             errors.append(f"Upstream file changed or removed: {path}")
 
     for path in current.keys() - original.keys():
@@ -86,7 +106,7 @@ def main() -> int:
         for error in errors:
             print(f"[FAIL] {error}", file=sys.stderr)
         return 1
-    print("[OK] All upstream tracked files are identical to the pinned baseline.")
+    print("[OK] Upstream application files preserved; release.yml permits Synology-only additions.")
     return 0
 
 

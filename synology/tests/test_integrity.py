@@ -28,7 +28,10 @@ class SourceIntegrityTests(unittest.TestCase):
         git(self.repo, "config", "user.email", "ci@example.invalid")
         (self.repo / "src").mkdir()
         (self.repo / "src" / "app.py").write_text("VERSION = 1\n", encoding="utf-8")
-        git(self.repo, "add", "src/app.py")
+        workflow = self.repo / ".github/workflows/release.yml"
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text("name: Release\n\njobs:\n  release:\n    runs-on: ubuntu-latest\n", encoding="utf-8")
+        git(self.repo, "add", "src/app.py", ".github/workflows/release.yml")
         git(self.repo, "commit", "-qm", "original project")
         baseline = git(self.repo, "rev-parse", "HEAD")
         (self.repo / "synology").mkdir()
@@ -52,6 +55,22 @@ class SourceIntegrityTests(unittest.TestCase):
     def test_native_spk_workflow_is_allowed(self) -> None:
         self.commit(".github/workflows/synology-dsm73-build.yml", "name: build\n")
         self.assertEqual(check(self.repo), [])
+
+    def test_release_workflow_may_only_add_synology_jobs(self) -> None:
+        initial = (self.repo / ".github/workflows/release.yml").read_text()
+        addition = ("# SYNOLOGY_RELEASE_BEGIN\n"
+                    "  synology-build:\n    runs-on: ubuntu-latest\n"
+                    "  synology-release:\n    needs: [synology-build]\n"
+                    "    uses: softprops/action-gh-release@v2\n"
+                    "# SYNOLOGY_RELEASE_END\n")
+        self.commit(".github/workflows/release.yml",
+                    initial.replace("  release:\n", addition + "  release:\n"))
+        self.assertEqual(check(self.repo), [])
+        self.commit(".github/workflows/release.yml",
+                    (self.repo / ".github/workflows/release.yml").read_text()
+                    .replace("name: Release", "name: Unexpected mutation"))
+        self.assertIn("Upstream file changed or removed: .github/workflows/release.yml",
+                      check(self.repo))
 
     def test_original_file_modification_is_rejected(self) -> None:
         self.commit("src/app.py", "VERSION = 2\n")

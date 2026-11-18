@@ -11,6 +11,7 @@ import argparse
 import gzip
 import io
 import os
+import re
 import struct
 import tarfile
 import tempfile
@@ -117,10 +118,13 @@ def package_payload(payload: Path, destination: Path) -> None:
 
 
 def build(
-    payload: Path, icon64: Path, icon256: Path, output_dir: Path, *, target: str = TARGET
+    payload: Path, icon64: Path, icon256: Path, output_dir: Path, *,
+    target: str = TARGET, package_version: str = PACKAGE_VERSION
 ) -> Path:
     if target not in TARGET_INFO:
         raise ValueError(f"Unsupported DSM build target: {target}")
+    if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+-[0-9]{4}", package_version) is None:
+        raise ValueError(f"Invalid DSM package version: {package_version!r}")
     source_root = TEMPLATE_ROOT.parent.parent.resolve()
     if payload.resolve().is_relative_to(source_root):
         raise ValueError("Runtime payload must be staged outside the upstream checkout")
@@ -130,7 +134,7 @@ def build(
     validate_png(icon64, 64)
     validate_png(icon256, 256)
     output_dir.mkdir(parents=True, exist_ok=True)
-    output = output_dir / f"{PACKAGE}-{PACKAGE_VERSION}-{target}.spk"
+    output = output_dir / f"{PACKAGE}-{package_version}-{target}.spk"
     if output.exists():
         raise FileExistsError(f"Refusing to overwrite existing SPK: {output}")
     with tempfile.TemporaryDirectory(prefix="synology-package-", dir=output_dir) as tmp:
@@ -138,7 +142,12 @@ def build(
         temporary_spk = Path(tmp) / "package.spk"
         package_payload(payload, payload_archive)
         with tarfile.open(temporary_spk, "w", format=tarfile.PAX_FORMAT) as tar:
-            add_bytes(tar, "INFO", (TEMPLATE_ROOT / TARGET_INFO[target]).read_bytes())
+            info_text = (TEMPLATE_ROOT / TARGET_INFO[target]).read_text(encoding="utf-8")
+            default_version = f'version="{PACKAGE_VERSION}"'
+            if info_text.count(default_version) != 1:
+                raise ValueError("DSM INFO template has an unexpected version field")
+            info_text = info_text.replace(default_version, f'version="{package_version}"')
+            add_bytes(tar, "INFO", info_text.encode("utf-8"))
             add_bytes(tar, "conf/privilege", (TEMPLATE_ROOT / "conf/privilege").read_bytes())
             add_bytes(tar, "conf/resource", (TEMPLATE_ROOT / "conf/resource").read_bytes())
             for script_name in LIFECYCLE_SCRIPTS:
@@ -162,10 +171,11 @@ def main() -> int:
     parser.add_argument("--icon256", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--target", choices=tuple(TARGET_INFO), default=TARGET)
+    parser.add_argument("--package-version", default=PACKAGE_VERSION)
     args = parser.parse_args()
     output = build(
         args.payload.resolve(), args.icon64.resolve(),
-        args.icon256.resolve(), args.output_dir.resolve(), target=args.target,
+        args.icon256.resolve(), args.output_dir.resolve(), target=args.target, package_version=args.package_version,
     )
     print(f"SPK archive assembled (runtime compatibility NOT yet certified): {output}")
     return 0

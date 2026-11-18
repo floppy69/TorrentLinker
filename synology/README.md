@@ -19,10 +19,13 @@ compilation and testing on each ABI. No `noarch` claim for native binaries.
 
 The upstream baseline commit is recorded in [upstream.sha](upstream.sha).
 
-- No original file may be edited, deleted, renamed, or replaced.
+- Upstream application files may not be edited, deleted, renamed or replaced.
+- Exception explicitly requested for fork releases: original `.github/workflows/release.yml`
+  is preserved byte-for-byte outside an additive `SYNOLOGY_RELEASE_BEGIN/END` block.
+  The integrity gate rejects any other edits to this original workflow.
 - All new project files must live under `synology/`, except the dedicated
   GitHub workflows `.github/workflows/synology-integrity.yml` and
-  `.github/workflows/synology-dsm73-build.yml`.
+  `.github/workflows/synology-dsm73-build.yml`, plus the additive release block.
 - Generated build files must be created outside the checked-out source tree.
 - Later upstream updates require an explicit review of this baseline and a
   fresh dependency/build validation.
@@ -234,3 +237,26 @@ scope of group membership on the DS1817+ before any privileged migration.
 **Physical NAS acceptance is mandatory.** The GitHub runner cannot prove
 DS1817+ ABI, DSM permissions, native libc loader, shared-folder ACLs or
 multimodel compatibility. It must not be advertised as validated yet.
+
+## Automatic Synology GitHub Releases
+
+The fork's original `.github/workflows/release.yml` now contains an **additive**
+Synology section, while all original jobs remain unchanged. A tag such as
+`v1.0.0-beta.43` pointing at a commit **including the Synology packaging files**
+builds and attaches both `dsm73-x86_64.spk` and `dsm74-x86_64.spk` to the same
+GitHub Release as the desktop assets. The Synology uploader waits for **both**
+builds and validates the SPK's `INFO` before publishing; it does not depend on
+Windows/macOS/container success on this fork.
+
+Release tags are mapped to monotonically increasing DSM package revisions:
+`v1.0.0-alpha.1` → `1.0.0-1001`,
+`v1.0.0-beta.43` → `1.0.0-3043`,
+`v1.0.0-rc.1` → `1.0.0-6001`, and `v1.0.0` → `1.0.0-9000`.
+Nonmatching tags fail validation instead of silently reusing the same package
+version. Existing FEAT candidate builds retain `1.0.0-0004`.
+
+**Important:** merging this commit into the release branch (or tagging this
+commit itself) is required; a tag pointing at an old commit cannot execute
+new workflow code. No Git tag or public release is created by this change.
+Legal permission to redistribute upstream binaries should be confirmed
+before publishing public tagged releases.
