@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import tempfile
 import unittest
@@ -37,7 +38,23 @@ class SynologyWebAssetTests(unittest.TestCase):
             audit_web_assets(self.runtime)
 
     def test_missing_guide_image_is_rejected(self) -> None:
-        (self.runtime / "share/torrentlinker/docs/guide/images/en/zen.png").unlink()
+        # Select a *referenced* image: upstream can rename/remove old guides.
+        # Removing an unused image would not test the link auditor.
+        docs = self.runtime / "share/torrentlinker/docs"
+        image = None
+        for language in ("fr", "en"):
+            for guide in sorted((docs / "guide" / language).glob("*.md")):
+                for reference in re.findall(r"!\\[[^\\]]*\\]\\(([^)\\s]+)", guide.read_text(encoding="utf-8")):
+                    candidate = (guide.parent / reference).resolve()
+                    if candidate.is_relative_to(docs.resolve()) and candidate.is_file():
+                        image = candidate
+                        break
+                if image is not None:
+                    break
+            if image is not None:
+                break
+        self.assertIsNotNone(image, "No referenced guide image found for the negative test")
+        image.unlink()
         with self.assertRaisesRegex(ValueError, "Missing guide image"):
             audit_web_assets(self.runtime)
 
