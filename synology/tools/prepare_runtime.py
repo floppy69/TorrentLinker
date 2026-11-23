@@ -32,6 +32,16 @@ PYTHON_SHA256 = "ce4f6d0a6cfdb3bed6e44c2f9affd85943c76a42e25ad3a259002f31d6fb8a2
 SEVENZIP_ARCHIVE = "7z2605-linux-x64.tar.xz"
 SEVENZIP_SHA256 = "22cf82fcc6eb7474f1d5bb4f02c0f8ebd573a718089d6833dc30f8350a3b232e"
 PYTHON_VERSION = "3.12"
+# http-ece 1.2.1 is PyPI sdist-only; upstream pywebpush requires it.
+# Source URL and SHA256 pinned to the PyPI release metadata.
+HTTP_ECE_VERSION = "1.2.1"
+HTTP_ECE_SDIST = "http_ece-1.2.1.tar.gz"
+HTTP_ECE_SDIST_URL = (
+    "https://files.pythonhosted.org/packages/7c/af/"
+    "249d1576653b69c20b9ac30e284b63bd94af6a175d72d87813235caf2482/"
+    "http_ece-1.2.1.tar.gz"
+)
+HTTP_ECE_SHA256 = "8c6ab23116bbf6affda894acfd5f2ca0fb8facbcbb72121c11c75c33e7ce8cff"
 MAX_GLIBC = (2, 36)
 SYSTEM_LIBS = {
     "libc.so.6", "libm.so.6", "libpthread.so.0", "libdl.so.2",
@@ -42,6 +52,7 @@ DIRECT_PACKAGES = {
     "packaging", "qbittorrent-api", "httpx", "requests", "guessit",
     "torf", "keyring", "pillow", "numpy", "pymediainfo", "mutagen",
     "tzdata", "cryptography", "mcp", "fastapi", "uvicorn", "markdown-it-py",
+    "asyncssh", "segno", "pywebpush", "http-ece",
 }
 
 
@@ -147,6 +158,7 @@ def smoke(runtime: Path, payload: Path) -> None:
     python = runtime / "bin/python3.12"
     checks = (
         "import fastapi, uvicorn, httpx, requests, numpy, cryptography, mcp\n"
+        "import asyncssh, segno, pywebpush, http_ece\n"
         "import packaging, qbittorrentapi, guessit, torf, keyring, mutagen, tzdata\n"
         "import socks, markdown_it; from PIL import Image\n"
         "from pymediainfo import MediaInfo\n"
@@ -333,6 +345,28 @@ def main() -> int:
     shutil.copytree(REPO / "docs", source / "docs")
     wheelhouse = work / "wheelhouse"
     wheelhouse.mkdir()
+    # The single sdist-only exception is pinned by SHA256. Build only its
+    # universal wheel on the runner; never relax binary-only target resolution.
+    http_ece_sdist = download / HTTP_ECE_SDIST
+    get(HTTP_ECE_SDIST_URL, HTTP_ECE_SHA256, http_ece_sdist)
+    http_ece_root = work / "http-ece-unpacked"
+    unpack(http_ece_sdist, http_ece_root)
+    sources = [p for p in http_ece_root.iterdir() if p.is_dir()]
+    if len(sources) != 1 or not (sources[0] / "setup.py").is_file():
+        raise ValueError("Unexpected pinned http-ece source archive structure")
+    run(
+        sys.executable, "-m", "build", "--wheel", "--no-isolation",
+        "--outdir", str(wheelhouse), cwd=sources[0],
+    )
+    http_ece_wheels = list(wheelhouse.glob(f"http_ece-{HTTP_ECE_VERSION}-*.whl"))
+    if len(http_ece_wheels) != 1 or not http_ece_wheels[0].name.endswith("-none-any.whl"):
+        raise ValueError("http-ece must build exactly one universal pure-Python wheel")
+    with zipfile.ZipFile(http_ece_wheels[0]) as archive:
+        if archive.testzip() is not None or any(
+            name.endswith((".so", ".pyd", ".dll", ".dylib"))
+            for name in archive.namelist()
+        ):
+            raise ValueError("http-ece wheel contains damaged or native files")
     run(sys.executable, "-m", "build", "--wheel", "--no-isolation", "--outdir",
         str(wheelhouse), cwd=source)
     application_wheels = list(wheelhouse.glob("torrentlinker-*.whl"))
@@ -347,6 +381,7 @@ def main() -> int:
         "--platform", "manylinux2014_x86_64",
         "--platform", "any", "--python-version", "3.12",
         "--implementation", "cp", "--abi", "cp312",
+        "--find-links", str(wheelhouse),
         "--dest", str(wheelhouse), f"{application}[web]", "pymediainfo==7.0.1",
     )
     # The Linux wheel contains libmediainfo itself; a pure-Python wheel does not.
@@ -423,6 +458,8 @@ def main() -> int:
         "python": PYTHON_RELEASE,
         "python_archive_sha256": PYTHON_SHA256,
         "7zip_archive_sha256": SEVENZIP_SHA256,
+        "http_ece_sdist_sha256": HTTP_ECE_SHA256,
+        "http_ece_source_version": HTTP_ECE_VERSION,
         "python_distributions": dict(sorted(present.items())),
         "wheels_sha256": {
             path.name: hashlib.sha256(path.read_bytes()).hexdigest()
