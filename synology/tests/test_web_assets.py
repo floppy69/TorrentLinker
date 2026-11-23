@@ -44,7 +44,7 @@ class SynologyWebAssetTests(unittest.TestCase):
         image = None
         for language in ("fr", "en"):
             for guide in sorted((docs / "guide" / language).glob("*.md")):
-                for reference in re.findall(r"!\\[[^\\]]*\\]\\(([^)\\s]+)", guide.read_text(encoding="utf-8")):
+                for reference in re.findall(r"!\[[^\]]*\]\(([^)\s]+)", guide.read_text(encoding="utf-8")):
                     candidate = (guide.parent / reference).resolve()
                     if candidate.is_relative_to(docs.resolve()) and candidate.is_file():
                         image = candidate
