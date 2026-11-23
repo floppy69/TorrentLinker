@@ -47,6 +47,10 @@ class Preferences(BaseModel):
         description="Soft preferences in descending order, e.g. quality: [1080p, 720p], "
         "codec: [HEVC, H264], format: [EPUB]. Do not turn preferences into required filters.",
     )
+    category_scopes: dict[MetadataField, list[int]] = Field(
+        default_factory=dict,
+        description="Exact Torznab category IDs per criterion. Absent means global.",
+    )
     priorities: list[RankingField] = Field(
         default_factory=_default_priorities,
         description="Ranking order. Include seeders to prefer more seeders. Put size after "
@@ -63,6 +67,11 @@ class Preferences(BaseModel):
     def valid(self):
         if self.max_size is not None and self.min_size > self.max_size:
             raise ValueError("Minimum size exceeds maximum size.")
+        if any(
+            not ids or len(ids) > 100 or any(i <= 0 for i in ids)
+            for ids in self.category_scopes.values()
+        ):
+            raise ValueError("Choose positive category IDs for scoped criteria.")
         allowed = {
             "quality",
             "codec",
@@ -184,6 +193,14 @@ def work_alias_map(rows: list[Candidate]) -> dict[str, str]:
 
 
 def evaluate(row: Candidate, prefs: Preferences) -> dict:
+    # Unknown category must not bypass a configured requirement.
+    def applicable(key):
+        return (
+            not prefs.category_scopes.get(key)
+            or not row.categories
+            or bool(set(row.categories) & set(prefs.category_scopes[key]))
+        )
+
     blockers = []
     unknown = []
     if row.size <= 0 and (prefs.min_size or prefs.max_size is not None):
@@ -193,6 +210,8 @@ def evaluate(row: Candidate, prefs: Preferences) -> dict:
     if row.seeders < prefs.min_seeders:
         blockers.append("minimum seeders")
     for key in prefs.required.keys() | prefs.excluded.keys():
+        if not applicable(key):
+            continue
         values = row.metadata.get(key)
         if values is None:
             unknown.append(key)
@@ -215,6 +234,8 @@ def evaluate(row: Candidate, prefs: Preferences) -> dict:
             unknown.append("quality.source")
     scores: dict[str, int] = {}
     for key, preferred in prefs.preferred.items():
+        if not applicable(key):
+            continue
         values = row.metadata.get(key)
         actual = {str(v).casefold() for v in (values if isinstance(values, list) else [values])}
         scores[key] = next(
@@ -233,7 +254,9 @@ def evaluate(row: Candidate, prefs: Preferences) -> dict:
         "eligible": not blockers and not unknown,
         "excluded": blockers,
         "unknown": unknown,
-        "unknown_preferences": [key for key in prefs.preferred if row.metadata.get(key) is None]
+        "unknown_preferences": [
+            key for key in prefs.preferred if applicable(key) and row.metadata.get(key) is None
+        ]
         + (["size"] if prefs.prefer_small and row.size <= 0 else [])
         + (["seeders"] if "seeders" in prefs.priorities and row.seeders < 0 else []),
         "rank": rank,

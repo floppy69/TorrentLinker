@@ -17,7 +17,7 @@ Retrouvez les torrents qui correspondent à vos fichiers et remettez-les en seed
 - **Agents MCP** : connecter un assistant, préparer des Plans et approuver ses actions. [Guide](docs/guide/fr/agents.md).
 - **Clients nommés** : plusieurs connexions, une vue commune et des Plans répartis entre les clients choisis.
 - **Bibliothèque** : parcours guidé, liste avec inspection et progression indépendante des fichiers, de la recherche à la remise en seed.
-- **Recherche** : filtrer les torrents, consulter leurs détails dans des onglets et préparer une file de téléchargement.
+- **Recherche** : filtrer les torrents, consulter leurs détails dans des onglets et préparer une file de téléchargement. Chaque release reçoit une note [ReleaseScore](https://github.com/Pilaleur/releasescore), la formule de Pila33 (licence MIT). [Guide](docs/guide/fr/release-score.md).
 - **Zen** : suivre les gains estimés et les notes, puis préparer un Plan selon l’espace et le budget disponibles.
 - **Torrents** : gérer les téléchargements et le partage, avec une arborescence par tracker et catégorie.
 - **Upload** : choisir une source, vérifier l’existant et préparer un brouillon avec fichiers, présentation, images et NFO, à relire avant envoi à c411.

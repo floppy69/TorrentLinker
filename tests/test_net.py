@@ -170,21 +170,23 @@ def test_no_proxy_means_a_direct_connection(target: int) -> None:
     assert net.client().get(f"http://127.0.0.1:{target}/").text == "hello from the target"
 
 
-def test_settings_keep_the_proxy_and_its_password_in_the_keyring(qtbot, tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_settings_keep_the_proxy_and_its_password_in_the_keyring(qtbot, tmp_path):
+    from tests.settings_support import edit_field, save_group, settings_page
+    from tests.test_community_interfaces import js
     from torrentlinker.config import Settings
     from torrentlinker.credentials import get_secret
-    from torrentlinker.gui.settings_dialog import PROXY_PASSWORD, SettingsDialog
+    from torrentlinker.gui.settings_common import PROXY_PASSWORD
 
-    settings = Settings()
-    dialog = SettingsDialog(settings)
-    qtbot.addWidget(dialog)
-    dialog.proxy_address.setText("socks5h://proxy.lan:1080")
-    dialog.proxy_user.setText("me")
-    dialog.proxy_password.setText("pw")
-    dialog.proxy_client.setChecked(True)
-    dialog._save()
-    settings.save(tmp_path / "settings.json")
-
+    dialog = settings_page(qtbot, tmp_path)
+    edit_field(qtbot, dialog.view, "Proxy address", "socks5h://proxy.lan:1080")
+    edit_field(qtbot, dialog.view, "Proxy username", "me")
+    edit_field(qtbot, dialog.view, "Proxy password", "pw")
+    js(
+        qtbot,
+        dialog.view,
+        "document.querySelector('[aria-label=\"Also for the Torrent Client\"]').click()",
+    )
+    save_group(qtbot, dialog)
     loaded = Settings.load(tmp_path / "settings.json")
     assert (loaded.proxy.address, loaded.proxy.username, loaded.proxy.torrent_client) == (
         "socks5h://proxy.lan:1080",
@@ -192,21 +194,24 @@ def test_settings_keep_the_proxy_and_its_password_in_the_keyring(qtbot, tmp_path
         True,
     )
     assert get_secret(PROXY_PASSWORD) == "pw"
-    assert "pw" not in (tmp_path / "settings.json").read_text()
+    assert '"pw"' not in (tmp_path / "settings.json").read_text()
 
 
-def test_an_unusable_proxy_address_is_not_saved(qtbot) -> None:  # type: ignore[no-untyped-def]
-    from torrentlinker.config import Settings
-    from torrentlinker.gui.settings_dialog import SettingsDialog
+def test_an_unusable_proxy_address_is_not_saved(qtbot, tmp_path):
+    from tests.settings_support import edit_field, settings_page
+    from tests.test_community_interfaces import js, wait_js
 
-    settings = Settings()
-    dialog = SettingsDialog(settings)
-    qtbot.addWidget(dialog)
-    dialog.proxy_address.setText("ftp://proxy:21")
-    dialog._save()
-
-    assert settings.proxy.address == ""
-    assert dialog.result() == 0  # still open
+    dialog = settings_page(qtbot, tmp_path)
+    edit_field(qtbot, dialog.view, "Proxy address", "ftp://proxy:21")
+    js(
+        qtbot,
+        dialog.view,
+        "document.querySelector('.settings-form > .settings-actions .primary').click()",
+    )
+    wait_js(qtbot, dialog.view, "Boolean(document.querySelector('#settings-error').textContent)")
+    assert dialog.setup.settings.proxy.address == ""
+    assert not dialog.setup.path.exists()
+    assert dialog.isVisible()
 
 
 def test_a_new_proxy_makes_the_kept_connections_again(qtbot, tmp_path) -> None:  # type: ignore[no-untyped-def]

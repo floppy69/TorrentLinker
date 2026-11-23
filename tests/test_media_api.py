@@ -53,6 +53,7 @@ def test_registered_audio_is_playable_without_tracker_or_torrent_client(tmp_path
         assert page.json()["total"] == 1
         item = page.json()["rows"][0]
         assert item["available"] is True
+        assert item["size"] == (root / "track.flac").stat().st_size
         assert str(root) not in page.text
         stream = browser.get(
             f"/api/media/items/{item['id']}/stream?client_id=default",
@@ -217,6 +218,7 @@ def test_incomplete_torrent_paths_are_mapped_before_playback_check(tmp_path):
         ]
         item = browser.get("/api/media?client_id=default").json()["rows"][0]
         assert item["available"] is False
+        assert item["availability"] == "unfinished"
         assert (
             browser.get(f"/api/media/items/{item['id']}/stream?client_id=default").status_code
             == 409
@@ -453,3 +455,23 @@ def test_refresh_removes_moved_files_from_available_folder(tmp_path):
         page = browser.get("/api/media?client_id=default&kind=music").json()
         assert page["total"] == 0
         assert page["rows"] == []
+
+
+@pytest.mark.parametrize(
+    "kind", ["qbittorrent", "transmission", "deluge", "rtorrent", "utorrent", "bittorrent"]
+)
+def test_partial_preview_capability_follows_selected_client(tmp_path, kind):
+    app, root = media_app(tmp_path)
+    (root / "Downloading.mp4.!qB").write_bytes(b"incomplete fixture")
+    settings = app.state.agent_service.setup.settings
+    settings.client = kind
+    settings.capture_client()
+    with TestClient(app) as browser:
+        login(browser)
+        scan(browser)
+        rows = browser.get("/api/media?client_id=default&kind=video").json()["rows"]
+        assert len(rows) == 1
+        assert rows[0]["availability"] == "unfinished"
+        assert rows[0]["preview_supported"] is (kind == "qbittorrent")
+        detail = browser.get(f"/api/media/items/{rows[0]['id']}?client_id=default").json()
+        assert detail["preview_supported"] is (kind == "qbittorrent")

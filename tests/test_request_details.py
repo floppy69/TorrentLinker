@@ -84,12 +84,13 @@ def test_browser_queue_removal_review_lists_targets_before_deciding(tmp_path, la
               const el = element('button', text, cls); el.type = 'button';
               el.onclick = action; return el;
             }
-            async function api(path, body) {
+            async function request(action, {path, body}) {
               calls.push(path); return window.review;
             }
         """
         )
-        page.add_script_tag(path=str(static / "assistant.js"))
+        page.add_script_tag(path=str(static / "settings/assistant.js"))
+        page.add_script_tag(path=str(static / "settings/agents.js"))
         page.evaluate(
             "data => { language = data.language; window.review = data.review; }",
             {"language": language, "review": queue_removal_event()["review"]},
@@ -271,10 +272,13 @@ def test_browser_command_is_collapsed_colored_and_preserved_on_refresh(tmp_path)
         browser = pw.chromium.launch()
         page = browser.new_page(viewport={"width": 700, "height": 850})
         page.set_content('<main id="root"></main>')
-        page.add_style_tag(path=str(static / "app.css"))
+        page.add_style_tag(path=str(static / "panel/base.css"))
+        page.add_style_tag(path=str(static / "assistant/view.css"))
         page.add_script_tag(
             content="""
             const say = (en, fr) => en;
+            const $ = id => document.getElementById(id);
+            const state = {view: "", language: "en"};
             function element(tag, text, cls) {
               const e = document.createElement(tag);
               if (text !== undefined) e.textContent = text;
@@ -286,7 +290,7 @@ def test_browser_command_is_collapsed_colored_and_preserved_on_refresh(tmp_path)
             }
         """
         )
-        page.add_script_tag(path=str(static / "assistant.js"))
+        page.add_script_tag(path=str(static / "assistant/view.js"))
         page.evaluate("run => document.querySelector('#root').replaceChildren(aRunCard(run))", run)
         panel = page.locator(".assistant-decision")
         expect(panel).to_contain_text("Add 500 torrents")

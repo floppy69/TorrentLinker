@@ -28,6 +28,7 @@ import httpx
 from torrentlinker import net
 from torrentlinker.client_folders import ClientFolder
 from torrentlinker.domain import Torrent, TorrentFile
+from torrentlinker.login_guard import LoginGuard
 from torrentlinker.matching import Match
 from torrentlinker.qbit import AlreadyInClient
 from torrentlinker.torrent_meta import TorrentMeta, read_torrent
@@ -112,6 +113,8 @@ class RtorrentApi:
         else:
             raise RtorrentError("Enter rTorrent's XML-RPC address, for example https://host/RPC2")
         self._auth = httpx.BasicAuth(username, password) if username or password else None
+        # Basic credentials ride on every request: once refused, none is sent again.
+        self._guard = LoginGuard("rtorrent", address, username, password)
         self._address = self._url or address  # for messages; never holds the password
         self._http = http
         self._lock = threading.Lock()
@@ -138,6 +141,7 @@ class RtorrentApi:
             raise RtorrentError(f"rTorrent did not answer XML-RPC at this address ({e})") from e
 
     def _post_http(self, body: bytes) -> bytes:
+        self._guard.check()
         if self._http is None:
             self._http = net.client(torrent_client=True, timeout=TIMEOUT, verify=False)
         response = self._http.post(
@@ -147,7 +151,7 @@ class RtorrentApi:
             auth=self._auth or httpx.USE_CLIENT_DEFAULT,
         )
         if response.status_code in (401, 403):
-            raise RtorrentError("rTorrent's web server refused the username or password")
+            raise self._guard.refuse()
         response.raise_for_status()
         return response.content
 
@@ -171,6 +175,7 @@ class RtorrentApi:
     # Connection ------------------------------------------------------------
 
     def check(self) -> str:
+        self._guard.rearm()  # the user pressed Test
         return str(self._call("system.client_version"))
 
     def default_save_path(self) -> str:

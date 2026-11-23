@@ -26,6 +26,7 @@ GUIDES = (
     ("upload", "upload", "Préparer un upload", "Prepare an Upload"),
     ("upload-categories", "upload-categories", "Règles des uploads", "Upload category rules"),
     ("donnees", "data", "Données et dépannage", "Data and troubleshooting"),
+    ("release-score", "release-score", "ReleaseScore et crédits", "ReleaseScore and credits"),
     ("developpement", "development", "Développement", "Development"),
 )
 

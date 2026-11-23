@@ -28,6 +28,35 @@ def stable(tag="v0.5.0"):
     return {"tag_name": tag, "draft": False, "prerelease": False}
 
 
+def test_web_shell_checks_the_running_server_version_after_login(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from torrentlinker.web import app as web_app
+
+    monkeypatch.setattr(web_app, "installed_version", lambda: "0.4.0")
+    calls = mock_release(monkeypatch, stable())
+    with TestClient(web_app.create_app(tmp_path, password="test-password-long")) as browser:
+        assert browser.get("/api/shell").status_code == 401
+        assert not calls
+        browser.post(
+            "/api/login", json={"password": "test-password-long"}, headers={"X-TorrentLinker": "1"}
+        )
+        expected = {
+            "version": "0.4.0",
+            "release": {
+                "tag": "v0.5.0",
+                "url": Release("v0.5.0").url,
+            },
+        }
+        shell = browser.get("/api/shell").json()
+        assert shell["actor"]["owner"]
+        assert {k: shell[k] for k in expected} == expected
+        assert {k: v for k, v in browser.get("/api/shell").json().items() if k in expected} == (
+            expected
+        )
+        assert len(calls) == 1
+
+
 @pytest.mark.parametrize(
     ("current", "tag", "newer"),
     [
@@ -147,9 +176,9 @@ def test_notice_opens_release_and_remembers_dismissal(qtbot, monkeypatch):
     assert notice.isHidden()
     notice.show_release(Release("v0.5.0"))
     assert not notice.isHidden()
-    notice.open_button.click()
+    notice.command("release", {})
     assert opened == [Release("v0.5.0").url]
-    notice.dismiss_button.click()
+    notice.command("dismiss", {})
     notice.show_release(Release("v0.5.0"))
     assert notice.isHidden()
     notice.show_release(Release("v0.6.0"))
@@ -187,7 +216,7 @@ def test_main_window_checks_in_background(qtbot, tmp_path, monkeypatch):
         qtbot.waitUntil(entered.is_set)
         # Navigation still responds while the network worker is waiting.
         window.tabs.setCurrentIndex(1)
-        assert window.navigation.currentRow() == 1
+        assert window.tabs.currentIndex() == 1
         assert window.update_notice.isHidden()
     finally:
         release.set()

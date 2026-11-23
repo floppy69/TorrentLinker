@@ -25,6 +25,7 @@ import httpx
 from torrentlinker import net
 from torrentlinker.client_folders import ClientFolder
 from torrentlinker.domain import Torrent, TorrentFile
+from torrentlinker.login_guard import LoginGuard
 from torrentlinker.matching import Match
 from torrentlinker.qbit import AlreadyInClient
 from torrentlinker.torrent_meta import TorrentMeta, read_torrent
@@ -106,6 +107,7 @@ class UtorrentApi:
         self._url = urlunsplit((parsed.scheme, parsed.netloc, path + "/", "", ""))
         self.reseed_client_id = hashlib.sha256((self._url + "\0" + username).encode()).hexdigest()
         self._auth = httpx.BasicAuth(username, password)
+        self._guard = LoginGuard("utorrent", self._url, username, password)
         self._http = http or net.client(torrent_client=True, timeout=httpx.Timeout(30, connect=5))
         self._lock = threading.RLock()
         self._token = ""
@@ -119,11 +121,10 @@ class UtorrentApi:
         )
 
     def _authenticate(self) -> None:
+        self._guard.check()  # refused credentials are not sent again until they change
         reply = self._http.get(self._url + "token.html", auth=self._auth)
         if reply.status_code in (401, 403):
-            raise self._error(
-                "µTorrent refused WebUI access: check the credentials and IP whitelist"
-            )
+            raise self._guard.refuse()
         reply.raise_for_status()
         parser = _TokenParser()
         parser.feed(reply.text)
@@ -135,6 +136,7 @@ class UtorrentApi:
         # Serialize cookie/token refresh with requests so concurrent workers cannot
         # invalidate each other's sessions. Never replay an upload after a timeout.
         with self._lock:
+            self._guard.check()
             if not self._token:
                 self._authenticate()
             for attempt in range(2):
@@ -170,6 +172,7 @@ class UtorrentApi:
         return {row[0]: row[2] for row in self._call([("action", "getsettings")])["settings"]}
 
     def check(self) -> str:
+        self._guard.rearm()  # the user pressed Test
         result = self._call([("list", "1")])
         return f"build {result['build']} (experimental)"
 

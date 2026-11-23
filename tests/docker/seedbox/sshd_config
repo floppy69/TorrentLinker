@@ -1,0 +1,7 @@
+Port 2222
+ListenAddress 0.0.0.0
+PasswordAuthentication yes
+PermitRootLogin no
+UsePAM no
+Subsystem sftp internal-sftp
+AllowUsers seed

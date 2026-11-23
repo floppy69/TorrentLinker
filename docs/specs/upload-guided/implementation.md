@@ -26,3 +26,5 @@ The native popup has no application WebChannel or filesystem access. The local w
 - Browser acceptance: real application navigation, image-host callback, description preservation, save/reopen, responsive layout and error paths.
 - Native Wayland check: rendered pixels, shared colors and one scrolling layer.
 - Live tracker publication stays outside automated tests.
+
+The approved advanced editor and remaining tool parity were implemented in #99. See [preparation-tools.md](preparation-tools.md) for the exact reference, validation boundaries and platform limits.

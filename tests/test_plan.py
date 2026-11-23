@@ -628,3 +628,31 @@ def test_a_match_inside_an_archive_is_never_a_plan_reseed(tmp_path: Path) -> Non
 
     # Unpacking writes gigabytes into the Library: only the user decides it.
     assert reseed_candidates(KEEPER, [(entry, [checked])], set()) == []
+
+
+@pytest.mark.parametrize("goal", [PlanGoal.NOTE, PlanGoal.ZEN])
+def test_minimum_torrent_count_tries_a_feasible_smaller_selection(goal):
+    candidates = [cand("large", 60, 3), cand("small-a", 2, 1000), cand("small-b", 2, 1000)]
+    result = make_plan(
+        KEEPER,
+        candidates,
+        {"A": 60 * GB},
+        options=PlanOptions(goal=goal, min_torrents=2, max_torrents=2, min_seeders=3),
+    )
+    assert names(result) == ["small-a", "small-b"]
+    assert not result.issues
+
+
+def test_minimum_seeders_and_count_report_shortfall_without_relaxing_limits():
+    result = make_plan(
+        KEEPER,
+        [cand("eligible", 2, 10), cand("too few seeders", 1, 2)],
+        {"A": 10 * GB},
+        options=PlanOptions(min_torrents=2, min_seeders=5),
+    )
+    assert names(result) == ["eligible"]
+    assert any(issue.code == "minimum_torrents" and issue.count == 2 for issue in result.issues)
+    with pytest.raises(ValueError):
+        PlanOptions(min_torrents=5, max_torrents=3)
+    with pytest.raises(ValueError):
+        PlanOptions(min_seeders=10, max_seeders=3)

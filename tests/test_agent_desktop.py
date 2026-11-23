@@ -13,7 +13,6 @@ import uvicorn
 
 from torrentlinker.agent.desktop import DesktopSetup
 from torrentlinker.config import Settings
-from torrentlinker.gui.agent_access import AgentAccess
 from torrentlinker.store import Store
 from torrentlinker.web.app import create_app
 
@@ -79,26 +78,48 @@ def test_desktop_mcp_works_without_console_streams(tmp_path, monkeypatch):
 
 
 def test_desktop_owner_can_revoke_and_default_to_proposals(qtbot, tmp_path):
-    setup = DesktopSetup(Settings(), tmp_path / "settings.json", Store(tmp_path / "state.db"))
+    from tests.settings_support import service_view
+    from tests.test_community_interfaces import js, wait_js
+    from torrentlinker.agent.access import Grant
+
+    setup = DesktopSetup(
+        Settings(language="en"), tmp_path / "settings.json", Store(tmp_path / "state.db")
+    )
     app = create_app(
         tmp_path, password="test-password-long", service_override=setup, monitor_verifications=False
     )
-    dialog = AgentAccess(app.state.agent_service, "http://127.0.0.1:8790/mcp/")
-    qtbot.addWidget(dialog)
-    assert dialog.mode.currentData() == "propose"
-    assert not dialog.enabled.isChecked()
-    assert all(not c.isEnabled() for _, c in dialog.permissions)
-    dialog.mode.setCurrentIndex(1)
-    assert all(c.isEnabled() for _, c in dialog.permissions)
-    from torrentlinker.agent.access import Grant
-
-    grant = app.state.agent_service.access.create(Grant(name="Owner test", clients=["default"]))
-    dialog.refresh()
-    dialog.connections.setCurrentRow(0)
-    dialog.revoke.click()
-    assert app.state.agent_service.access.snapshot()["connections"][0]["revoked"]
-    assert grant["token"] not in dialog.details.toPlainText()
-    app.state.agent_service.jobs.close()
+    service = app.state.agent_service
+    grant = service.access.create(Grant(name="Owner test", clients=["default"]))
+    view = service_view(qtbot, setup, agents=service, section="agents")
+    try:
+        wait_js(qtbot, view, "Boolean(document.querySelector('#agent-mode'))")
+        wait_js(
+            qtbot,
+            view,
+            "document.querySelector('#agent-connections').textContent.includes('Owner test')",
+        )
+        assert js(qtbot, view, "document.querySelector('#agent-mode').value") == "propose"
+        assert js(qtbot, view, "document.querySelector('#agents-enabled').checked") is False
+        assert js(qtbot, view, "document.querySelector('#agent-permissions').disabled")
+        js(
+            qtbot,
+            view,
+            "{const mode=document.querySelector('#agent-mode');mode.val"
+            "ue='execute';mode.dispatchEvent(new Event('change'));}",
+        )
+        assert js(qtbot, view, "document.querySelector('#agent-permissions').disabled") is False
+        js(
+            qtbot,
+            view,
+            "[...document.querySelectorAll('#agent-connections button')"
+            "].find(b=>b.textContent==='Revoke connection').click()",
+        )
+        qtbot.waitUntil(lambda: service.access.snapshot()["connections"][0]["revoked"])
+        assert grant["token"] not in js(qtbot, view, "document.body.textContent")
+        qtbot.waitUntil(lambda: view.pending == 0)
+    finally:
+        view.close()
+        service.jobs.close()
 
 
 def test_stdio_bridge_uses_running_server_and_only_outputs_protocol(tmp_path):
@@ -286,29 +307,54 @@ def test_failed_server_start_does_not_block_ordinary_settings(qtbot, tmp_path):
 
 
 def test_main_window_settings_stay_available_after_mcp_port_failure(qtbot, tmp_path, monkeypatch):
+    from tests.test_community_interfaces import js, wait_js
+    from torrentlinker.agent.desktop import DesktopServer
     from torrentlinker.gui import main_window
 
     window = main_window.MainWindow(
         Settings(), tmp_path / "settings.json", Store(tmp_path / "state.db")
     )
     qtbot.addWidget(window)
-    messages = []
-    monkeypatch.setattr(main_window.QMessageBox, "warning", lambda *args: messages.append(args[2]))
     opened = []
-    monkeypatch.setattr(main_window.SettingsDialog, "exec", lambda self: opened.append(True) or 0)
+
+    def inspect(dialog):
+        dialog.window().show()
+        if dialog.view.section == "agents":
+            wait_js(
+                qtbot, dialog.view, "Boolean(document.querySelector('#settings-error').textContent)"
+            )
+            opened.append(
+                js(qtbot, dialog.view, "document.querySelector('#settings-error').textContent")
+            )
+        else:
+            wait_js(
+                qtbot,
+                dialog.view,
+                "Boolean(document.querySelector('[aria-label=\"Client name\"]'))",
+            )
+            opened.append("connections")
+
+    # Settings is a page: inspect it once opened, then leave it, which applies it.
+    original_open = main_window.MainWindow.open_settings
+
+    def open_then_inspect(self, **kwargs):
+        original_open(self, **kwargs)
+        if self._settings_page is not None:
+            inspect(self._settings_page)
+            self.close_settings()
+
+    monkeypatch.setattr(main_window.MainWindow, "open_settings", open_then_inspect)
     with socket.socket() as occupied:
         occupied.bind(("127.0.0.1", 0))
         occupied.listen()
-        from torrentlinker.agent.desktop import DesktopServer
-
         window.agent_runtime = DesktopServer(
             window.settings, window.settings_path, window.store, port=occupied.getsockname()[1]
         )
         window.open_agent_access()
-    assert "another TorrentLinker instance" in messages[0]
-    assert window.agent_runtime is None
+    assert "already in use" in opened[0] and "TorrentLinker instance" in opened[0]
+    assert window.agent_runtime.app is None
     window.open_settings()
-    assert opened == [True, True]
+    assert opened[1] == "connections"
 
 
 def test_saved_agent_startup_reuses_runtime_started_for_rss(qtbot, tmp_path, monkeypatch):
@@ -332,7 +378,7 @@ def test_saved_agent_startup_reuses_runtime_started_for_rss(qtbot, tmp_path, mon
     try:
         window.start_saved_agent_access()
         window.assistant_tab.activate()
-        assert "Address already in use" not in window.assistant_tab.notice.text()
+        assert "Address already in use" not in window.assistant_tab.startup_error
         assert window.assistant_tab.service is service
         assert window.agent_runtime is runtime
     finally:
@@ -354,19 +400,20 @@ def test_assistant_port_conflict_explains_recovery_and_can_retry(qtbot, tmp_path
         runtime = DesktopServer(window.settings, window.settings_path, window.store, port=port)
         window.agent_runtime = runtime
         window.assistant_tab.activate()
-        notice = window.assistant_tab.notice.text()
+        notice = window.assistant_tab.startup_error
         assert str(port) in notice and "reopen the Assistant tab to retry" in notice
         assert "Errno" not in notice
         assert window.assistant_tab.service is None
     try:
         window.assistant_tab.activate()
         assert window.assistant_tab.service is runtime.app.state.assistant
-        assert "already in use" not in window.assistant_tab.notice.text()
+        assert "already in use" not in window.assistant_tab.startup_error
     finally:
         runtime.close()
 
 
 def test_agent_access_reports_non_port_startup_failure(qtbot, tmp_path, monkeypatch):
+    from tests.test_community_interfaces import js, wait_js
     from torrentlinker.agent.desktop import DesktopServer
     from torrentlinker.gui import main_window
 
@@ -379,12 +426,28 @@ def test_agent_access_reports_non_port_startup_failure(qtbot, tmp_path, monkeypa
     )
     (tmp_path / "agents.sqlite").write_bytes(b"not a SQLite database" * 100)
     messages = []
-    monkeypatch.setattr(main_window.QMessageBox, "warning", lambda *args: messages.append(args[2]))
 
-    monkeypatch.setattr(main_window.SettingsDialog, "exec", lambda self: 0)
+    def inspect(dialog):
+        dialog.window().show()
+        wait_js(
+            qtbot, dialog.view, "Boolean(document.querySelector('#settings-error').textContent)"
+        )
+        messages.append(
+            js(qtbot, dialog.view, "document.querySelector('#settings-error').textContent")
+        )
+
+    # Settings is a page: inspect it once opened, then leave it, which applies it.
+    original_open = main_window.MainWindow.open_settings
+
+    def open_then_inspect(self, **kwargs):
+        original_open(self, **kwargs)
+        if self._settings_page is not None:
+            inspect(self._settings_page)
+            self.close_settings()
+
+    monkeypatch.setattr(main_window.MainWindow, "open_settings", open_then_inspect)
     window.open_agent_access()
-
-    assert window.agent_runtime is None
+    assert window.agent_runtime.app is None
     assert "file is not a database" in messages[0]
     assert "another TorrentLinker instance" not in messages[0]
 
@@ -452,102 +515,90 @@ def test_settings_sync_recovers_stale_suspension_without_unlocking_editor(tmp_pa
 
 
 def test_agent_connections_are_embedded_without_discarding_settings(qtbot, tmp_path, monkeypatch):
-    from PySide6.QtWidgets import QDialog, QLineEdit, QWidget
+    from tests.settings_support import edit_field, service_view
+    from tests.test_community_interfaces import js, wait_js
 
-    from torrentlinker.gui.settings_dialog import SettingsDialog
-
-    setup = DesktopSetup(Settings(), tmp_path / "settings.json", Store(tmp_path / "state.db"))
+    setup = DesktopSetup(
+        Settings(language="en"), tmp_path / "settings.json", Store(tmp_path / "state.db")
+    )
     app = create_app(
         tmp_path, password="test-password-long", service_override=setup, monitor_verifications=False
     )
     service = app.state.agent_service
-
-    class Owner(QWidget):
-        def agent_access_widget(self, parent):
-            return AgentAccess(service, "http://127.0.0.1:8790/mcp/", parent)
-
-    owner = Owner()
-    qtbot.addWidget(owner)
-    dialog = SettingsDialog(setup.settings, owner, secret_values={})
-    qtbot.addWidget(dialog)
-    dialog.show()
-    dialog.client_name.setText("Unsaved client name")
-    dialog.show_agent_access()
-    panel = dialog.agent_access
-    assert panel is not None and not panel.isWindow()
-    assert dialog.isVisible()
-    assert panel.tabs.tabText(0) == "Connections"
-    assert dialog.client_name.text() == "Unsaved client name"
-    qtbot.waitUntil(panel.connection_empty.isVisible)
-    tokens = []
-
-    def capture_token(window):
-        tokens.append(window.findChild(QLineEdit).text())
-        return QDialog.DialogCode.Rejected
-
-    monkeypatch.setattr(QDialog, "exec", capture_token)
-    panel.name.setText("Codex local drafts")
-    panel.create()
-    panel.tabs.setCurrentIndex(0)
-    assert panel.connections.count() == 1
-    assert "Codex local drafts" in panel.connection_details.toPlainText()
-    assert "Proposals only" in panel.connection_details.toPlainText()
-    assert tokens[0] not in panel.connection_details.toPlainText()
-    import os
-    from pathlib import Path
-
-    from PySide6.QtWidgets import QApplication
-
-    from torrentlinker.gui.theme import apply_theme
-
-    if output := os.getenv("TL_AGENT_SCREENSHOTS"):
-        destination = Path(output)
-        destination.mkdir(parents=True, exist_ok=True)
-        dialog.resize(1200, 780)
-        for theme in ("dark", "light"):
-            apply_theme(QApplication.instance(), theme)
-            qtbot.wait(60)
-            assert dialog.grab().save(str(destination / f"agent-connections-{theme}.png"))
-    identifier = panel.connection_records[0]["id"]
-    panel.refresh()
-    assert panel.connection_records[panel.connections.currentRow()]["id"] == identifier
-    panel.revoke.click()
-    assert "Revoked" in panel.connection_details.toPlainText()
-    assert not panel.revoke.isEnabled()
-    assert dialog.client_name.text() == "Unsaved client name"
-    dialog.reject()
-    assert not panel.timer.isActive()
-    service.jobs.close()
+    view = service_view(qtbot, setup, agents=service)
+    try:
+        edit_field(qtbot, view, "Client name", "Unsaved client name")
+        js(
+            qtbot,
+            view,
+            "[...document.querySelectorAll('#settings-navigation button"
+            "')].find(b=>b.textContent==='Agent access').click()",
+        )
+        wait_js(qtbot, view, "Boolean(document.querySelector('#agent-clients input'))")
+        js(
+            qtbot,
+            view,
+            "document.querySelector('[data-agent-tab=new]').click();doc"
+            "ument.querySelector('#agent-name').value='Codex local draf"
+            "ts';document.querySelector('#agent-clients input').checked"
+            "=true;document.querySelector('#agent-form').requestSubmit("
+            ")",
+        )
+        wait_js(qtbot, view, "Boolean(document.querySelector('#agent-token').value)")
+        token = js(qtbot, view, "document.querySelector('#agent-token').value")
+        assert len(service.access.snapshot()["connections"]) == 1
+        assert token not in js(
+            qtbot, view, "document.querySelector('#agent-connections').textContent"
+        )
+        js(
+            qtbot,
+            view,
+            "[...document.querySelectorAll('#settings-navigation button"
+            "')].find(b=>b.textContent==='Connections').click()",
+        )
+        assert (
+            js(qtbot, view, "document.querySelector('[aria-label=\"Client name\"]').value")
+            == "Unsaved client name"
+        )
+        assert setup.settings.profile().name != "Unsaved client name"
+        js(
+            qtbot,
+            view,
+            "[...document.querySelectorAll('#settings-navigation button"
+            "')].find(b=>b.textContent==='Agent access').click()",
+        )
+        wait_js(qtbot, view, "Boolean(document.querySelector('#agent-token'))")
+        assert js(qtbot, view, "document.querySelector('#agent-token').value") == ""
+        qtbot.waitUntil(lambda: view.pending == 0)
+    finally:
+        view.close()
+        service.jobs.close()
 
 
 def test_embedded_approval_waits_until_settings_transaction_finishes(qtbot, tmp_path, monkeypatch):
-
-    from torrentlinker.agent.access import Grant
+    from tests.settings_support import service_view
+    from torrentlinker.agent.settings_panel import AgentSettingsService
 
     setup = DesktopSetup(Settings(), tmp_path / "settings.json", Store(tmp_path / "state.db"))
     app = create_app(
         tmp_path, password="test-password-long", service_override=setup, monitor_verifications=False
     )
     service = app.state.agent_service
-    service.access.enable(True)
-    service.access.create(Grant(name="Review", clients=["default"]))
-    # The review itself is already covered by service tests; exercise its UI handoff.
-    panel = AgentAccess(service, "http://127.0.0.1:8790/mcp/")
-    qtbot.addWidget(panel)
-    proposal = {"id": "review-one", "status": "pending", "body": {"kind": "scan"}}
-    panel.records = [("proposal", proposal)]
-    panel.items.addItem("Review")
-    panel.items.setCurrentRow(0)
+    view = service_view(qtbot, setup, agents=service)
     calls = []
-    monkeypatch.setattr(service, "review", lambda _: {})
     monkeypatch.setattr(service, "execute", lambda *a, **k: calls.append(a))
     service.suspended = True
-    with qtbot.waitSignal(panel.approval_requested) as signal:
-        panel.approve_selected()
-    assert signal.args == ["review-one"]
-    assert calls == []
-    assert "Close Settings" in panel.status.text()
-    service.jobs.close()
+    try:
+        endpoint = AgentSettingsService(service, view.queue_approval)
+        assert endpoint.request("agents/proposals/review-one/approve", {}, "POST") == {
+            "queued": True
+        }
+        endpoint.request("agents/proposals/review-one/approve", {}, "POST")
+        assert view.agent_approvals == ["review-one"]
+        assert calls == []
+    finally:
+        view.close()
+        service.jobs.close()
 
 
 def test_agent_runtime_started_in_settings_stays_suspended(qtbot, tmp_path, monkeypatch):
@@ -566,12 +617,23 @@ def test_agent_runtime_started_in_settings_stays_suspended(qtbot, tmp_path, monk
     qtbot.addWidget(window)
 
     def inspect(dialog):
-        assert dialog.agent_access is not None
+        from tests.test_community_interfaces import wait_js
+
+        dialog.window().show()
+        wait_js(qtbot, dialog.view, "Boolean(document.querySelector('#agent-clients input'))")
         assert window.agent_runtime.service.suspended
         assert window.agent_runtime.settings_edit_depth == 1
-        return 0
 
-    monkeypatch.setattr(main_window.SettingsDialog, "exec", inspect)
+    # Settings is a page: inspect it once opened, then leave it, which applies it.
+    original_open = main_window.MainWindow.open_settings
+
+    def open_then_inspect(self, **kwargs):
+        original_open(self, **kwargs)
+        if self._settings_page is not None:
+            inspect(self._settings_page)
+            self.close_settings()
+
+    monkeypatch.setattr(main_window.MainWindow, "open_settings", open_then_inspect)
     try:
         window.open_settings(agents=True)
         assert not window.agent_runtime.service.suspended
@@ -582,21 +644,24 @@ def test_agent_runtime_started_in_settings_stays_suspended(qtbot, tmp_path, monk
 
 
 def test_agent_token_can_be_saved_privately(qtbot, tmp_path, monkeypatch):
+    import json
     import os
     import stat
 
     from PySide6.QtWidgets import QFileDialog
 
-    setup = DesktopSetup(Settings(), tmp_path / "settings.json", Store(tmp_path / "state.db"))
-    app = create_app(
-        tmp_path, password="test-password-long", service_override=setup, monitor_verifications=False
-    )
-    panel = AgentAccess(app.state.agent_service, "http://127.0.0.1:8790/mcp/")
-    qtbot.addWidget(panel)
+    from tests.settings_support import settings_page
+
+    dialog = settings_page(qtbot, tmp_path)
     destination = tmp_path / "token.txt"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(destination), ""))
-    panel.save_token("example-token-for-test")
+    dialog.view.bridge.requestAsync(
+        999,
+        "save-token",
+        json.dumps(
+            {"_client": dialog.setup.settings.active_client_id, "token": "example-token-for-test"}
+        ),
+    )
     assert destination.read_text() == "example-token-for-test\n"
     if os.name != "nt":
         assert stat.S_IMODE(destination.stat().st_mode) == 0o600
-    app.state.agent_service.jobs.close()

@@ -1,0 +1,344 @@
+[
+  {
+    "count": 1000,
+    "python": "3.13.11",
+    "qt": "6.12.0",
+    "platform": "Linux-7.2.13+deb14-amd64-x86_64-with-glibc2.43",
+    "qt_platform": "offscreen",
+    "peak_app_rss_mib": 538.08,
+    "renderer_heartbeat_max_ms": null,
+    "measurements": {
+      "first_display": {
+        "elapsed_ms": 526.88,
+        "qt_heartbeat_gap_ms": 250.31
+      },
+      "unchanged_refresh": [
+        {
+          "elapsed_ms": 91.32,
+          "qt_heartbeat_gap_ms": 11.73
+        },
+        {
+          "elapsed_ms": 102.04,
+          "qt_heartbeat_gap_ms": 14.08
+        },
+        {
+          "elapsed_ms": 128.3,
+          "qt_heartbeat_gap_ms": 15.49
+        }
+      ],
+      "changing_refresh": [
+        {
+          "elapsed_ms": 90.63,
+          "qt_heartbeat_gap_ms": 14.46
+        },
+        {
+          "elapsed_ms": 88.61,
+          "qt_heartbeat_gap_ms": 15.62
+        },
+        {
+          "elapsed_ms": 90.33,
+          "qt_heartbeat_gap_ms": 11.59
+        }
+      ],
+      "filter": {
+        "elapsed_ms": 40.87,
+        "qt_heartbeat_gap_ms": 9.76
+      },
+      "clear_filter": {
+        "elapsed_ms": 75.11,
+        "qt_heartbeat_gap_ms": 10.45
+      },
+      "selected_refresh": {
+        "elapsed_ms": 90.31,
+        "qt_heartbeat_gap_ms": 14.86
+      }
+    },
+    "limits": "Synthetic client and empty catalogue; no network or keyring. Desktop shared WebView including startup. App RSS excludes renderer subprocesses. Refreshes force the client snapshot. Timings include a 20 ms event drain; filter timings exclude typing debounce. No cancellation workload. Offscreen renderer timers may be throttled; no samples are reported as null.",
+    "phase": "before"
+  },
+  {
+    "count": 1000,
+    "python": "3.13.11",
+    "qt": "6.12.0",
+    "platform": "Linux-7.2.13+deb14-amd64-x86_64-with-glibc2.43",
+    "qt_platform": "offscreen",
+    "peak_app_rss_mib": 537.73,
+    "renderer_heartbeat_max_ms": null,
+    "measurements": {
+      "first_display": {
+        "elapsed_ms": 497.29,
+        "qt_heartbeat_gap_ms": 255.15
+      },
+      "unchanged_refresh": [
+        {
+          "elapsed_ms": 82.14,
+          "qt_heartbeat_gap_ms": 10.57
+        },
+        {
+          "elapsed_ms": 82.06,
+          "qt_heartbeat_gap_ms": 10.96
+        },
+        {
+          "elapsed_ms": 81.98,
+          "qt_heartbeat_gap_ms": 12.58
+        }
+      ],
+      "changing_refresh": [
+        {
+          "elapsed_ms": 85.36,
+          "qt_heartbeat_gap_ms": 10.83
+        },
+        {
+          "elapsed_ms": 87.61,
+          "qt_heartbeat_gap_ms": 14.1
+        },
+        {
+          "elapsed_ms": 85.9,
+          "qt_heartbeat_gap_ms": 10.64
+        }
+      ],
+      "filter": {
+        "elapsed_ms": 37.0,
+        "qt_heartbeat_gap_ms": 11.03
+      },
+      "clear_filter": {
+        "elapsed_ms": 75.54,
+        "qt_heartbeat_gap_ms": 10.88
+      },
+      "selected_refresh": {
+        "elapsed_ms": 83.99,
+        "qt_heartbeat_gap_ms": 11.3
+      }
+    },
+    "limits": "Synthetic client and empty catalogue; no network or keyring. Desktop shared WebView including startup. App RSS excludes renderer subprocesses. Refreshes force the client snapshot. Timings include a 20 ms event drain; filter timings exclude typing debounce. No cancellation workload. Offscreen renderer timers may be throttled; no samples are reported as null.",
+    "phase": "after"
+  },
+  {
+    "count": 12000,
+    "python": "3.13.11",
+    "qt": "6.12.0",
+    "platform": "Linux-7.2.13+deb14-amd64-x86_64-with-glibc2.43",
+    "qt_platform": "offscreen",
+    "peak_app_rss_mib": 585.58,
+    "renderer_heartbeat_max_ms": null,
+    "measurements": {
+      "first_display": {
+        "elapsed_ms": 870.31,
+        "qt_heartbeat_gap_ms": 247.02
+      },
+      "unchanged_refresh": [
+        {
+          "elapsed_ms": 333.32,
+          "qt_heartbeat_gap_ms": 31.59
+        },
+        {
+          "elapsed_ms": 340.58,
+          "qt_heartbeat_gap_ms": 25.4
+        },
+        {
+          "elapsed_ms": 336.55,
+          "qt_heartbeat_gap_ms": 27.71
+        }
+      ],
+      "changing_refresh": [
+        {
+          "elapsed_ms": 348.63,
+          "qt_heartbeat_gap_ms": 30.08
+        },
+        {
+          "elapsed_ms": 334.63,
+          "qt_heartbeat_gap_ms": 30.4
+        },
+        {
+          "elapsed_ms": 371.08,
+          "qt_heartbeat_gap_ms": 23.57
+        }
+      ],
+      "filter": {
+        "elapsed_ms": 115.65,
+        "qt_heartbeat_gap_ms": 20.8
+      },
+      "clear_filter": {
+        "elapsed_ms": 181.29,
+        "qt_heartbeat_gap_ms": 23.76
+      },
+      "selected_refresh": {
+        "elapsed_ms": 383.01,
+        "qt_heartbeat_gap_ms": 68.42
+      }
+    },
+    "limits": "Synthetic client and empty catalogue; no network or keyring. Desktop shared WebView including startup. App RSS excludes renderer subprocesses. Refreshes force the client snapshot. Timings include a 20 ms event drain; filter timings exclude typing debounce. No cancellation workload. Offscreen renderer timers may be throttled; no samples are reported as null.",
+    "phase": "before"
+  },
+  {
+    "count": 12000,
+    "python": "3.13.11",
+    "qt": "6.12.0",
+    "platform": "Linux-7.2.13+deb14-amd64-x86_64-with-glibc2.43",
+    "qt_platform": "offscreen",
+    "peak_app_rss_mib": 582.82,
+    "renderer_heartbeat_max_ms": null,
+    "measurements": {
+      "first_display": {
+        "elapsed_ms": 770.89,
+        "qt_heartbeat_gap_ms": 249.5
+      },
+      "unchanged_refresh": [
+        {
+          "elapsed_ms": 260.04,
+          "qt_heartbeat_gap_ms": 30.67
+        },
+        {
+          "elapsed_ms": 252.54,
+          "qt_heartbeat_gap_ms": 29.9
+        },
+        {
+          "elapsed_ms": 254.06,
+          "qt_heartbeat_gap_ms": 22.0
+        }
+      ],
+      "changing_refresh": [
+        {
+          "elapsed_ms": 269.77,
+          "qt_heartbeat_gap_ms": 30.81
+        },
+        {
+          "elapsed_ms": 261.77,
+          "qt_heartbeat_gap_ms": 22.32
+        },
+        {
+          "elapsed_ms": 254.78,
+          "qt_heartbeat_gap_ms": 30.0
+        }
+      ],
+      "filter": {
+        "elapsed_ms": 92.24,
+        "qt_heartbeat_gap_ms": 23.8
+      },
+      "clear_filter": {
+        "elapsed_ms": 168.6,
+        "qt_heartbeat_gap_ms": 22.65
+      },
+      "selected_refresh": {
+        "elapsed_ms": 316.67,
+        "qt_heartbeat_gap_ms": 73.68
+      }
+    },
+    "limits": "Synthetic client and empty catalogue; no network or keyring. Desktop shared WebView including startup. App RSS excludes renderer subprocesses. Refreshes force the client snapshot. Timings include a 20 ms event drain; filter timings exclude typing debounce. No cancellation workload. Offscreen renderer timers may be throttled; no samples are reported as null.",
+    "phase": "after"
+  },
+  {
+    "count": 50000,
+    "python": "3.13.11",
+    "qt": "6.12.0",
+    "platform": "Linux-7.2.13+deb14-amd64-x86_64-with-glibc2.43",
+    "qt_platform": "offscreen",
+    "peak_app_rss_mib": 745.39,
+    "renderer_heartbeat_max_ms": null,
+    "measurements": {
+      "first_display": {
+        "elapsed_ms": 2200.64,
+        "qt_heartbeat_gap_ms": 256.53
+      },
+      "unchanged_refresh": [
+        {
+          "elapsed_ms": 1294.58,
+          "qt_heartbeat_gap_ms": 137.8
+        },
+        {
+          "elapsed_ms": 1408.59,
+          "qt_heartbeat_gap_ms": 180.47
+        },
+        {
+          "elapsed_ms": 1371.06,
+          "qt_heartbeat_gap_ms": 173.79
+        }
+      ],
+      "changing_refresh": [
+        {
+          "elapsed_ms": 1349.64,
+          "qt_heartbeat_gap_ms": 189.01
+        },
+        {
+          "elapsed_ms": 1305.14,
+          "qt_heartbeat_gap_ms": 172.23
+        },
+        {
+          "elapsed_ms": 1341.99,
+          "qt_heartbeat_gap_ms": 164.02
+        }
+      ],
+      "filter": {
+        "elapsed_ms": 386.03,
+        "qt_heartbeat_gap_ms": 31.58
+      },
+      "clear_filter": {
+        "elapsed_ms": 509.81,
+        "qt_heartbeat_gap_ms": 30.18
+      },
+      "selected_refresh": {
+        "elapsed_ms": 1348.44,
+        "qt_heartbeat_gap_ms": 171.17
+      }
+    },
+    "limits": "Synthetic client and empty catalogue; no network or keyring. Desktop shared WebView including startup. App RSS excludes renderer subprocesses. Refreshes force the client snapshot. Timings include a 20 ms event drain; filter timings exclude typing debounce. No cancellation workload. Offscreen renderer timers may be throttled; no samples are reported as null.",
+    "phase": "before"
+  },
+  {
+    "count": 50000,
+    "python": "3.13.11",
+    "qt": "6.12.0",
+    "platform": "Linux-7.2.13+deb14-amd64-x86_64-with-glibc2.43",
+    "qt_platform": "offscreen",
+    "peak_app_rss_mib": 739.19,
+    "renderer_heartbeat_max_ms": null,
+    "measurements": {
+      "first_display": {
+        "elapsed_ms": 1707.13,
+        "qt_heartbeat_gap_ms": 262.41
+      },
+      "unchanged_refresh": [
+        {
+          "elapsed_ms": 991.71,
+          "qt_heartbeat_gap_ms": 151.81
+        },
+        {
+          "elapsed_ms": 1183.0,
+          "qt_heartbeat_gap_ms": 179.98
+        },
+        {
+          "elapsed_ms": 995.37,
+          "qt_heartbeat_gap_ms": 171.51
+        }
+      ],
+      "changing_refresh": [
+        {
+          "elapsed_ms": 1041.68,
+          "qt_heartbeat_gap_ms": 187.88
+        },
+        {
+          "elapsed_ms": 992.22,
+          "qt_heartbeat_gap_ms": 168.14
+        },
+        {
+          "elapsed_ms": 1006.96,
+          "qt_heartbeat_gap_ms": 172.03
+        }
+      ],
+      "filter": {
+        "elapsed_ms": 304.64,
+        "qt_heartbeat_gap_ms": 27.14
+      },
+      "clear_filter": {
+        "elapsed_ms": 404.32,
+        "qt_heartbeat_gap_ms": 28.3
+      },
+      "selected_refresh": {
+        "elapsed_ms": 942.34,
+        "qt_heartbeat_gap_ms": 160.25
+      }
+    },
+    "limits": "Synthetic client and empty catalogue; no network or keyring. Desktop shared WebView including startup. App RSS excludes renderer subprocesses. Refreshes force the client snapshot. Timings include a 20 ms event drain; filter timings exclude typing debounce. No cancellation workload. Offscreen renderer timers may be throttled; no samples are reported as null.",
+    "phase": "after"
+  }
+]

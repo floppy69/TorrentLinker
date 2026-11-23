@@ -13,10 +13,8 @@ clients leave names untouched. See ADR-0002/0013.
 from __future__ import annotations
 
 import logging
-import stat
 import threading
 import time
-import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -34,6 +32,7 @@ from torrentlinker.disk_rename import (
 from torrentlinker.domain import LocalItem, Torrent
 from torrentlinker.matching import Match
 from torrentlinker.qbit import AlreadyInClient, Qbit
+from torrentlinker.reseed_layout import same_unicode_file
 from torrentlinker.store import Store, Verification
 from torrentlinker.torrent_meta import TorrentMeta, pieces_inside
 
@@ -74,11 +73,44 @@ def start_reseed(
     approve_disk_renames: RenameApproval | None = None,
 ) -> str:
     with _LOCK:
+        from torrentlinker.reseed_layout import uses_links
+
+        if uses_links(qbit):
+            return _start_link_reseed(qbit, store, item, meta, match, candidate_key)
         if getattr(qbit, "requires_disk_renames", False) and match.renames:
+            if getattr(qbit, "reseed_policy", None) is not None:
+                raise ValueError("This Torrent Client requires links to preserve original files.")
             return _start_disk_reseed(
                 qbit, store, item, meta, match, candidate_key, sleep, approve_disk_renames
             )
         return _start_reseed(qbit, store, item, meta, match, candidate_key, sleep)
+
+
+def start_board_reseed(qbit, store, item, meta, match, candidate_key, sleep=time.sleep):
+    """Prepare client renames without letting the automatic verifier start the torrent."""
+    if getattr(qbit, "requires_disk_renames", False):
+        raise ValueError("This Torrent Client requires links to preserve original files.")
+    with _LOCK:
+        return _start_reseed(qbit, store, item, meta, match, candidate_key, sleep, automatic=False)
+
+
+def _start_link_reseed(qbit, store, item, meta, match, candidate_key):
+    from torrentlinker.reseed_layout import LINK_TAG, validate_layout
+
+    if existing := qbit.torrent(meta.infohash):
+        raise AlreadyInClient(existing)
+    verify_local_data(item, meta, match)
+    layout = qbit.reseed_policy.prepare(item, meta, match)
+    record = {**layout, "stage": "verify", "status": "adding", "key": candidate_key}
+    store.save_reseed_link_layout(meta.infohash, record)
+    validate_layout(record)
+    h = qbit.add(meta.data, record["destination"], [TAG, LINK_TAG, VERIFYING])
+    store.start_verification(h, item.path, candidate_key, None, sorted(match.pairs.values()))
+    qbit.recheck(h)
+    store.mark_rechecked(h)
+    record["status"] = "checking"
+    store.save_reseed_link_layout(meta.infohash, record)
+    return h
 
 
 def _start_reseed(
@@ -90,6 +122,8 @@ def _start_reseed(
     candidate_key: str,
     sleep: Callable[[float], None],
     added: Callable[[], None] = lambda: None,
+    *,
+    automatic: bool = True,
 ) -> str:
     # Some clients cannot rename or verify partial files. Let them refuse before
     # adding anything and express the Match in their reported file-path layout.
@@ -104,7 +138,7 @@ def _start_reseed(
     client_match = replace(
         client_match,
         pairs={
-            old: old if _same_unicode_file(item.save_path, old, new) else new
+            old: old if same_unicode_file(item.save_path, old, new) else new
             for old, new in client_match.pairs.items()
         },
     )
@@ -113,7 +147,10 @@ def _start_reseed(
     renames = rename_plan(client_match, set(meta.files))
     _require_absent_rename_sources(item.save_path, renames)
     try:
-        h = qbit.add(meta.data, str(item.save_path), [TAG, VERIFYING])
+        from torrentlinker.reseed_layout import BOARD_CHECKING, BOARD_TAG
+
+        tags = [TAG, VERIFYING] if automatic else [TAG, BOARD_TAG, BOARD_CHECKING]
+        h = qbit.add(meta.data, str(item.save_path), tags)
     except AlreadyInClient as error:
         # Another process may have added it since the preflight. Reads are best
         # effort; failure to fetch details must not hide the duplicate result.
@@ -163,6 +200,8 @@ def _start_reseed(
         qbit.set_file_priority(h, indexes, 0)
     qbit.recheck(h)
     store.mark_rechecked(h)
+    if not automatic:
+        store.end_verification(h)
     return h
 
 
@@ -173,20 +212,6 @@ POLL_INTERVAL = 0.2
 
 class ReseedAborted(Exception):
     """qBittorrent did not reach a safe state; the torrent was removed, data untouched."""
-
-
-def _same_unicode_file(save_path: Path, old: str, new: str) -> bool:
-    if old == new or unicodedata.normalize("NFC", old) != unicodedata.normalize("NFC", new):
-        return False
-    source, target = save_path / old, save_path / new
-    try:
-        return (
-            stat.S_ISREG(source.lstat().st_mode)
-            and stat.S_ISREG(target.lstat().st_mode)
-            and source.samefile(target)
-        )
-    except OSError:
-        return False  # no proven alias: retain the rename and the occupied-source guard
 
 
 def _require_absent_rename_sources(save_path: Path, renames: list[tuple[str, str]]) -> None:
@@ -319,6 +344,9 @@ def check_verifications(
     qbit: Qbit, store: Store, now: Callable[[], float] = time.time
 ) -> list[Outcome]:
     """Settle every finished Verification."""
+    from torrentlinker.achievements import observe_seeding
+
+    observe_seeding(store.torrent_dir.parent, store.client_id, qbit)
     with _LOCK:
         _recover_disk_renames(qbit, store)
         outcomes = []
@@ -342,6 +370,24 @@ def check_verifications(
                 log.error("%s (%s)", problem, record.item_path)
                 outcomes.append(Outcome(record.item_path, t.hash, False, 0.0, problem=problem))
                 continue
+            if "torrentlinker:links" in t.tags:
+                from torrentlinker.reseed_layout import validate_layout
+
+                layout = store.reseed_link_layout(t.hash)
+                try:
+                    if layout.get("hash") != t.hash or layout.get("destination") != str(
+                        t.save_path
+                    ):
+                        raise ValueError(
+                            "The prepared Reseed layout no longer belongs to this torrent."
+                        )
+                    validate_layout(layout)
+                except (OSError, ValueError, KeyError) as error:
+                    _remove_reseed(qbit, store, t.hash)
+                    outcomes.append(
+                        Outcome(record.item_path, t.hash, False, 0.0, problem=str(error))
+                    )
+                    continue
             verified, progress = _verdict(qbit, t.hash, t.progress, record)
             if verified:
                 outcomes.append(_accept(qbit, store, t.hash, record, progress))
@@ -373,11 +419,21 @@ def _accept(qbit: Qbit, store: Store, hash: str, record: Verification, progress:
     started = complete or _skip_every_file(qbit, hash)
     if started:
         qbit.start(hash)
+        if complete:
+            from torrentlinker.achievements import await_seeding
+
+            await_seeding(store.torrent_dir.parent, store.client_id, hash)
     qbit.remove_tags(hash, [VERIFYING])
     renamed = owns_journal(store.torrent_dir.parent, hash, getattr(qbit, "reseed_client_id", ""))
     if renamed:
         keep_disk_renames(store.torrent_dir.parent, hash)
     store.end_verification(hash)
+    layout = store.reseed_link_layout(hash)
+    if layout and layout.get("hash") == hash and layout.get("layout", "links") == "links":
+        layout.update(
+            stage="seeding" if started else "verify", status="seeding" if started else "verified"
+        )
+        store.save_reseed_link_layout(hash, layout)
     return Outcome(record.item_path, hash, True, progress, started=started, disk_renamed=renamed)
 
 

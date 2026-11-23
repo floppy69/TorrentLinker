@@ -119,6 +119,14 @@ def test_password_mode_still_requires_a_password(monkeypatch, tmp_path):
         start(monkeypatch, tmp_path, "--trusted-proxy", "172.18.0.0/16")
 
 
+def test_server_never_logs_request_urls_that_carry_api_keys(monkeypatch, tmp_path):
+    import logging
+
+    monkeypatch.setattr(logging.getLogger("httpx"), "level", logging.INFO)
+    start(monkeypatch, tmp_path, TL_WEB_PASSWORD="correct horse battery")
+    assert logging.getLogger("httpx").getEffectiveLevel() >= logging.WARNING
+
+
 def test_a_single_proxy_address_trusts_no_neighbour(tmp_path):
     only = (ip_network("172.30.0.2/32"),)
     for host, status in (("172.30.0.2", 200), ("172.30.0.3", 403)):

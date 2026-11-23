@@ -4,9 +4,49 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from torrentlinker.category_tags import category_path
 from torrentlinker.seeding import Seeding
-from torrentlinker.zen import ZenProfile, compare_classes
+from torrentlinker.torrent_management import status, tracker_groups
+from torrentlinker.zen import ZenProfile, compare_classes, weight
+
+
+class SeedingFilters(BaseModel):
+    state: str = ""
+    tracker: str = ""
+    tag: str = ""
+    size_min: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    size_max: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    note_min: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    zen_min: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    weight_min: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    seed_max: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    days_min: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+
+    def matches(self, row: dict[str, Any]) -> bool:
+        if self.state and self.state != row["status"]:
+            return False
+        if self.tracker and self.tracker not in row["trackers"]:
+            return False
+        if self.tag and self.tag not in row["tags"]:
+            return False
+        for field, key, minimum in (
+            ("size_min", "size", True),
+            ("size_max", "size", False),
+            ("note_min", "note", True),
+            ("zen_min", "zen", True),
+            ("weight_min", "weight", True),
+            ("seed_max", "seeders", False),
+            ("days_min", "seed_days", True),
+        ):
+            threshold = getattr(self, field)
+            value = row[key]
+            if threshold is not None and (
+                value is None or (value < threshold if minimum else value > threshold)
+            ):
+                return False
+        return True
 
 
 def seeding_page(
@@ -15,13 +55,15 @@ def seeding_page(
     uploads: int,
     *,
     query: str = "",
+    filters: SeedingFilters | None = None,
     group: str = "",
+    descendants: bool = False,
     sort: str = "zen",
     descending: bool = True,
     offset: int = 0,
     limit: int = 100,
 ) -> dict[str, Any]:
-    """Return category aggregates and at most one page of a category's own torrents.
+    """Return category aggregates and one bounded, globally sorted torrent page.
 
     Parent totals include descendants. Unfiltered account totals and class estimates
     are independent of pagination and text filters. No private tracker URLs are exposed.
@@ -29,11 +71,44 @@ def seeding_page(
     groups: dict[str, dict[str, Any]] = {}
     rows: list[dict[str, Any]] = []
     matched = 0
+    filters = filters or SeedingFilters()
+    states: set[str] = set()
+    trackers: set[str] = set()
+    tags: set[str] = set()
+    categories = {}
     for row in view.rows:
         torrent = row.torrent
         path = category_path(row.category, view.categories)
         keys = [path[:n] for n in range(1, len(path) + 1)] or [()]
         names = [view.categories[cid].name if cid in view.categories else str(cid) for cid in path]
+        identity = "/".join(map(str, path)) if path else "unknown"
+        record: dict[str, Any] = {
+            "hash": torrent.hash,
+            "name": torrent.name,
+            "category": " / ".join(names),
+            "category_id": identity,
+            "size": torrent.total_size,
+            "seeders": torrent.swarm_seeders if torrent.swarm_seeders >= 0 else None,
+            "seed_days": torrent.seeding_time / 86400,
+            "zen": row.zen,
+            "note": row.note,
+            "weight": weight(torrent.total_size),
+            "ratio": torrent.ratio,
+            "provisional_category": row.provisional_category,
+            "seeding": torrent.is_seeding,
+            "status": status(torrent),
+            "trackers": list(tracker_groups(torrent)),
+            "tags": sorted(torrent.tags),
+        }
+        states.add(record["status"])
+        trackers.update(record["trackers"])
+        tags.update(record["tags"])
+        for depth, key in enumerate(keys):
+            categories["/".join(map(str, key)) if key else "unknown"] = " / ".join(
+                names[: depth + 1]
+            )
+        if not filters.matches(record):
+            continue
         if query.strip().casefold() not in " ".join([torrent.name, *names]).casefold():
             continue
         matched += 1
@@ -64,20 +139,8 @@ def seeding_page(
                 summary["note_count"] += 1
             parent = identity
         groups[parent]["direct_count"] += 1
-        if parent == group:
-            rows.append(
-                {
-                    "hash": torrent.hash,
-                    "name": torrent.name,
-                    "size": torrent.total_size,
-                    "seeders": torrent.swarm_seeders if torrent.swarm_seeders >= 0 else None,
-                    "seed_days": torrent.seeding_time / 86400,
-                    "zen": row.zen,
-                    "note": row.note,
-                    "provisional_category": row.provisional_category,
-                    "seeding": torrent.is_seeding,
-                }
-            )
+        if group == "all" or parent == group or descendants and parent.startswith(group + "/"):
+            rows.append(record)
     for summary in groups.values():
         count = summary.pop("note_count")
         total = summary.pop("note_sum")
@@ -93,6 +156,15 @@ def seeding_page(
     rows = known + sorted(unknown, key=lambda r: r["hash"])
     return {
         "groups": list(groups.values()),
+        "filter_options": {
+            "state": sorted(states),
+            "tracker": sorted(trackers),
+            "tag": sorted(tags),
+            "category": [
+                {"value": key, "label": value}
+                for key, value in sorted(categories.items(), key=lambda item: item[1].casefold())
+            ],
+        },
         "rows": rows[offset : offset + limit],
         "total": len(rows),
         "offset": offset,

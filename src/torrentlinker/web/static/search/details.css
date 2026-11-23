@@ -1,0 +1,184 @@
+/* Torrent details, like c411's page */
+.dt-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.dt-flags,
+.dt-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 8px 0;
+}
+.dt-badge {
+  font-weight: 700;
+  font-size: 0.8em;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--tint);
+  color: var(--accent);
+}
+.dt-chip {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-size: 0.92em;
+}
+.dt-chip.dt-up,
+.dt-chip.dt-ok {
+  color: #1f9d63;
+}
+.dt-chip.dt-down {
+  color: var(--danger);
+}
+.dt-chip.dt-warn {
+  color: #b27a00;
+  border-color: #b27a00;
+}
+.dt-chip.dt-done {
+  color: var(--accent);
+}
+.dt-chip.dt-id {
+  font-family: ui-monospace, monospace;
+  color: var(--muted);
+}
+:root[data-theme="dark"] .dt-chip.dt-warn {
+  color: #edbf73;
+  border-color: #edbf73;
+}
+.dt-title {
+  margin: 6px 0 2px;
+  font-size: 1.4em;
+  overflow-wrap: anywhere;
+}
+.dt-banner,
+.dt-trust,
+.dt-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  background: var(--panel);
+}
+.dt-banner {
+  border-color: var(--accent);
+}
+.dt-banner p,
+.dt-trust p {
+  margin: 4px 0 0;
+}
+.dt-card {
+  display: flex;
+  gap: 14px;
+}
+.dt-poster {
+  width: 100px;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex: none;
+}
+.dt-card-title {
+  margin: 0 0 4px;
+}
+.dt-hash {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+.dt-files {
+  max-height: 240px;
+  overflow: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+}
+.dt-bar {
+  position: sticky;
+  bottom: 0;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  padding: 10px 0 0;
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+}
+.button-link {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  text-decoration: none;
+  color: inherit;
+  font-weight: 550;
+}
+
+#detail-tabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+#detail-tabs [role="tablist"] {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+.detail-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.detail-tab [role="tab"] {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail-tab [aria-selected="true"] {
+  background: var(--tint);
+  border-color: var(--accent);
+}
+.torrent-detail {
+  min-width: 0;
+}
+.torrent-detail .description {
+  overflow-wrap: anywhere;
+}
+.torrent-detail .description img {
+  max-width: 100%;
+  height: auto;
+}
+.torrent-detail .dt-bar {
+  flex-wrap: wrap;
+  align-items: center;
+  z-index: 3;
+  padding: 12px;
+}
+.torrent-detail .dt-bar .muted {
+  flex: 1;
+}
+.detail-image-error {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.detail-tab {
+  flex-shrink: 0;
+}
+.detail-tab:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg);
+}

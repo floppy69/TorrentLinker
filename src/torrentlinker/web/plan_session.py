@@ -12,6 +12,7 @@ from typing import Any
 from torrentlinker.catalogue import candidate
 from torrentlinker.disk_rename import DiskRenamePlan, plan_disk_renames
 from torrentlinker.plan import Plan, PlanCandidate, ReseedSource, restore_plan, saved_items
+from torrentlinker.reseed_layout import needs_disk_rename_review
 from torrentlinker.send import Refused, send_plan
 from torrentlinker.store import CatalogueRow
 from torrentlinker.web.library import Library
@@ -108,7 +109,7 @@ class PlanSession:
     def disk_renames(self, plan: Plan) -> list[DiskRenamePlan]:
         if not any(i.candidate.reseed for i in plan.items):
             return []
-        if not self.library.client().requires_disk_renames:
+        if not needs_disk_rename_review(self.library.client()):
             return []
         result = []
         for item in plan.items:

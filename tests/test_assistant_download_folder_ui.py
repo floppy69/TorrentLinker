@@ -9,6 +9,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.shell_support import shell_close_navigation, shell_navigate
 from tests.test_agent_download_folders import MountedClient
 from tests.test_assistant import generation_transport, login, wait_run
 from tests.test_assistant_download_folders import (
@@ -147,25 +148,26 @@ def test_browser_missing_folder_custom_answer_approval_and_resume(tmp_path):
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
             page.locator("#navigation-toggle").click()
-            page.locator('[data-view="assistant"]').click()
-            page.locator("#navigation-close").click()
+            shell_navigate(page, "assistant")
+            shell_close_navigation(page)
+            panel = page.frame_locator("#assistant-frame")
             # The first chat was created through the same public owner endpoints.
-            page.get_by_role("button", name="Discussions", exact=True).click()
-            page.locator(".assistant-conversations button").last.click()
-            page.get_by_role("button", name="Discussions", exact=True).click()
-            question = page.locator(".assistant-question")
+            panel.get_by_role("button", name="Discussions", exact=True).click()
+            panel.locator(".assistant-conversations button").last.click()
+            panel.get_by_role("button", name="Discussions", exact=True).click()
+            question = panel.locator(".assistant-question")
             expect(question).to_be_visible(timeout=10000)
             expect(question).to_contain_text("Ebook")
             question.get_by_role("textbox").fill(str(books))
             question.get_by_role("button", name="Submit answer", exact=True).click()
-            decision = page.locator(".assistant-decision")
+            decision = panel.locator(".assistant-decision")
             expect(decision).to_be_visible(timeout=10000)
             expect(decision).to_contain_text(str(books))
             expect(decision).to_contain_text("Ebook")
             assert app.state.agent_service.setup.settings.download_folders.by_category == {}
             decision.get_by_role("button", name="Approve once", exact=True).click()
             expect(
-                page.locator(".assistant-markdown").filter(has_text="Finished reviewing")
+                panel.locator(".assistant-markdown").filter(has_text="Finished reviewing")
             ).to_be_visible(timeout=10000)
             from torrentlinker.download_queue import entries
 

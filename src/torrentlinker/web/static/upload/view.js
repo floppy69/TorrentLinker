@@ -1,3 +1,5 @@
+const uploadLabels = {"Animation": "Animation", "Animated series": "Animated series", "Concert": "Concert", "Documentary": "Documentary", "Documentary series": "Documentary series", "TV programme": "TV programme", "Movie": "Movie", "TV series": "TV series", "Stage show": "Stage show", "Sport": "Sport", "Music videos": "Music videos", "Collection": "Collection", "Audiobooks": "Audiobooks", "Comic strips (BD)": "Comic strips (BD)", "Comics": "Comics", "Books": "Books", "Manga": "Manga", "Press": "Press", "Sheet music & tablature": "Sheet music & tablature", "Journals & technical manuals": "Journals & technical manuals", "Karaoke": "Karaoke", "Music": "Music", "Podcasts & radio": "Podcasts & radio", "Samples": "Samples", "Other": "Other", "Training": "Training", "Linux": "Linux", "macOS": "macOS", "Smartphone": "Smartphone", "Tablet": "Tablet", "Windows": "Windows", "Microsoft": "Microsoft", "Nintendo": "Nintendo", "Sony": "Sony", "VR": "VR", "Emulators": "Emulators", "ROMs / ISOs": "ROMs / ISOs", "Applications": "Applications", "Maps": "Maps", "Miscellaneous": "Miscellaneous", "Objects": "Objects", "Characters": "Characters", "Pack": "Pack"};
+const uploadLabel = label => t(uploadLabels[label] || label, label);
 const t = (...args) => window.TLPanel.t(...args);
 const $ = (id) => document.getElementById(id),
   esc = (x) =>
@@ -49,11 +51,7 @@ function visible() {
       (filter === "all" || i.reason === filter),
   );
 }
-function toast(s) {
-  $("toast").textContent = s;
-  $("toast").hidden = false;
-  setTimeout(() => ($("toast").hidden = true), 4200);
-}
+const toast = (s, kind = "ok") => TLToast.show(s, kind);
 let dialogRenderer = null;
 function dialog(content) {
   dialogRenderer = typeof content === "function" ? content : () => content;
@@ -69,6 +67,7 @@ function event(i, s) {
 let displayLimit = 100;
 let loadMoreObserver;
 function render() {
+  if (mode === "web") window.parent.postMessage({type: "upload-tab", navigationId: environment.navigation?.id, tab: {sources:"sources", drafts:"local", tracking:"remote"}[tab]}, location.origin);
   document.body.dataset.mode = mode;
   document
     .querySelectorAll("[data-mode]")
@@ -138,7 +137,7 @@ function inspector(i) {
   if (!i) return "";
   return `<aside class="panel inspector ${drawer ? "open" : ""}"><button class="mobileclose" data-action="drawer-close">${t("Fermer l’inspecteur")}</button><div class="eyebrow">${i.draft ? t("LE BROUILLON SÉLECTIONNÉ") : t("LA SOURCE SÉLECTIONNÉE")}</div><div class="detailtitle"><span class="badge ${reasons()[i.reason][1]}">${i.status}</span><h2>${esc(i.name)}</h2><small>${i.kind} · ${i.size}</small></div><div class="callout"><b>${i.reason === "rejected" ? t("Pourquoi cette suggestion ?") : i.reason === "unchecked" ? t("Recherche encore nécessaire") : t("Avant de préparer l’upload")}</b><p class="muted">${i.reason === "rejected" ? t("Les candidats examinés ne correspondent pas à vos fichiers. Vérifiez les autres éditions ou releases avant de créer le brouillon.") : i.reason === "unchecked" ? t("La recherche reste à effectuer ou à compléter. Cet élément n’est pas considéré comme absent du site.") : t("L’absence de résultat est une piste. Confirmez le contenu et vérifiez les éventuels doublons.")}</p>${!i.draft ? `<button class="primary" data-action="prepare">${t("Examiner cette source →")}</button>` : `<button data-action="edit">${i.sent ? t("Voir le suivi") : t("Ouvrir le brouillon →")}</button>`}</div><div class="section"><div class="eyebrow">${t("FICHIERS D’ORIGINE")}</div><p style="overflow-wrap:anywhere;margin-top:8px;font-size:12px">${esc(i.path)}</p><small>${t("Les fichiers restent à leur emplacement.")}</small></div><div class="section"><div class="row between"><b>${t("Son parcours")}</b><small>${i.draft ? t("Révision ") + i.revision : t("Pas encore de brouillon")}</small></div><div class="timeline">${i.events
     .slice(-5)
-    .map((s, n) => `<p><small></small>${esc(s)}</p>`)
+    .map((s, n) => `<p><small></small>${esc(uploadRuleText(s))}</p>`)
     .join("")}</div></div></aside>`;
 }
 function tracking() {
@@ -204,6 +203,7 @@ function recordItem(r) {
   };
 }
 async function refresh(force = false) {
+  if (document.getElementById("preparation")?.open) return;
   if (!force && current()?.dirty) return;
   const g = generation;
   try {
@@ -249,7 +249,7 @@ async function refresh(force = false) {
     if (!current()) selected = visible()[0]?.id || items[0]?.id;
     render();
   } catch (e) {
-    $("error").textContent = e.message;
+    toast(e.message, "bad");
   }
 }
 function adopt(r, previous) {
@@ -265,7 +265,7 @@ function adopt(r, previous) {
   return item;
 }
 function capture(i) {
-  if (!i || i !== current()) return;
+  if (!i || i !== current() || document.getElementById("preparation")?.open) return;
   if ($("confirm-existing")) i.existing = $("confirm-existing").checked;
   if ($("reviewed")) i.reviewed = $("reviewed").checked;
   const f = { ...i.form };
@@ -324,7 +324,7 @@ function editor(i) {
   if (step === 1)
     body = `<div class="callout"><b>${t("Vérifier ce qui existe déjà")}</b><p class="muted">${t("Une recherche sans résultat ne prouve pas l’absence du contenu sur le site. Examinez les éditions et formats.")}</p><button data-action="search-site" ${pending.has(i.id) ? "disabled" : ""}>${t("Rechercher sur c411")}</button></div>${i.found ? i.found.map((r) => `<div class="file"><strong>${esc(r.title)}</strong><small>${sizes(r.size)}</small></div>`).join("") || `<p>${t("Aucun résultat pour cette recherche.")}</p>` : `<p class="muted">${t("Recherche à effectuer.")}</p>`}<label><input type="checkbox" id="confirm-existing" ${i.existing ? "checked" : ""}>${t(" J’ai examiné les résultats et retenu cette source.")}</label>`;
   if (step === 2)
-    body = `<label for="release-name">${t("Nom de la release")}</label><input id="release-name" value="${esc(f.title || i.name)}"><div class="columns"><div><label for="category">${t("Catégorie")}</label><select id="category">${categories.map((c) => `<option value="${c.id}" ${c.id === f.category ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div><div><label for="subcategory">${t("Sous-catégorie")}</label><select id="subcategory">${(p.subcategories || [{ id: f.subcategory, name: String(f.subcategory || t("Choisir")) }]).map((c) => `<option value="${c.id || ""}" ${c.id === f.subcategory ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div></div><label for="release-source">Source</label><input id="release-source" value="${esc(f.source || "")}"><div class="options">${(p.options || []).map((o) => `<label>${esc(o.name)}<select data-option="${o.id}" ${o.multiple ? "multiple" : ""}><option value="">${t("Choisir…")}</option>${o.values.map((v) => `<option value="${v.id}" ${(f.options?.[o.id] || []).includes(v.id) ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select></label>`).join("")}</div><div class="section"><b>${t("Contenu sélectionné")}</b>${(
+    body = `<label for="release-name">${t("Nom de la release")}</label><input id="release-name" value="${esc(f.title || i.name)}"><div class="columns"><div><label for="category">${t("Catégorie")}</label><select id="category">${categories.map((c) => `<option value="${c.id}" ${c.id === f.category ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div><div><label for="subcategory">${t("Sous-catégorie")}</label><select id="subcategory">${(p.subcategories || [{ id: f.subcategory, name: String(f.subcategory || t("Choisir")) }]).map((c) => `<option value="${c.id || ""}" ${c.id === f.subcategory ? "selected" : ""}>${esc(uploadLabel(c.label || c.name))}</option>`).join("")}</select></div></div><label for="release-source">Source</label><input id="release-source" value="${esc(f.source || "")}"><div class="options">${(p.options || []).map((o) => `<label>${esc(o.name)}<select data-option="${o.id}" ${o.multiple ? "multiple" : ""}><option value="">${t("Choisir…")}</option>${o.values.map((v) => `<option value="${v.id}" ${(f.options?.[o.id] || []).includes(v.id) ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select></label>`).join("")}</div><div class="section"><b>${t("Contenu sélectionné")}</b>${(
       i.record?.files || []
     )
       .slice(0, 100)
@@ -338,7 +338,7 @@ function editor(i) {
   if (step === 3)
     body = `<label for="description">${t("Description du partage · BBCode")}</label><textarea id="description">${esc(f.description || "")}</textarea><div class="row" style="margin-top:12px"><button data-action="template">${t("Insérer un modèle")}</button></div><details class="section"><summary>NFO</summary><textarea id="nfo">${esc(f.nfo || "")}</textarea></details><div class="section"><div class="row between"><b>${t("Illustrations et captures")}</b><button data-action="artwork">${t("+ Ajouter une image")}</button></div><label for="image-url">${t("Lien direct de l’image hébergée")}</label><input id="image-url" type="url" value="${esc(f.image || "")}"><p class="muted">${t("Postimages · le lien est inclus dans la présentation à l’enregistrement.")}</p></div>`;
   if (step === 4)
-    body = `<div class="callout"><b>${t("Relire la révision ")}${i.revision}</b><p class="muted">${t("Toute modification demande un nouvel enregistrement et une nouvelle relecture.")}</p></div>${findings.map((s) => `<p class="error">${esc(s)}</p>`).join("")}${(i.review?.warnings || []).map((s) => `<p class="notice">${esc(s)}</p>`).join("")}<div class="file"><span>${t("Fichiers")}</span><b>${i.record?.files.length || 0}</b></div><details open><summary>${t("Présentation enregistrée")}</summary><pre>${esc(f.description || "")}</pre></details><details><summary>${t("NFO enregistré")}</summary><pre>${esc(f.nfo || "")}</pre></details><label><input id="reviewed" type="checkbox" ${i.reviewed ? "checked" : ""} ${findings.length ? "disabled" : ""}>${t(" J’ai relu cette version, les fichiers et les avertissements.")}</label>`;
+    body = `<div class="callout"><b>${t("Relire la révision ")}${i.revision}</b><p class="muted">${t("Toute modification demande un nouvel enregistrement et une nouvelle relecture.")}</p></div>${findings.map((s) => `<p class="error">${esc(uploadRuleText(s))}</p>`).join("")}${(i.review?.warnings || []).map((s) => `<p class="notice">${esc(uploadRuleText(s))}</p>`).join("")}<div class="file"><span>${t("Fichiers")}</span><b>${i.record?.files.length || 0}</b></div><details open><summary>${t("Présentation enregistrée")}</summary><pre>${esc(f.description || "")}</pre></details><details><summary>${t("NFO enregistré")}</summary><pre>${esc(f.nfo || "")}</pre></details><label><input id="reviewed" type="checkbox" ${i.reviewed ? "checked" : ""} ${findings.length ? "disabled" : ""}>${t(" J’ai relu cette version, les fichiers et les avertissements.")}</label>`;
   if (step === 5)
     body = `<div class="callout"><b>${i.sent ? t("Brouillon c411 créé") : t("Prêt pour l’envoi du brouillon ?")}</b><p class="muted">${t("La publication finale reste manuelle sur c411.")}</p></div><div class="file"><span>Source</span><b>${esc(i.name)}</b></div><div class="file"><span>${t("Révision enregistrée")}</span><b>${i.revision}</b></div><div class="file"><span>${t("Relecture")}</span><span class="badge">${i.reviewed ? t("Confirmée") : t("À effectuer")}</span></div><button class="primary" data-action="send" ${!i.reviewed || i.sent ? "disabled" : ""}>${t("Créer le brouillon c411…")}</button>`;
   return `<section class="panel editor"><div class="row between"><div><div class="eyebrow">${String(step + 1).padStart(2, "0")} · ${stages()[step].toUpperCase()}</div><h2>${esc(i.name)}</h2></div><button data-action="draft-list">${t("Voir la liste")}</button></div>${body}<div class="bottomactions"><button data-action="previous">${t("← Précédente")}</button><div class="row"><button data-action="save">${t("Enregistrer")}</button>${step < 5 ? `<button class="primary" data-action="next">${t("Enregistrer et continuer →")}</button>` : ""}</div></div></section>`;
@@ -386,6 +386,7 @@ async function act(action) {
     }
   }
   if (action === "edit") {
+    drawer = false;
     tab = i.tracking ? "tracking" : "drafts";
     step = i.stage || 1;
     if (!i.sent)
@@ -463,7 +464,7 @@ async function act(action) {
     return;
   }
   if (action === "advanced") {
-    await api("advanced", { path: i.path, id: i.id });
+    await preparation.open(i);
     return;
   }
   if (action === "template") {
@@ -476,6 +477,12 @@ async function act(action) {
     i.form.description = p.description;
     i.reviewed = false;
     i.dirty = true;
+  }
+  if(action === "seed-upload"){
+    dialog(()=>`<h2>${t("Vérifier et partager cet upload ?", "Verify and seed this upload?")}</h2><p>${esc(i.name)}</p><button data-action="confirm-seed-upload">${t("Confirmer", "Confirm")}</button>`);return;
+  }
+  if(action === "confirm-seed-upload"){
+    $('dialog').close();await preparation.seed(i);return;
   }
   if (action === "send") {
     dialog(
@@ -530,6 +537,7 @@ async function act(action) {
 document.addEventListener("click", async (e) => {
   const b = e.target.closest("button"),
     row = e.target.closest("[data-item]");
+  const release = b && !b.disabled && (b.dataset.action || "step" in b.dataset || b.dataset.picker || "browse" in b.dataset) ? TLToast.working(b) : () => {};
   try {
     if (b?.dataset.tab) {
       capture(current());
@@ -599,18 +607,17 @@ document.addEventListener("click", async (e) => {
       selected = i.id;
       dialog(
         () =>
-          `<h2>${esc(i.name)}</h2><div class="timeline">${i.events.map((s) => `<p>${esc(s)}</p>`).join("")}</div><pre>${esc(JSON.stringify(i.record.result || {}, null, 2))}</pre>${["sending", "uncertain"].includes(i.record.status) ? `<p>${t("Vérifiez les brouillons sur c411 avant de permettre un nouvel essai.")}</p><button data-action="reset-send" data-id="${esc(i.id)}">${t("J’ai vérifié c411, autoriser un nouvel essai")}</button>` : ""}`,
+          `<h2>${esc(i.name)}</h2><div class="timeline">${i.events.map((s) => `<p>${esc(uploadRuleText(s))}</p>`).join("")}</div><pre>${esc(JSON.stringify(i.record.result || {}, null, 2))}</pre>${i.record.status === "sent" ? `<button data-action="seed-upload" data-id="${esc(i.id)}">${t("Démarrer le seed", "Start seeding")}</button>` : ""}${["sending", "uncertain"].includes(i.record.status) ? `<p>${t("Vérifiez les brouillons sur c411 avant de permettre un nouvel essai.")}</p><button data-action="reset-send" data-id="${esc(i.id)}">${t("J’ai vérifié c411, autoriser un nouvel essai")}</button>` : ""}`,
       );
       return;
     }
     if (b?.dataset.action) {
-      b.disabled = true;
       await act(b.dataset.action);
     }
   } catch (err) {
-    $("error").textContent = err.message;
-    toast(err.message);
+    toast(err.message, "bad");
   } finally {
+    release();
     if (b?.isConnected) b.disabled = false;
   }
 });
@@ -646,7 +653,7 @@ document.addEventListener("change", async (e) => {
       i.form.options = i.preview.chosen;
       render();
     } catch (err) {
-      $("error").textContent = err.message;
+      toast(err.message, "bad");
     }
   }
 });
@@ -664,14 +671,20 @@ document.addEventListener("submit", async (e) => {
     $("dialog").close();
     render();
   } catch (err) {
-    toast(err.message);
+    toast(err.message, "bad");
   }
 });
 window.addEventListener("upload-environment", (e) => {
   const changed = environment.client !== e.detail.client;
   const languageChanged = environment.language !== e.detail.language;
   if (!changed) capture(current());
+  const navigationChanged = e.detail.navigation && e.detail.navigation.id !== environment.navigation?.id;
   environment = e.detail;
+  if (navigationChanged) {
+    tab = {sources:"sources", local:"drafts", remote:"tracking"}[environment.navigation.tab] || "sources";
+    step = 0;
+    render();
+  }
   mode = environment.mode;
   window.TLPanel.setLanguage(environment.language);
   document
@@ -783,6 +796,7 @@ window.addEventListener("message", (e) => {
     item.form.description = (item.form.description || "") + "\n" + code;
     item.form.image = images[0][1];
     item.description = item.form.description;
+    preparation.refresh();
     item.reviewed = false;
     item.dirty = true;
     if (current() === item) render();
@@ -792,7 +806,7 @@ window.addEventListener("message", (e) => {
       ),
     );
   } catch (error) {
-    toast(error.message);
+    toast(error.message, "bad");
   }
 });
 
@@ -801,4 +815,14 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     e.target.click();
   }
+});
+
+let lastUploadFocus = null;
+window.addEventListener('upload-environment', async event => {
+  const focus = event.detail.focus_request;
+  if (!focus || focus.at === lastUploadFocus || document.getElementById('preparation')?.open) return;
+  lastUploadFocus = focus.at;
+  await refresh(true);
+  const source = items.find(i => i.path === focus.path);
+  if(source){selected=source.id;drawer=true;tab=source.draft?'drafts':'sources';step=source.draft?2:0;render();}
 });

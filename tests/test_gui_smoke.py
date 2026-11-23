@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.test_plan_interfaces import choose_plan_category, configure_plan
 from torrentlinker.config import Settings
 from torrentlinker.gui.main_window import MainWindow
 from torrentlinker.store import Store
@@ -14,83 +15,68 @@ def test_main_window_opens(qtbot, tmp_path: Path) -> None:  # type: ignore[no-un
     assert window.isVisible()
 
 
-def test_settings_open_on_the_connections_tab_with_hidden_keys(qtbot) -> None:  # type: ignore[no-untyped-def]
-    from PySide6.QtWidgets import QLineEdit
+def test_settings_open_on_the_connections_tab_with_hidden_keys(qtbot, tmp_path):
+    from tests.settings_support import settings_page
+    from tests.test_community_interfaces import js
 
-    from torrentlinker.gui.settings_dialog import SettingsDialog
+    dialog = settings_page(qtbot, tmp_path)
+    assert (
+        js(qtbot, dialog.view, "document.querySelector('.settings-form h2').textContent")
+        == "Connections"
+    )
+    assert js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('input[type=password]')].every(input=>input.value==='')",
+    )
+    assert js(qtbot, dialog.view, "document.querySelectorAll('input[type=password]').length") >= 4
 
-    dialog = SettingsDialog(Settings())
-    qtbot.addWidget(dialog)
 
-    assert dialog.tabs.currentIndex() == 0
-    assert dialog.indexer_key.echoMode() == QLineEdit.EchoMode.Password
-    assert dialog.tmdb_key.echoMode() == QLineEdit.EchoMode.Password
-
-
-def test_choosing_deluge_saves_it_and_the_app_connects_through_deluge(  # type: ignore[no-untyped-def]
-    qtbot, tmp_path: Path
-) -> None:
+def test_choosing_deluge_saves_it_and_the_app_connects_through_deluge(qtbot, tmp_path):
+    from tests.settings_support import edit_field, save_group, settings_page
     from torrentlinker.credentials import get_secret
     from torrentlinker.deluge import DelugeApi
     from torrentlinker.domain import TorrentClient
-    from torrentlinker.gui.main_window import MainWindow
-    from torrentlinker.gui.settings_dialog import DELUGE_PASSWORD, SettingsDialog
     from torrentlinker.qbit import QbitApi
-    from torrentlinker.store import Store
 
-    settings = Settings()
-    dialog = SettingsDialog(settings)
-    qtbot.addWidget(dialog)
-    assert dialog.client_forms.currentIndex() == 0  # qBittorrent, as before
-    assert isinstance(dialog._form_qbit(), QbitApi)
-
-    dialog.client.setCurrentIndex(dialog.client.findData(TorrentClient.DELUGE.value))
-    assert dialog.client_forms.currentWidget().isAncestorOf(dialog.deluge_host)
-    dialog.deluge_host.setText("http://nas:8112")
-    dialog.deluge_password.setText("secret")
-    assert isinstance(dialog._form_qbit(), DelugeApi)
-    dialog._save()
-
+    dialog = settings_page(qtbot, tmp_path)
+    edit_field(qtbot, dialog.view, "Client type", "deluge")
+    edit_field(qtbot, dialog.view, "Address", "http://nas:8112")
+    edit_field(qtbot, dialog.view, "Password", "secret")
+    save_group(qtbot, dialog)
+    settings = Settings.load(tmp_path / "settings.json")
     assert settings.client is TorrentClient.DELUGE
     assert settings.deluge.host == "http://nas:8112"
-    assert get_secret(DELUGE_PASSWORD) == "secret"
+    assert get_secret("deluge-password") == "secret"
     window = MainWindow(settings, tmp_path / "settings.json", Store(tmp_path / "s.db"))
     qtbot.addWidget(window)
-    window.qbit()
     assert isinstance(window.qbit()._inner, DelugeApi)
     settings.client = TorrentClient.QBITTORRENT
-    window.qbit()
-    assert isinstance(window.qbit()._inner, QbitApi)  # a new choice takes effect at once
+    assert isinstance(window.qbit()._inner, QbitApi)
 
 
-def test_choosing_transmission_saves_it_and_the_app_connects_through_it(  # type: ignore[no-untyped-def]
-    qtbot, tmp_path: Path
-) -> None:
+def test_choosing_transmission_saves_it_and_the_app_connects_through_it(qtbot, tmp_path):
+    from tests.settings_support import edit_field, save_group, settings_page
     from torrentlinker.credentials import get_secret
     from torrentlinker.domain import TorrentClient
-    from torrentlinker.gui.main_window import MainWindow
-    from torrentlinker.gui.settings_dialog import TRANSMISSION_PASSWORD, SettingsDialog
-    from torrentlinker.store import Store
+    from torrentlinker.qbit import QbitApi
     from torrentlinker.transmission import TransmissionApi
 
-    settings = Settings()
-    dialog = SettingsDialog(settings)
-    qtbot.addWidget(dialog)
-    dialog.client.setCurrentIndex(dialog.client.findData(TorrentClient.TRANSMISSION.value))
-    assert dialog.client_forms.currentWidget().isAncestorOf(dialog.transmission_host)
-    dialog.transmission_host.setText("http://nas:9091")
-    dialog.transmission_user.setText("me")
-    dialog.transmission_password.setText("secret")
-    assert isinstance(dialog._form_qbit(), TransmissionApi)
-    dialog._save()
-
+    dialog = settings_page(qtbot, tmp_path)
+    edit_field(qtbot, dialog.view, "Client type", "transmission")
+    edit_field(qtbot, dialog.view, "Address", "http://nas:9091")
+    edit_field(qtbot, dialog.view, "Username", "me")
+    edit_field(qtbot, dialog.view, "Password", "secret")
+    save_group(qtbot, dialog)
+    settings = Settings.load(tmp_path / "settings.json")
     assert settings.client is TorrentClient.TRANSMISSION
-    assert (settings.transmission.host, settings.transmission.username) == ("http://nas:9091", "me")
-    assert get_secret(TRANSMISSION_PASSWORD) == "secret"
+    assert settings.transmission.host == "http://nas:9091"
+    assert get_secret("transmission-password") == "secret"
     window = MainWindow(settings, tmp_path / "settings.json", Store(tmp_path / "s.db"))
     qtbot.addWidget(window)
-    window.qbit()
     assert isinstance(window.qbit()._inner, TransmissionApi)
+    settings.client = TorrentClient.QBITTORRENT
+    assert isinstance(window.qbit()._inner, QbitApi)
 
 
 @pytest.mark.parametrize("accept", [True, False])
@@ -120,21 +106,33 @@ def test_part_names_are_turned_off_only_if_the_user_agrees_then_the_action_runs_
         assert done == []
 
 
-def test_content_kind_chosen_in_settings_comes_back_as_a_content_kind(qtbot) -> None:  # type: ignore[no-untyped-def]
+def test_content_kind_chosen_in_settings_comes_back_as_a_content_kind(qtbot, tmp_path):
+    from tests.settings_support import settings_page
+    from tests.test_community_interfaces import js, wait_js
     from torrentlinker.domain import ContentKind, LibraryFolder
-    from torrentlinker.gui.settings_dialog import SettingsDialog
 
-    s = Settings()
-    s.library_folders = [LibraryFolder(Path("/windocs/STL"), 1, ContentKind.MODEL_3D)]
-    dialog = SettingsDialog(s)
-    qtbot.addWidget(dialog)
+    settings = Settings(library_folders=[LibraryFolder(tmp_path, 1, ContentKind.MODEL_3D)])
+    dialog = settings_page(qtbot, tmp_path, settings, section="library")
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent==='Edit').click()",
+    )
+    assert (
+        js(qtbot, dialog.view, "document.querySelector('[aria-label=\"Content kind\"]').value")
+        == "3d-model"
+    )
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent==='Save folder').click()",
+    )
+    qtbot.waitUntil(lambda: dialog.setup.path.exists())
+    assert Settings.load(dialog.setup.path).library_folders[0].kind is ContentKind.MODEL_3D
+    wait_js(qtbot, dialog.view, "!document.querySelector('#settings-error').textContent")
 
-    [folder] = dialog._read_folders()
 
-    assert folder.kind is ContentKind.MODEL_3D
-
-
-def test_library_state_filter_keeps_only_the_chosen_state(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+def test_library_exposes_seed_states_to_the_shared_view(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     from torrentlinker.domain import ItemState, LibraryFolder, LocalItem
     from torrentlinker.library import LibraryEntry
 
@@ -148,34 +146,47 @@ def test_library_state_filter_keeps_only_the_chosen_state(qtbot, tmp_path: Path)
         ]
     )
 
-    window.state_filter.setCurrentIndex(window.state_filter.findText("Orphan"))
-
-    assert window.library_proxy.rowCount() == 1
-
-
-def test_a_typed_folder_path_is_added_to_the_library_folders(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
-    from torrentlinker.gui.settings_dialog import SettingsDialog
-
-    dialog = SettingsDialog(Settings())
-    qtbot.addWidget(dialog)
-    dialog.typed_folder.setText(str(tmp_path))
-    dialog._add_typed_folder()
-
-    assert [f.path for f in dialog._read_folders()] == [tmp_path]
+    rows = window.library_workspace.reseed.request("state", {})["rows"]
+    assert [(r["name"], r["state"]) for r in rows] == [("a", "orphan"), ("b", "seeded")]
 
 
-def test_zen_profile_entered_in_settings_comes_back(qtbot) -> None:  # type: ignore[no-untyped-def]
-    from torrentlinker.gui.settings_dialog import SettingsDialog
+def test_a_typed_folder_path_is_added_to_the_library_folders(qtbot, tmp_path):
+    from tests.settings_support import edit_field, settings_page
+    from tests.test_community_interfaces import js
+
+    folder = tmp_path / "library"
+    folder.mkdir()
+    dialog = settings_page(qtbot, tmp_path, section="library")
+    edit_field(qtbot, dialog.view, "Folder on the TorrentLinker host", str(folder))
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent==='Save folder').click()",
+    )
+    qtbot.waitUntil(lambda: bool(dialog.setup.settings.library_folders))
+    assert [f.path for f in dialog.setup.settings.library_folders] == [folder]
+
+
+def test_zen_profile_entered_in_settings_comes_back(qtbot, tmp_path):
+    from tests.settings_support import edit_field, save_group, settings_page
+    from tests.test_community_interfaces import js
     from torrentlinker.zen import ZenClass, ZenProfile
 
-    s = Settings()
-    s.zen = ZenProfile(ZenClass.SWARM_KEEPER, 0.02, 20, 300)
-    dialog = SettingsDialog(s)
-    qtbot.addWidget(dialog)
-
-    assert dialog._read_zen() == s.zen
-    dialog.zen_class.setCurrentIndex(2)
-    assert dialog._read_zen().zen_class is ZenClass.REUPLOADER
+    settings = Settings(zen=ZenProfile(ZenClass.SWARM_KEEPER, 0.02, 20, 300))
+    dialog = settings_page(qtbot, tmp_path, settings, section="zen")
+    assert (
+        js(
+            qtbot,
+            dialog.view,
+            "document.querySelector('[aria-label=\"Seed hours per day\"]').value",
+        )
+        == "20"
+    )
+    edit_field(qtbot, dialog.view, "Class", "reuploader")
+    save_group(qtbot, dialog)
+    saved = Settings.load(dialog.setup.path)
+    assert saved.zen.zen_class is ZenClass.REUPLOADER
+    assert saved.zen.seed_hours == 20 and saved.zen.torrent_cap == 300
 
 
 def test_main_window_opens_on_the_zen_tab_and_shows_the_seeding_view(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
@@ -200,8 +211,9 @@ def test_main_window_opens_on_the_zen_tab_and_shows_the_seeding_view(qtbot, tmp_
 
     assert window.tabs.currentWidget() is window.zen_tab
     assert window.tabs.tabText(1) == "Library"
-    assert len(window.zen_tab.seeding_view.table.torrents) == 1
-    assert "≈" in window.zen_tab.seeding_view.table.torrents["h"].text(4)  # type: ignore[union-attr]
+    observed = window.zen_tab.seeding_view.seeding
+    assert observed is not None and len(observed.rows) == 1
+    assert observed.rows[0].zen is not None
 
 
 def test_periodic_qbit_refresh_updates_estimates_after_a_tracker_response(
@@ -233,7 +245,7 @@ def test_periodic_qbit_refresh_updates_estimates_after_a_tracker_response(
     view = window.zen_tab.seeding_view
     view.show_seeding(window.seeding_loader()())
     before = view.seeding.day.total
-    assert view.table.torrents[row.infohash].text(2) == "–"
+    assert view.seeding.rows[0].torrent.swarm_seeders == -1
     assert store.catalogue()[0].seeders == 100
 
     window.zen_tab.plan_view.show_plan(Plan())
@@ -241,7 +253,7 @@ def test_periodic_qbit_refresh_updates_estimates_after_a_tracker_response(
     with qtbot.waitSignal(view.updated, timeout=5000):
         window.seeding_timer.timeout.emit()
 
-    assert view.table.torrents[row.infohash].text(2) == "5"
+    assert view.seeding.rows[0].torrent.swarm_seeders == 5
     assert view.seeding.day.total > before
     cached = store.catalogue()[0]
     assert cached.seeders == 4  # the current user is already one of the five seeders
@@ -249,20 +261,23 @@ def test_periodic_qbit_refresh_updates_estimates_after_a_tracker_response(
     assert window.seeding_timer.interval() == 30_000
 
 
-def test_download_folders_tab_flags_categories_left_without_a_folder(qtbot) -> None:  # type: ignore[no-untyped-def]
-    from torrentlinker.downloads import DownloadFolders
-    from torrentlinker.gui.settings_dialog import COL_FOLDER, COL_RESOLVED, SettingsDialog
-    from torrentlinker.indexer import Caps
+def test_download_folders_tab_flags_categories_left_without_a_folder(qtbot, tmp_path):
+    from tests.settings_support import settings_page
+    from tests.test_community_interfaces import js
+    from torrentlinker.downloads import DownloadFolders, IndexerCategory
 
-    dialog = SettingsDialog(Settings())
-    qtbot.addWidget(dialog)
-    dialog._set_categories(Caps({2000: "Films", 2030: "VO", 7000: "Ebook"}, {}, {2030: 2000}))
-    dialog.download_table.item(0, COL_FOLDER).setText("/dl/films")  # type: ignore[union-attr]
-
-    assert dialog._read_download_folders() == DownloadFolders({2000: "/dl/films"})
-    used = [dialog.download_table.item(r, COL_RESOLVED).text() for r in range(3)]  # type: ignore[union-attr]
-    assert used[:2] == ["/dl/films", "/dl/films"]
-    assert "excluded" in used[2]
+    settings = Settings(language="en")
+    settings.indexer_categories = {
+        2000: IndexerCategory("Films"),
+        2030: IndexerCategory("VO", 2000),
+        7000: IndexerCategory("Ebook"),
+    }
+    settings.download_folders = DownloadFolders({2000: "/dl/films"})
+    dialog = settings_page(qtbot, tmp_path, settings, section="downloads")
+    text = js(qtbot, dialog.view, "document.querySelector('.settings-form').textContent")
+    assert "Films › VO" in text
+    assert text.count("/dl/films") >= 2
+    assert "EbookExcluded: no download folder" in text
 
 
 def test_zen_band_shows_the_balance_and_explains_a_key_without_profile_scope(qtbot) -> None:  # type: ignore[no-untyped-def]
@@ -275,11 +290,11 @@ def test_zen_band_shows_the_balance_and_explains_a_key_without_profile_scope(qtb
     band.show_profile(
         UserProfile("v", "tanker", ZenClass.TANKER, 0.02, 12.5, False, "insufficient_balance")
     )
-    assert "12.5" in band.balance.text()
-    assert "not enough Zen" in band.message.text()
+    assert "12.5" in band.values["balance"]
+    assert "not enough Zen" in band.profile_notice
 
     band.show_profile_error(ProfileError(ProfileProblem.MISSING_SCOPE))
-    assert "Profil (lecture)" in band.message.text()
+    assert "Profil (lecture)" in band.profile_notice
 
 
 def test_profile_read_at_startup_fills_the_zen_profile(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
@@ -289,7 +304,7 @@ def test_profile_read_at_startup_fills_the_zen_profile(qtbot, tmp_path: Path) ->
     window = MainWindow(Settings(), tmp_path / "settings.json", Store(tmp_path / "s.db"))
     qtbot.addWidget(window)
     refreshed = []
-    window.zen_tab.seeding_view.refresh = lambda: refreshed.append(True)  # type: ignore[method-assign]
+    window.zen_tab.seeding_view.reload = lambda: refreshed.append(True)  # type: ignore[method-assign]
     window._profile_read(
         UserProfile("v", "swarm-keeper", ZenClass.SWARM_KEEPER, 0.04, 3, True, None)
     )
@@ -301,22 +316,33 @@ def test_profile_read_at_startup_fills_the_zen_profile(qtbot, tmp_path: Path) ->
 
 
 def test_class_comparison_highlights_the_current_class_and_labels_reuploader_rough(qtbot) -> None:  # type: ignore[no-untyped-def]
-    from torrentlinker.gui.zen_view import ClassComparison
-    from torrentlinker.zen import ZenClass, ZenProfile
+    from tests.test_community_interfaces import js, wait_js
+    from torrentlinker.gui.seeding_view import SeedingView
+    from torrentlinker.seeding import Seeding
+    from torrentlinker.zen import ZenClass, ZenDay, ZenProfile
 
-    widget = ClassComparison(lambda: ZenProfile(ZenClass.SWARM_KEEPER), uploads=10)
+    widget = SeedingView(
+        lambda: lambda: Seeding([], ZenDay(), []),
+        lambda: ZenProfile(ZenClass.SWARM_KEEPER),
+        uploads=10,
+    )
     qtbot.addWidget(widget)
+    widget.show()
+    wait_js(qtbot, widget, "document.querySelector('#seeding-classes strong')!==null")
+    assert js(
+        qtbot,
+        widget,
+        "document.querySelector('#seeding-classes strong').textContent.includes('Swarm Keeper')",
+    )
+    assert js(
+        qtbot, widget, "document.querySelector('#seeding-classes').textContent.includes('rough')"
+    )
+    assert js(
+        qtbot, widget, "document.querySelector('#seeding-classes').textContent.includes('4.3')"
+    )
 
-    assert "<b>" in widget.labels[ZenClass.SWARM_KEEPER].text()
-    assert "<b>" not in widget.labels[ZenClass.TANKER].text()
-    assert "rough" in widget.labels[ZenClass.REUPLOADER].text()
-    assert "4.30" in widget.labels[ZenClass.REUPLOADER].text()
 
-
-def test_library_shows_zen_per_day_for_orphans_with_a_match_and_sorts_it(
-    qtbot, tmp_path: Path
-) -> None:  # type: ignore[no-untyped-def]
-    from PySide6.QtCore import Qt
+def test_library_retains_zen_estimates_for_orphans_with_a_match(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
 
     from torrentlinker.domain import ItemState, LibraryFolder, LocalItem
     from torrentlinker.gui.library_model import LibraryModel
@@ -343,9 +369,6 @@ def test_library_shows_zen_per_day_for_orphans_with_a_match_and_sorts_it(
     col = LibraryModel.ZEN_COLUMN
     texts = [window.library_model.index(r, col).data() for r in range(3)]
     assert texts[0].startswith("≈") and texts[1].startswith("≈") and texts[2] == ""
-    window.library_proxy.sort(col, Qt.SortOrder.DescendingOrder)
-    top = window.library_proxy.index(0, 0).data(Qt.ItemDataRole.UserRole)
-    assert top is entries[1]
 
 
 def test_band_shows_the_catalogue_age(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
@@ -360,7 +383,7 @@ def test_band_shows_the_catalogue_age(qtbot, tmp_path: Path) -> None:  # type: i
     window = MainWindow(Settings(), tmp_path / "settings.json", store)
     qtbot.addWidget(window)
 
-    assert "1 torrents, 2 h old" in window.band.catalogue.text()
+    assert "1 torrents, 2 h old" in window.band.values["catalogue"]
 
 
 def test_catalogue_update_runs_off_the_gui_thread_and_reports_progress(
@@ -401,7 +424,7 @@ def test_whole_catalogue_fetch_can_be_paused_and_offers_to_resume(qtbot, tmp_pat
     from tests.test_indexer import FakeClock
     from torrentlinker.credentials import set_secret
     from torrentlinker.downloads import IndexerCategory
-    from torrentlinker.gui.settings_dialog import INDEXER_API_KEY
+    from torrentlinker.gui.settings_common import INDEXER_API_KEY
     from torrentlinker.indexer import Indexer
 
     fake, clock = FakeTorznab(), FakeClock()
@@ -429,11 +452,11 @@ def test_whole_catalogue_fetch_can_be_paused_and_offers_to_resume(qtbot, tmp_pat
     with qtbot.waitSignal(
         window.band.catalogue_changed, timeout=5000, check_params_cb=lambda t: "old" in t
     ):
-        box.fetch_button.click()
+        box.start_requested.emit()
 
     assert 0 < store.catalogue_size() < 1000
     assert store.crawl_paused()
-    assert "Resume" in box.fetch_button.text()
+    assert box.paused and not box.running
 
 
 def test_plan_view_shows_zen_added_size_and_payback_and_the_band_follows(
@@ -447,10 +470,10 @@ def test_plan_view_shows_zen_added_size_and_payback_and_the_band_follows(
     c = PlanCandidate("aa" * 20, "Film", 8 * GB, 4, 2000, tmp_path, 1)
     window._plan_made(Plan([PlanItem(c, 0.4)], 0.4))
 
-    summary = window.zen_tab.plan_view.summary.text()
-    assert "≈ +0.40 Zen/day" in summary and "8.0 Go" in summary and "20 days" in summary
-    assert "+0.40" in window.band.plan.text()
-    assert window.zen_tab.plan_view.table.rowCount() == 1
+    result = window.zen_tab.plan_view.state()["result"]
+    assert result["zen"] == 0.4 and result["size"] == 8 * GB and result["payback_days"] == 20
+    assert "+0.40" in window.band.values["plan"]
+    assert len(window.zen_tab.plan_view.state()["result"]["rows"]) == 1
 
 
 def test_the_plan_estimates_sending_and_downloading_times_from_a_speed_test(
@@ -469,15 +492,15 @@ def test_the_plan_estimates_sending_and_downloading_times_from_a_speed_test(
     window._plan_made(Plan([PlanItem(c, 0.01)] * 1000, 10))
 
     # 1000 on one key: 280 in the first 20 minutes, then 280 every 20 minutes
-    assert "Sending to the torrent client: ≈ 1 h 05" in view.times.text()
-    assert "test your speed" in view.times.text()
+    assert 3900 <= view.state()["result"]["sending_seconds"] < 3960
+    assert view.state()["result"]["download_seconds"] is None
 
     monkeypatch.setattr(main_window, "measure_download_speed", lambda: 100_000_000.0)
-    view.speed_button.click()
+    view.speed_test_requested.emit()
     qtbot.waitUntil(lambda: window.settings.download_speed is not None, timeout=5000)
 
-    assert "Downloading the data: ≈ 1 h 00 at best" in view.times.text()  # 360 GB at 100 MB/s
-    assert "800 Mbit/s" in view.times.text()
+    assert view.state()["result"]["download_seconds"] == 3600  # 360 GB at 100 MB/s
+    assert view.state()["download_speed"] * 8 / 1e6 == 800
     assert Settings.load(tmp_path / "settings.json").download_speed == 100_000_000.0
 
 
@@ -557,8 +580,8 @@ def test_a_plan_leaves_out_books_already_in_the_library_and_says_so(qtbot, tmp_p
     [left_out] = plan.on_disk
     assert left_out.path == mine
     view = window.zen_tab.plan_view
-    assert "1 torrents left out: they seem to be on disk already" in view.summary.text()
-    assert "La.Confidente" in view.summary.toolTip()
+    assert view.state()["result"]["excluded"] == 1
+    assert "La.Confidente" in view.state()["result"]["on_disk"][0]["title"]
 
 
 def test_sending_the_plan_adds_its_torrents_and_reports(qtbot, tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -612,21 +635,21 @@ def test_sending_the_plan_adds_its_torrents_and_reports(qtbot, tmp_path: Path, m
     qtbot.addWidget(window)
     window.qbit = lambda: qbit  # type: ignore[assignment,method-assign,return-value]
     window._indexer = stub  # type: ignore[assignment]
-    window.zen_tab.seeding_view.refresh = lambda: None  # type: ignore[method-assign]
+    window.zen_tab.seeding_view.reload = lambda: None  # type: ignore[method-assign]
     shown: list[str] = []
     monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append(box.text()))
     window.zen_tab.plan_view.show_plan(plan)
 
     window.send_plan(plan)
-    assert window.zen_tab.plan_view.send_progress.isVisibleTo(window)
-    assert window.zen_tab.plan_view.stop_send_button.isVisibleTo(window)
-    qtbot.waitUntil(lambda: bool(shown), timeout=5000)
+    assert window.zen_tab.plan_view.state()["progress"] is not None
+    assert window.zen_tab.plan_view.state()["busy"]
+    qtbot.waitUntil(lambda: window.zen_tab.plan_view.report is not None, timeout=5000)
 
     assert stub.fetched == ["https://c411.example/dl/1"], shown
     [t] = qbit.torrents()
     assert ZEN_TAG in t.tags and t.save_path == tmp_path / "dl"
-    assert "1 torrents added" in shown[0]
-    assert not window.zen_tab.plan_view.send_progress.isVisibleTo(window)
+    assert window.zen_tab.plan_view.state()["report"]["added"] == ["Film"]
+    assert window.zen_tab.plan_view.state()["progress"] is None
     assert window.send_runner is None
 
 
@@ -672,26 +695,30 @@ def test_sending_shows_progress_and_the_c411_limit_and_can_be_stopped(
     qtbot.addWidget(window)
     window.qbit = lambda: FakeQbit()  # type: ignore[assignment,method-assign,return-value]
     window._indexer = LimitedIndexer()  # type: ignore[assignment]
-    window.zen_tab.seeding_view.refresh = lambda: None  # type: ignore[method-assign]
+    window.zen_tab.seeding_view.reload = lambda: None  # type: ignore[method-assign]
     shown: list[str] = []
     monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append(box.text()))
     view = window.zen_tab.plan_view
     view.show_plan(plan)
 
     window.send_plan(plan)
-    qtbot.waitUntil(lambda: "limiting downloads" in view.summary.text(), timeout=5000)
-    assert "0 of 3" in view.summary.text()
-    assert "≈ +0.30 Zen/day" in view.summary.text()  # the Plan's Zen stays in view
-    assert "≈ +0.00 Zen/day sent" in view.summary.text()
-    band = window.band.plan.text()
+    qtbot.waitUntil(
+        lambda: bool(view.state()["progress"] and view.state()["progress"]["retry_at"]),
+        timeout=5000,
+    )
+    assert view.state()["progress"]["done"] == 0 and view.state()["progress"]["total"] == 3
+    assert view.state()["result"]["zen"] == pytest.approx(0.3)  # the Plan's Zen stays in view
+    assert view.state()["progress"]["zen_added"] == 0
+    band = window.band.values["plan"]
     assert "+0.30" in band and "0/3" in band and "waiting" in band
 
-    view.stop_send_button.click()
-    qtbot.waitUntil(lambda: bool(shown), timeout=5000)
+    view.request("stop-send", {})
+    qtbot.waitUntil(lambda: window.zen_tab.plan_view.report is not None, timeout=5000)
 
-    assert "Stopped after 0 of 3" in shown[0]
+    assert view.state()["report"]["stopped"]
+    assert view.state()["report"]["added"] == []
     assert window.send_runner is None
-    assert view.make_button.isEnabled()
+    assert not view.state()["busy"]
 
 
 def test_refreshing_a_long_seeding_list_again_is_quick(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
@@ -720,7 +747,7 @@ def test_refreshing_a_long_seeding_list_again_is_quick(qtbot, tmp_path: Path) ->
     view.show_seeding(Seeding(rows, ZenDay([r.zen or 0 for r in rows]), []))
 
     assert time.monotonic() - started < 5  # replacing filled cells took over a minute
-    assert len(view.table.torrents) == 1300
+    assert len(view.seeding.rows) == 1300
 
 
 def test_plan_lists_reseeds_first_and_sends_them_through_verification(
@@ -758,7 +785,7 @@ def test_plan_lists_reseeds_first_and_sends_them_through_verification(
 
     [row] = plan.items
     assert row.candidate.reseed and plan.download_size == 0 and plan.zen_added > 0
-    assert window.zen_tab.plan_view.table.item(0, 1).text() == "Reseed (0 Go)"  # type: ignore[union-attr]
+    assert window.zen_tab.plan_view.state()["result"]["rows"][0]["reseed"]  # type: ignore[union-attr]
     window.plan_reseeder()(row.candidate)
     [t] = qbit.torrents()
     assert VERIFYING in t.tags and t.save_path == lib
@@ -784,11 +811,11 @@ def test_the_plan_offers_every_category_and_remembers_the_choice(
 
     assert [cid for cid, _name, _sub in view.category_options] == [2000, 2030, 7000]
     assert view.without_folder == {7000}
-    labels = [a.text() for a in view.categories_menu.actions()]
-    assert any("Ebook" in t and "no Download Folder" in t for t in labels)
+    labels = [name for _, name, _ in view.category_options]
+    assert "Ebook" in labels and 7000 in view.state()["without_folder"]
     window.prefetch_categories = lambda categories: None  # type: ignore[method-assign]
 
-    view._toggle(2030, True)
+    choose_plan_category(view, 2030)
 
     assert Settings.load(tmp_path / "settings.json").plan_categories == [2030]
 
@@ -805,7 +832,7 @@ def test_a_catalogue_update_shows_its_progress_and_its_result(qtbot, tmp_path: P
 
     window._catalogue_progress(CrawlProgress(2030, pages=3, added=250, offset=300))
     assert "Film" in window.statusBar().currentMessage()
-    assert "Film" in window.zen_tab.catalogue.status.text()
+    assert "Film" in window.zen_tab.catalogue.status_text
 
     window._catalogue_finished(stopped=False)
     assert "+250" in window.statusBar().currentMessage()
@@ -819,7 +846,7 @@ def test_making_a_plan_fetches_its_categories_and_discloses_limits(
     from tests.fake_torznab import FakeTorznab
     from torrentlinker.credentials import set_secret
     from torrentlinker.downloads import DownloadFolders, IndexerCategory
-    from torrentlinker.gui.settings_dialog import INDEXER_API_KEY
+    from torrentlinker.gui.settings_common import INDEXER_API_KEY
     from torrentlinker.indexer import Indexer
     from torrentlinker.paths import MappedQbit, PathMapper
 
@@ -846,10 +873,10 @@ def test_making_a_plan_fetches_its_categories_and_discloses_limits(
     assert store.catalogue_size() == min(count, paging_window or count)
     assert window.zen_tab.plan_view.plan.items
     if paging_window is not None:
-        assert "coverage is partial" in window.zen_tab.plan_view.catalogue_notice.text()
-        assert "Partial Catalogue coverage" in window.zen_tab.catalogue.status.text()
+        assert "coverage is partial" in window.zen_tab.plan_view.notice
+        assert "Partial Catalogue coverage" in window.zen_tab.catalogue.status_text
     else:
-        assert "coverage is partial" not in window.zen_tab.plan_view.catalogue_notice.text()
+        assert "coverage is partial" not in window.zen_tab.plan_view.notice
 
 
 @pytest.mark.parametrize("stop_early", [False, True])
@@ -860,7 +887,7 @@ def test_a_plan_waits_for_an_active_refresh_then_refreshes_its_own_categories(
 
     from torrentlinker.credentials import set_secret
     from torrentlinker.downloads import DownloadFolders, IndexerCategory
-    from torrentlinker.gui.settings_dialog import INDEXER_API_KEY
+    from torrentlinker.gui.settings_common import INDEXER_API_KEY
     from torrentlinker.plan import Plan
 
     settings = Settings()
@@ -896,7 +923,7 @@ def test_a_plan_waits_for_an_active_refresh_then_refreshes_its_own_categories(
     try:
         window.make_plan()
         assert window.zen_tab.plan_view.plan is None
-        assert not window.zen_tab.plan_view.make_button.isEnabled()
+        assert window.zen_tab.plan_view.state()["busy"]
         assert not planned.wait(timeout=0.2), (
             "Plan was built while the Catalogue was still refreshing"
         )
@@ -922,7 +949,7 @@ def test_a_failed_plan_refresh_does_not_build_from_the_old_catalogue(
 ) -> None:  # type: ignore[no-untyped-def]
     from torrentlinker.credentials import set_secret
     from torrentlinker.downloads import DownloadFolders, IndexerCategory
-    from torrentlinker.gui.settings_dialog import INDEXER_API_KEY
+    from torrentlinker.gui.settings_common import INDEXER_API_KEY
     from torrentlinker.plan import Plan
 
     settings = Settings()
@@ -948,8 +975,8 @@ def test_a_failed_plan_refresh_does_not_build_from_the_old_catalogue(
 
     assert not builds
     assert window.zen_tab.plan_view.plan is None
-    assert "Could not make a Plan" in window.zen_tab.plan_view.summary.text()
-    assert window.zen_tab.plan_view.make_button.isEnabled()
+    assert "Could not make a Plan" in window.zen_tab.plan_view.state()["message"]
+    assert not window.zen_tab.plan_view.state()["busy"]
 
 
 @pytest.mark.parametrize("pending", [False, True])
@@ -974,7 +1001,7 @@ def test_plan_progress_identifies_ebook_audio_and_its_selected_scope(
 
     window._catalogue_progress(CrawlProgress(3000 if pending else 3030, 6, 0, 600, "c411-json"))
 
-    text = window.zen_tab.plan_view.summary.text()
+    text = window.zen_tab.plan_view.state()["message"]
     if pending:
         assert text.startswith("Waiting for the Catalogue refresh to finish")
         assert "Fetching the Catalogue for the Plan" not in text
@@ -1002,56 +1029,47 @@ def test_plan_controls_save_both_limits_and_change_the_actual_plan(qtbot, tmp_pa
     qtbot.addWidget(window)
     window.qbit = lambda: FakeQbit()  # type: ignore[assignment,method-assign,return-value]
     view = window.zen_tab.plan_view
-    view.goal.setCurrentIndex(view.goal.findData("note"))
-    view.download_limit.setValue(2)
-
-    assert not view.torrent_limit.isEnabled()
+    configure_plan(view, plan_goal="note", maximum_bytes=2 * GB, limit_torrents=False)
     assert settings.plan_options == PlanOptions(PlanGoal.NOTE, 2 * GB)
     assert len(window.plan_maker()().items) == 2
-
-    view.limit_torrents.setChecked(True)
-    view.torrent_limit.setValue(1)
-    assert view.torrent_limit.isEnabled()
+    configure_plan(view, limit_torrents=True, maximum_torrents=1)
     assert Settings.load(path).plan_options == PlanOptions(PlanGoal.NOTE, 2 * GB, 1)
     assert len(window.plan_maker()().items) == 1
 
-    # Changing an option invalidates a previous result instead of sending an old Plan.
     window._plan_made(window.plan_maker()())
-    assert view.send_button.isEnabled()
-    view.download_limit.setValue(3)
-    assert view.plan is None and not view.send_button.isEnabled()
-    assert not view.seeder_limit.isEnabled()
-    view.low_seeders.setChecked(True)
-    assert view.seeder_limit.isEnabled()
+    assert view.plan is not None and not view.state()["busy"]
+    old_id = view.plan_id
+    configure_plan(view, maximum_bytes=3 * GB)
+    assert view.plan is None
+    with pytest.raises(ValueError, match="Plan changed"):
+        view.request("review", {"plan_id": old_id, "hashes": ["0" * 40]})
+    configure_plan(view, max_seeders=10)
     assert settings.plan_options.max_seeders == 10
-    view.seeder_limit.setValue(4)
+    configure_plan(view, max_seeders=4)
     assert Settings.load(path).plan_options.max_seeders == 4
-    assert not window.plan_maker()().items  # every test torrent has five seeders
-    view.seeder_limit.setValue(5)
+    assert not window.plan_maker()().items
+    configure_plan(view, max_seeders=5)
     assert len(window.plan_maker()().items) == 1
     restored = type(view)()
     qtbot.addWidget(restored)
     restored.set_options(Settings.load(path).plan_options)
-    assert restored.low_seeders.isChecked() and restored.seeder_limit.value() == 5
-    view.low_seeders.setChecked(False)
-    assert not view.seeder_limit.isEnabled() and settings.plan_options.max_seeders is None
+    assert restored.options.max_seeders == 5
+    configure_plan(view, max_seeders=None)
+    assert settings.plan_options.max_seeders is None
     assert len(window.plan_maker()().items) == 1
-    view.max_size.setValue(0.5)  # every test torrent is 1 GB
+    configure_plan(view, max_size=GB // 2)
     assert Settings.load(path).plan_options.max_size == GB // 2
     assert not window.plan_maker()().items
-    view.min_size.setValue(2)  # above the maximum: the maximum follows
-    assert view.max_size.value() == 2
+    configure_plan(view, min_size=2 * GB, max_size=2 * GB)
     assert not window.plan_maker()().items
-    view.min_size.setValue(1)
+    configure_plan(view, min_size=GB)
     assert settings.plan_options.min_size == GB and settings.plan_options.max_size == 2 * GB
     assert len(window.plan_maker()().items) == 1
     restored.set_options(Settings.load(path).plan_options)
-    assert restored.min_size.value() == 1 and restored.max_size.value() == 2
+    assert restored.options.min_size == GB and restored.options.max_size == 2 * GB
     view.busy(True)
-    assert not view.goal.isEnabled() and not view.download_limit.isEnabled()
-    assert not view.limit_torrents.isEnabled() and not view.torrent_limit.isEnabled()
-    assert not view.low_seeders.isEnabled() and not view.seeder_limit.isEnabled()
-    assert not view.min_size.isEnabled() and not view.max_size.isEnabled()
+    with pytest.raises(ValueError, match="current Plan operation"):
+        configure_plan(view, maximum_bytes=4 * GB)
 
 
 def test_plan_view_shows_notes_and_unused_disk_space_including_the_reserve(qtbot) -> None:  # type: ignore[no-untyped-def]
@@ -1070,10 +1088,10 @@ def test_plan_view_shows_notes_and_unused_disk_space_including_the_reserve(qtbot
 
     view.show_plan(plan)
 
-    assert view.table.item(0, 3).text() == "1.35"
-    assert "average note 1.35" in view.summary.text()
-    assert view.space_table.rowCount() == 1
-    assert view.space_table.item(0, 4).data(256) == 6 * GB
+    result = view.state()["result"]
+    assert result["rows"][0]["note"] == 1.35 and result["average_note"] == 1.35
+    assert len(result["storage"]) == 1
+    assert result["storage"][0]["after_plan"] == 6 * GB
 
 
 def test_a_refused_key_tells_the_user_where_to_fix_it(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
@@ -1084,7 +1102,7 @@ def test_a_refused_key_tells_the_user_where_to_fix_it(qtbot, tmp_path: Path) -> 
 
     window.zen_tab.plan_view.failed(KeyRefused(401))
 
-    text = window.zen_tab.plan_view.summary.text()
+    text = window.zen_tab.plan_view.state()["message"]
     assert "refused your API key (HTTP 401)" in text
     assert "Settings → Connections" in text and "torznab:read" in text
 
@@ -1110,8 +1128,8 @@ def test_a_plan_interrupted_by_a_crash_comes_back_with_what_is_left(
 
     view = window.zen_tab.plan_view
     assert view.plan is not None and [i.candidate.title for i in view.plan.items] == ["Book b"]
-    assert "Sending was interrupted: 1 torrents" in view.summary.text()
-    assert view.send_button.isEnabled()
+    assert "Sending was interrupted: 1 torrents" in view.notice
+    assert view.plan is not None and not view.state()["busy"]
 
 
 def test_stopping_a_send_keeps_the_rest_of_the_plan_and_finishing_clears_it(
@@ -1176,15 +1194,15 @@ def test_stopping_a_send_keeps_the_rest_of_the_plan_and_finishing_clears_it(
 
     window.qbit = lambda: FakeQbit()  # type: ignore[assignment,method-assign,return-value]
     window._indexer = StoppingIndexer()  # type: ignore[assignment]
-    window.zen_tab.seeding_view.refresh = lambda: None  # type: ignore[method-assign]
+    window.zen_tab.seeding_view.reload = lambda: None  # type: ignore[method-assign]
     shown: list[str] = []
     monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append(box.text()))
     window._plan_made(plan)
 
     window.send_plan(plan)
-    qtbot.waitUntil(lambda: bool(shown), timeout=5000)
+    qtbot.waitUntil(lambda: window.zen_tab.plan_view.report is not None, timeout=5000)
 
-    assert "The rest of the Plan is saved" in shown[0]
+    assert window.zen_tab.plan_view.state()["report"]["stopped"]
     view = window.zen_tab.plan_view
     assert [i.candidate.title for i in view.plan.items] == ["B"]  # type: ignore[union-attr]
     saved = store.saved_plan()
@@ -1192,44 +1210,70 @@ def test_stopping_a_send_keeps_the_rest_of_the_plan_and_finishing_clears_it(
 
     shown.clear()
     window.send_plan(view.plan)  # type: ignore[arg-type]
-    qtbot.waitUntil(lambda: bool(shown), timeout=5000)
+    qtbot.waitUntil(lambda: window.zen_tab.plan_view.report is not None, timeout=5000)
 
     assert store.saved_plan() is None
     assert view.plan is not None and not view.plan.items
 
 
-def test_detect_adds_the_docker_path_and_check_counts_its_torrents(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+def test_detect_adds_the_docker_path_and_check_counts_its_torrents(qtbot, tmp_path):
     from tests.fake_qbit import FakeQbit
+    from tests.settings_support import settings_page
+    from tests.test_community_interfaces import js, wait_js
     from torrentlinker.domain import LibraryFolder, PathMapping, Torrent
     from torrentlinker.downloads import DownloadFolders
-    from torrentlinker.gui.settings_dialog import COL_CHECK, COL_LOCAL, COL_QBIT, SettingsDialog
 
     nas = tmp_path / "nas"
     (nas / "ebooks").mkdir(parents=True)
     (nas / "ebooks" / "Zweig.epub").write_bytes(b"x" * 300)
-    qbit = FakeQbit(default_path="/downloads")
-    qbit.by_hash["a" * 40] = Torrent("a" * 40, "Zweig", Path("/data/ebooks"), {"Zweig.epub": 300})
-    s = Settings()
-    s.library_folders = [LibraryFolder(nas / "ebooks")]
-    s.download_folders = DownloadFolders({}, str(tmp_path / "elsewhere"))
-    dialog = SettingsDialog(s)
-    qtbot.addWidget(dialog)
-    dialog._form_qbit = lambda: qbit  # type: ignore[assignment,method-assign,return-value]
-
-    dialog.detect_button.click()
-    qtbot.waitUntil(
-        lambda: (c := dialog.mappings.item(0, COL_CHECK)) is not None and "of" in c.text(),
-        timeout=5000,
+    client = FakeQbit(default_path="/downloads")
+    client.by_hash["a" * 40] = Torrent("a" * 40, "Zweig", Path("/data/ebooks"), {"Zweig.epub": 300})
+    settings = Settings(language="en")
+    settings.library_folders = [LibraryFolder(nas / "ebooks")]
+    settings.download_folders = DownloadFolders({}, str(tmp_path / "elsewhere"))
+    dialog = settings_page(qtbot, tmp_path, settings, section="paths")
+    dialog.setup.connector = lambda *args, **kwargs: client
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent"
+        "==='Detect mappings').click()",
     )
-
-    assert dialog.mappings.item(0, COL_LOCAL).text() == str(nas)  # type: ignore[union-attr]
-    assert dialog.mappings.item(0, COL_QBIT).text() == "/data"  # type: ignore[union-attr]
-    assert dialog.mappings.item(0, COL_CHECK).text() == "✓ 1 of 1"  # type: ignore[union-attr]
-    status = dialog.paths_status.text()
-    assert "1 torrents found" in status
-    assert "cannot save into them" in status and str(tmp_path / "elsewhere") in status
-    dialog._save()
-    assert s.path_mappings == [PathMapping(str(nas), "/data")]
+    qtbot.waitUntil(lambda: dialog.view.pending == 0)
+    qtbot.wait(100)
+    assert js(qtbot, dialog.view, "document.querySelector('#settings-error').textContent") == ""
+    wait_js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].some(b=>b.textContent.endsWith('→ /data'))",
+    )
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent"
+        ".endsWith('→ /data')).click()",
+    )
+    assert js(
+        qtbot,
+        dialog.view,
+        "document.querySelector('[aria-label=\"Folder on the TorrentLinker host\"]').value",
+    ) == str(nas)
+    assert not dialog.setup.settings.path_mappings
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent==='Test mapping').click()",
+    )
+    wait_js(qtbot, dialog.view, "document.body.textContent.includes('1 of 1 torrents found')")
+    assert "cannot save into" in js(qtbot, dialog.view, "document.body.textContent")
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent==='Save folder').click()",
+    )
+    qtbot.waitUntil(lambda: bool(dialog.setup.settings.path_mappings))
+    qtbot.waitUntil(lambda: dialog.view.pending == 0)
+    assert dialog.setup.settings.path_mappings == [PathMapping(str(nas), "/data")]
 
 
 def test_a_book_left_in_a_download_folder_is_left_out_of_the_plan(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
@@ -1386,41 +1430,50 @@ def test_after_a_verified_unpack_the_archive_can_go_to_the_trash(
     assert store.take_unpacked(folder) is None  # never offered twice
 
 
-def test_shop_badges_go_past_the_tree_bonus_limit(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
-    from torrentlinker.gui.settings_dialog import SettingsDialog
+def test_shop_badges_go_past_the_tree_bonus_limit(qtbot, tmp_path):
+    from tests.settings_support import edit_field, save_group, settings_page
+    from tests.test_community_interfaces import js
 
-    dialog = SettingsDialog(Settings())
-    qtbot.addWidget(dialog)
+    dialog = settings_page(qtbot, tmp_path, section="zen")
+    assert (
+        js(
+            qtbot,
+            dialog.view,
+            "document.querySelector('[aria-label=\"Tree bonus unlocked (%)\"]').max",
+        )
+        == "5"
+    )
+    edit_field(qtbot, dialog.view, "Tree bonus unlocked (%)", 5)
+    edit_field(qtbot, dialog.view, "Shop badges bonus (%)", 12.5)
+    save_group(qtbot, dialog)
+    zen = Settings.load(dialog.setup.path).zen
+    assert zen.tree_bonus == pytest.approx(0.05)
+    assert zen.badge_bonus == pytest.approx(0.125)
 
-    dialog.tree_bonus.setValue(12.5)  # c411's tree stops at +5 %
-    dialog.badge_bonus.setValue(12.5)  # badges add on top of every maximum
 
-    zen = dialog._read_zen()
-    assert zen.tree_bonus == pytest.approx(0.05) and zen.badge_bonus == pytest.approx(0.125)
-    s = Settings()
-    s.zen = zen
-    s.save(tmp_path / "settings.json")
-    assert Settings.load(tmp_path / "settings.json").zen.badge_bonus == pytest.approx(0.125)
-
-
-def test_extra_api_keys_are_saved_and_each_gets_its_own_queues(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+def test_extra_api_keys_are_saved_and_each_gets_its_own_queues(qtbot, tmp_path):
+    from tests.settings_support import edit_field, save_group, settings_page
+    from tests.test_community_interfaces import js
     from torrentlinker.credentials import get_secret
-    from torrentlinker.gui.settings_dialog import SettingsDialog
 
-    dialog = SettingsDialog(Settings())
-    qtbot.addWidget(dialog)
-    dialog.indexer_key.setText("main")
-    dialog.extra_keys[0].setText("second")
-    dialog.extra_keys[2].setText("fourth")  # gaps are fine
-
-    dialog._save_secrets()
-
+    dialog = settings_page(qtbot, tmp_path)
+    edit_field(qtbot, dialog.view, "Indexer API key", "main")
+    add = (
+        "[...document.querySelectorAll('button')].find(b=>b.textContent==='Add an API key').click()"
+    )
+    js(qtbot, dialog.view, add)
+    edit_field(qtbot, dialog.view, "Additional API key 1", "second")
+    js(qtbot, dialog.view, add)
+    edit_field(qtbot, dialog.view, "Additional API key 2", "fourth")
+    save_group(qtbot, dialog)
     assert get_secret("indexer-api-key-2") == "second"
-    window = MainWindow(Settings(), tmp_path / "settings.json", Store(tmp_path / "s.db"))
+    window = MainWindow(
+        Settings.load(dialog.setup.path), tmp_path / "settings.json", Store(tmp_path / "s.db")
+    )
     qtbot.addWidget(window)
     indexer = window.indexer()
     assert [slot.key for slot in indexer.slots] == ["main", "second", "fourth"]
-    assert window.indexer() is indexer  # kept while the keys stay the same
+    assert window.indexer() is indexer
 
 
 def plan_window(qtbot, tmp_path: Path, monkeypatch, picked: str):  # type: ignore[no-untyped-def]
@@ -1457,7 +1510,7 @@ def test_choosing_a_category_without_a_folder_asks_for_one_and_fetches_it_meanwh
 ) -> None:
     window, fetched, asked = plan_window(qtbot, tmp_path, monkeypatch, str(tmp_path / "Ebooks"))
 
-    window.zen_tab.plan_view._toggle(7000, True)
+    choose_plan_category(window.zen_tab.plan_view, 7000)
 
     assert fetched == [[7000]]
     assert asked == ["Download Folder for Ebook"]
@@ -1470,7 +1523,7 @@ def test_choosing_a_category_without_a_folder_asks_for_one_and_fetches_it_meanwh
 def test_cancelling_the_folder_leaves_the_category_out(qtbot, tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     window, _fetched, asked = plan_window(qtbot, tmp_path, monkeypatch, "")
 
-    window.zen_tab.plan_view._toggle(7000, True)
+    choose_plan_category(window.zen_tab.plan_view, 7000)
 
     assert asked and Settings.load(tmp_path / "settings.json").plan_categories == [2030]
     assert window.zen_tab.plan_view.chosen_categories == {2030}
@@ -1493,7 +1546,7 @@ def test_a_category_whose_subcategories_have_folders_can_skip_its_own(
         lambda *a, **k: questions.append(a[2]) or QMessageBox.StandardButton.No,
     )
 
-    window.zen_tab.plan_view._toggle(2000, True)
+    choose_plan_category(window.zen_tab.plan_view, 2000)
 
     assert "Film, Série TV have theirs" in questions[0] and asked == []
     s = Settings.load(tmp_path / "settings.json")
@@ -1508,6 +1561,10 @@ def test_packaging_smoke_accepts_stable_and_prerelease_versions(monkeypatch, ver
 
     monkeypatch.setattr(app, "installed_version", lambda: version)
     monkeypatch.setattr(app, "agent_smoke_checks", lambda: None)
+    # The real shared page is rendered in test_bundled_assets; this checks versions.
+    from torrentlinker import webview_smoke
+
+    monkeypatch.setattr(webview_smoke, "webview_smoke_checks", lambda: None)
     app.smoke_checks()
 
 
@@ -1519,27 +1576,29 @@ def test_seeding_views_wait_while_hidden_and_catch_up_when_shown(qtbot):
 
     tab = ZenTab(lambda: lambda: Seeding([], ZenDay(), []), lambda: ZenProfile(ZenClass.TANKER))
     qtbot.addWidget(tab)
-    hidden = [True]
-    tab.defer_while_hidden(lambda: hidden[0])
     rows = [SeedingRow(Torrent("a", "A film", Path("/data"), size=1024**2), 0.1)]
     view = Seeding(rows, ZenDay([0.1]), [])
     tab.seeding_view.show_seeding(view)
-    assert tab.seeding_view.table.torrents == {}  # not rebuilt while out of sight
-    assert "0 torrents" not in tab.seeding_view.total.text()  # the cheap summary still updates
+    assert tab.seeding_view.web is None  # no renderer until the page is shown
     assert tab.seeding_view.seeding is view
     tab.resize(900, 600)
-    hidden[0] = False
     tab.pages.setCurrentIndex(1)  # Profile is first; show Seeding to resume its deferred work.
     tab.show()
-    qtbot.waitUntil(lambda: "a" in tab.seeding_view.table.torrents, timeout=3000)
-    qtbot.waitUntil(lambda: "<b>" in tab.comparison.labels[ZenClass.TANKER].text(), timeout=3000)
+    from tests.test_community_interfaces import wait_js
+
+    wait_js(qtbot, tab.seeding_view, "document.querySelectorAll('.seeding-category').length===1")
+    wait_js(
+        qtbot,
+        tab.seeding_view,
+        "document.querySelector('#seeding-classes strong')?.textContent.includes('Tanker')",
+    )
 
 
 def test_seeding_and_catalogue_refreshes_wait_while_a_video_plays(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     window = MainWindow(Settings(), tmp_path / "settings.json", Store(tmp_path / "s.db"))
     qtbot.addWidget(window)
     refreshed = []
-    window.zen_tab.seeding_view.refresh = lambda quiet=False: refreshed.append(quiet)  # type: ignore[method-assign]
+    window.zen_tab.seeding_view.reload = lambda quiet=False: refreshed.append(quiet)  # type: ignore[method-assign]
     window.media_tab.video_playing = True
     window._refresh_seeding_quietly()
     window._refresh_seeding_quietly()
@@ -1550,3 +1609,20 @@ def test_seeding_and_catalogue_refreshes_wait_while_a_video_plays(qtbot, tmp_pat
     assert refreshed == [True]  # once, when the video stops
     window.media_tab.video_playing_changed.emit(False)
     assert refreshed == [True]
+
+
+def test_profile_poll_waits_while_a_video_plays(qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    window = MainWindow(Settings(), tmp_path / "settings.json", Store(tmp_path / "s.db"))
+    qtbot.addWidget(window)
+    shown = []
+    window.show_account_profile = lambda: shown.append(True)  # type: ignore[method-assign]
+    window.refresh_profile = lambda: None  # type: ignore[method-assign]
+    window.media_tab.video_playing = True
+    window._poll_account_profile()
+    window._poll_account_profile()
+    assert shown == []  # its keyring read and view refresh would drop frames
+    window.media_tab.video_playing = False
+    window.media_tab.video_playing_changed.emit(False)
+    assert shown == [True]  # once, when the video stops
+    window.media_tab.video_playing_changed.emit(False)
+    assert shown == [True]

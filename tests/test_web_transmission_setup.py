@@ -10,6 +10,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.shell_support import shell_navigate
 from torrentlinker.transmission import TransmissionApi
 from torrentlinker.web.app import create_app
 
@@ -107,17 +108,18 @@ def test_setup_form_offers_to_turn_off_partial_names(tmp_path):
             page.goto(f"http://127.0.0.1:{port}/")
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
-            expect(page.locator("#view-setup")).to_be_visible()
-            page.locator("#client-kind").select_option("transmission")
-            page.locator("#client-host").fill("http://192.0.2.10:9091")
-            page.locator("#test-client").click()
-            expect(page.locator("#client-result")).to_contain_text(".part")
-            expect(page.locator("#client-result")).not_to_contain_text("Cannot connect")
-            fix = page.locator("#client-partial-names")
-            expect(fix).to_be_visible()
-            fix.click()
-            expect(page.locator("#client-result")).to_contain_text("4.0.6")
-            expect(fix).to_be_hidden()
+            shell_navigate(page, "setup")
+            panel = page.frame_locator("#settings-frame")
+            panel.get_by_label("Client type", exact=True).select_option("transmission")
+            panel.get_by_label("Address", exact=True).fill("http://192.0.2.10:9091")
+            test = panel.get_by_role("button", name="Test connection", exact=True)
+            test.click()
+            refused = panel.locator(".tl-toast.bad").filter(has_text=".part")
+            expect(refused).to_be_visible()
+            assert state["rename-partial-files"] is True
+            panel.get_by_label("Turn off Transmission’s .part filenames when testing").check()
+            test.click()
+            expect(panel.locator(".tl-toast.ok").filter(has_text="4.0.6")).to_be_visible()
             assert state["rename-partial-files"] is False
             browser.close()
     finally:

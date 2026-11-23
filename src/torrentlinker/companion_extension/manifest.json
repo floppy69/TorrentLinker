@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TorrentLinker companion",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsujg4hLRDFanLiZVkJMjv/2w62nd1I68q7it7DjpjtfsvHDOIltXBwLnbiNXfW/CLC9Z8KHp31ZL6LqlA7mdP9UItaU4oBe5A6SucVwa234lm2eP6UTxY4WpKDBv0JZAZxIBz6Z0PXcqlhsYUNY/2YlXS2Qd9BPBsiDbYy/G3bBc2ACgH5sa8zUg7dE6OJ7ZLH1kHjBGDdFGNzIkfxgyvR8NI/u7iL/yDv4jiEl0ln/G5hesKlDT2r7osrp2TYetCBUaSTUcXk9dd0cT134QgK5xwEB2s6fCliokEfKTOhJSeprkTY2dwNEgqVHBqM5dn3EJHFkUmTbn1vC2G7tyWwIDAQAB",
   "description": "Sync your TorrentLinker profile and send the comments, votes and chat messages you queue.",
   "permissions": ["scripting", "storage", "alarms"],

@@ -10,8 +10,9 @@ from torrentlinker.scan import scan_item
 from torrentlinker.upload_assets import Assets, publish_render_pages
 
 
-def local_models(uploads, path, stop):
-    uploads.library.entry(path)
+def local_models(uploads, path, stop, *, registered=True):
+    if registered:
+        uploads.library.entry(path)
     uploads.library.check_tree(Path(path), stop)
     item = scan_item(Path(path))
     paths = {
@@ -23,8 +24,8 @@ def local_models(uploads, path, stop):
     return item, paths
 
 
-def inspect(uploads, path, stop):
-    item, paths = local_models(uploads, path, stop)
+def inspect(uploads, path, stop, *, registered=True):
+    item, paths = local_models(uploads, path, stop, registered=registered)
     result = inspect_models(list(paths.values()), stop)
     # The tool uses file names relative to the Local Item's parent, just like Uploads.
     reverse = {str(value): key for key, value in paths.items()}
@@ -35,8 +36,8 @@ def inspect(uploads, path, stop):
     return result
 
 
-def render(uploads, path, pieces, cameras, stop, progress):
-    item, paths = local_models(uploads, path, stop)
+def render(uploads, path, pieces, cameras, stop, progress, *, registered=True):
+    item, paths = local_models(uploads, path, stop, registered=registered)
     if not pieces:
         pieces = list(paths)
     if len(set(pieces)) != len(pieces) or any(name not in paths for name in pieces):

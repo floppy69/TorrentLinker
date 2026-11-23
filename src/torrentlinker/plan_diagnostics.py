@@ -44,6 +44,10 @@ def issue_text(issue: PlanIssue, translate: Callable[[str], str] = lambda text: 
             "Your total torrent cap is reached. Raise it in Settings > Zen to add more torrents."
         ),
         "plan_cap": "The Plan torrent limit is zero. Increase it or disable the limit.",
+        "minimum_torrents": (
+            "This Plan contains fewer than the requested minimum of {0} torrents. "
+            "Widen the filters, increase available space or lower the minimum count."
+        ),
         "filters": "{0} torrents do not match the size or seeder filters. Widen the Plan filters.",
         "zen_class": (
             "Your Zen class does not earn Zen from seeding. Choose a seeding class in "

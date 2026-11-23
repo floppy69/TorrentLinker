@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Media player</title>
+    <link rel="stylesheet" href="../panel/base.css" />
+    <link rel="stylesheet" href="view.css" />
+    <script defer src="../panel/i18n.js"></script>
+    <script defer src="../panel/transport.js"></script>
+    <script defer src="../panel/media-flags.js"></script>
+    <script defer src="view.js"></script>
+  </head>
+  <body>
+    <section id="player-menu" role="dialog" hidden aria-label="Player options">
+      <header>
+        <strong id="player-menu-title"></strong
+        ><button id="player-menu-close" type="button">×</button>
+      </header>
+      <div class="tracks">
+        <label
+          ><span id="audio-label"></span
+          ><select id="player-audio"></select
+        ></label>
+        <label
+          ><span id="subtitle-label"></span
+          ><select id="player-subtitle"></select
+        ></label>
+        <label
+          ><span id="repeat-label"></span
+          ><select id="player-repeat"></select
+        ></label>
+        <button id="player-shuffle" type="button" aria-pressed="false"></button>
+      </div>
+      <div class="actions">
+        <button id="player-external" type="button"></button>
+        <button id="player-chat" type="button"></button>
+        <button id="player-center" type="button"></button>
+        <button id="player-expand" type="button"></button>
+        <button id="player-refresh-preview" type="button" hidden></button>
+        <button id="player-stop" type="button"></button>
+      </div>
+      <p id="player-track-limit" hidden></p>
+      <details id="player-queue-details">
+        <summary id="player-queue-title"></summary>
+        <ol id="player-queue"></ol>
+        <div class="actions">
+          <button id="player-playlist-save" type="button"></button>
+          <select id="player-playlists"></select>
+          <button id="player-playlist-load" type="button"></button>
+          <button id="player-playlist-delete" type="button"></button>
+        </div>
+      </details>
+    </section>
+    <p id="player-error" role="alert" hidden></p>
+    <!-- Horizon's pause screen: the film's details over the picture. -->
+    <section id="horizon-pause" hidden>
+      <p id="horizon-paused" class="horizon-tag"></p>
+      <h1 id="horizon-pause-title"></h1>
+      <p id="horizon-pause-meta" class="horizon-meta"></p>
+      <ul id="horizon-pause-flags" class="horizon-flags"></ul>
+      <p id="horizon-pause-plot"></p>
+      <p id="horizon-pause-people" class="horizon-meta"></p>
+    </section>
+    <div id="player-controls">
+      <!-- Horizon's bar: what is playing, above the transport. -->
+      <div id="horizon-osd" hidden>
+        <div id="horizon-poster"><span id="horizon-poster-title"></span></div>
+        <div class="horizon-copy">
+          <p class="horizon-heading">
+            <strong id="horizon-title"></strong
+            ><span id="horizon-meta" class="horizon-meta"></span>
+          </p>
+          <ul id="horizon-flags" class="horizon-flags"></ul>
+        </div>
+      </div>
+      <input
+        id="player-seek"
+        type="range"
+        min="0"
+        max="0"
+        value="0"
+        step="0.1"
+      />
+      <div class="transport">
+        <button id="player-previous" type="button">⏮︎</button>
+        <button id="player-play" type="button">▶</button>
+        <button id="player-next" type="button">⏭︎</button>
+        <span id="player-title"></span>
+        <span id="player-time">0:00 / 0:00</span>
+        <input
+          id="player-volume"
+          type="range"
+          min="0"
+          max="1"
+          value="1"
+          step="0.01"
+        />
+        <button
+          id="player-options"
+          type="button"
+          aria-controls="player-menu"
+          aria-expanded="false"
+        >
+          ⋯
+        </button>
+        <button id="player-fullscreen" type="button">⛶</button>
+      </div>
+    </div>
+  </body>
+</html>

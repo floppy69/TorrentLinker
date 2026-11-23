@@ -1,9 +1,7 @@
 import pytest
-from PySide6.QtCore import Qt
 
 from tests.test_community_interfaces import js, wait_js
 from tests.test_web_profile import ORIGIN, prepared, snapshot
-from torrentlinker.gui.companion_panel import CompanionPanel
 from torrentlinker.gui.zen_view import ZenTab
 from torrentlinker.zen import ZenProfile
 
@@ -52,12 +50,28 @@ def test_profile_is_first_desktop_tab_and_shows_api_and_companion(
     wait_js(
         qtbot, view, "document.querySelector('#profile-seeding').textContent.includes('Connect')"
     )
-    panel = CompanionPanel()
-    qtbot.addWidget(panel)
-    panel.show_state(workspace.state())
-    assert not panel.session_downloads.isEnabled()
-    with qtbot.waitSignal(panel.pair_requested):
-        qtbot.mouseClick(panel.pair_button, Qt.MouseButton.LeftButton)
+    from tests.settings_support import service_view
+
+    actions = []
+
+    def companion(body):
+        actions.append(body)
+        if body["action"] == "downloads":
+            workspace.set_session_downloads(body["enabled"])
+        return workspace.state()
+
+    panel = service_view(qtbot, setup, companion=companion, section="companion")
+    wait_js(qtbot, panel, "Boolean(document.querySelector('.settings-card input[type=checkbox]'))")
+    assert js(
+        qtbot, panel, "document.querySelector('.settings-card input[type=checkbox]').disabled"
+    )
+    js(
+        qtbot,
+        panel,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent"
+        "==='Connect companion').click()",
+    )
+    qtbot.waitUntil(lambda: any(action["action"] == "pair" for action in actions))
     code = workspace.pairing()["code"]
     token = workspace.receive("/api/companion/pair", ORIGIN, "", {"code": code, "accountId": "42"})[
         "token"
@@ -65,15 +79,22 @@ def test_profile_is_first_desktop_tab_and_shows_api_and_companion(
     workspace.receive("/api/companion/snapshot", ORIGIN, "Bearer " + token, snapshot())
     view.show_state(workspace.state())
     wait_js(qtbot, view, "document.querySelector('#profile-seeding').textContent.includes('42')")
-    panel.show_state(workspace.state())
-    assert panel.disconnect_button.isEnabled()
-    assert panel.session_downloads.isEnabled() and not panel.session_downloads.isChecked()
-    with qtbot.waitSignal(panel.session_downloads_toggled) as toggled:
-        panel.session_downloads.setChecked(True)
-    assert toggled.args == [True]
-    workspace.set_session_downloads(True)
-    panel.show_state(workspace.state())
-    assert panel.session_downloads.isChecked()
+    js(
+        qtbot,
+        panel,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent==='Refresh').click()",
+    )
+    wait_js(qtbot, panel, "!document.querySelector('.settings-card input[type=checkbox]').disabled")
+    assert not js(
+        qtbot, panel, "document.querySelector('.settings-card input[type=checkbox]').checked"
+    )
+    js(qtbot, panel, "document.querySelector('.settings-card input[type=checkbox]').click()")
+    wait_js(qtbot, panel, "document.querySelector('.settings-card input[type=checkbox]').checked")
+    qtbot.waitUntil(
+        lambda: any(action == {"action": "downloads", "enabled": True} for action in actions)
+    )
+    qtbot.waitUntil(lambda: panel.pending == 0)
+    panel.close()
     import os
     from pathlib import Path
 
@@ -129,7 +150,22 @@ def test_desktop_connect_opens_handoff_and_receiver_returns_after_restart(
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         window.account_workspace.remember_receiver(listener.getsockname()[1])
-    qtbot.mouseClick(window.companion_panel_widget().pair_button, Qt.MouseButton.LeftButton)
+    window.open_settings(section="companion")
+    dialog = window._settings_page
+    wait_js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].some(b=>b.textContent==='Connect companion')",
+    )
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent"
+        "==='Connect companion').click()",
+    )
+    qtbot.waitUntil(lambda: bool(opened))
+    qtbot.waitUntil(lambda: dialog.view.pending == 0)
+    window.close_settings()
     assert len(opened) == 1
     payload = json.loads(unquote(urlsplit(opened[0]).fragment))
     address = payload["target"]

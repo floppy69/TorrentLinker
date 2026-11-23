@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from torrentlinker import net
-from torrentlinker.ratelimit import BudgetQueue, Queue, WindowQueue
+from torrentlinker.ratelimit import BudgetQueue, Queue, WindowQueue, cancellable_sleep
 from torrentlinker.store import Store
 
 TORZNAB_NS = "{http://torznab.com/schemas/2015/feed}"
@@ -72,6 +72,25 @@ class TorrentUnavailable(Exception):
         )
 
 
+ADULT_NATIVE_ROOT = 8  # c411's XXX; Torznab 6000
+ADULT_TREE_KEEP = 3600.0  # seconds the session's XXX tree and filter options are reused
+ADULT_READ_SPACING = 1.0  # seconds between session reads
+# What Search offers for XXX without a session: Torznab 6000 and its children (caps),
+# marked `torznabOnly` because c411's native filters need the signed-in tab.
+ADULT_TORZNAB_ROOT: dict[str, Any] = {
+    "id": ADULT_NATIVE_ROOT,
+    "name": "XXX",
+    "slug": "xxx",
+    "torznabOnly": True,
+    "subcategories": [
+        {"id": 42, "name": "Ebooks", "slug": "ebooks"},
+        {"id": 43, "name": "Films", "slug": "films"},
+        {"id": 44, "name": "Hentai", "slug": "hentai"},
+        {"id": 45, "name": "Images", "slug": "images"},
+        {"id": 46, "name": "Jeux", "slug": "jeux"},
+        {"id": 56, "name": "VR", "slug": "vr"},
+    ],
+}
 PREFETCH_THREADS = 16  # session requests in flight; the browser runs them in batches
 PREFETCH_AHEAD = 100  # torrents asked for ahead of the one being sent
 MAX_KEYS = 5  # c411's limit per account
@@ -220,6 +239,17 @@ def _category_tree(root: ET.Element) -> tuple[dict[int, str], dict[int, int]]:
     return {cid: " / ".join(texts) for cid, texts in meanings.items()}, parents
 
 
+def parse_caps(xml: str) -> Caps:
+    root = ET.fromstring(xml)
+    modes: dict[SearchMode, set[str]] = {}
+    for el in root.iterfind("searching/*"):
+        mode = _CAPS_MODES.get(el.tag)
+        if mode and el.get("available") == "yes":
+            modes[mode] = {p for p in el.get("supportedParams", "q").split(",") if p}
+    categories, parents = _category_tree(root)
+    return Caps(categories, modes, parents)
+
+
 class Indexer:
     def __init__(
         self,
@@ -240,9 +270,16 @@ class Indexer:
         self._cache = cache
         self.extra_keys = tuple(extra_keys)
         self.session: Any = None  # a ProfileWorkspace; set by the app, never persisted
+        # Whether Settings allows adult content; set by the app. c411's API hides it from the
+        # key, so XXX is read through the owner's session (or Torznab) only when this is true.
+        self.adult_content: Callable[[], bool] = lambda: False
+        self._adult_cache: dict[str, tuple[float, Any]] = {}
+        self._adult_lock = threading.Lock()
+        self._adult_last = 0.0
         self._pool: ThreadPoolExecutor | None = None
         self._ahead: dict[str, Future[bytes]] = {}
         self._ahead_lock = threading.Lock()
+        self._fetch_locks: dict[str, tuple[threading.Lock, int]] = {}
         keys = [k for k in dict.fromkeys([api_key, *extra_keys]) if k][:MAX_KEYS] or [api_key]
         # Per key, two queues: c411 limits searches and .torrent downloads separately.
         self.slots = [
@@ -258,26 +295,27 @@ class Indexer:
         self._modes: dict[SearchMode, set[str]] | None = None
         self._thread = threading.local()  # .background: this thread's requests can wait
 
+    def background(self, stop: threading.Event | None = None):
+        """Let foreground requests pass first; job cancellation interrupts quota waits."""
+        return self._request_context(True, stop)
+
+    def foreground(self, stop: threading.Event | None = None):
+        return self._request_context(False, stop)
+
     @contextmanager
-    def background(self) -> Iterator[None]:
-        """Requests made in this block, on this thread, let the user's own go first and
-        wait out c411's refusals (a Plan being sent, Catalogue updates)."""
+    def _request_context(self, background: bool, stop: threading.Event | None) -> Iterator[None]:
         before = getattr(self._thread, "background", False)
-        self._thread.background = True
+        previous_stop = getattr(self._thread, "stop", None)
+        self._thread.background = background
+        self._thread.stop = stop if stop is not None else previous_stop
         try:
             yield
         finally:
             self._thread.background = before
+            self._thread.stop = previous_stop
 
     def caps(self) -> Caps:
-        root = ET.fromstring(self._get({"t": "caps"}))
-        modes: dict[SearchMode, set[str]] = {}
-        for el in root.iterfind("searching/*"):
-            mode = _CAPS_MODES.get(el.tag)
-            if mode and el.get("available") == "yes":
-                modes[mode] = {p for p in el.get("supportedParams", "q").split(",") if p}
-        categories, parents = _category_tree(root)
-        return Caps(categories, modes, parents)
+        return parse_caps(self._get({"t": "caps"}))
 
     def supported_modes(self) -> dict[SearchMode, set[str]] | None:
         """Search modes and their parameters from caps, fetched once; None if unknown."""
@@ -312,6 +350,40 @@ class Indexer:
 
         With `retry=False` a 429 raises RateLimited at once, so the caller can wait.
         """
+        if (data := self.cached_torrent(candidate)) is not None:
+            return data
+        key = self._torrent_key(candidate)
+        with self._ahead_lock:
+            lock, users = self._fetch_locks.get(key, (threading.Lock(), 0))
+            self._fetch_locks[key] = (lock, users + 1)
+        try:
+            while not lock.acquire(timeout=0.1):
+                stop = getattr(self._thread, "stop", None)
+                if stop is not None and stop.is_set():
+                    raise InterruptedError("Torrent check cancelled before fetching metadata.")
+                if not getattr(self._thread, "background", False):
+                    wait = min(
+                        max(
+                            slot.downloads.next_in(),
+                            slot.resting.get("downloads", 0) - self._clock(),
+                        )
+                        for slot in self.slots
+                    )
+                    if wait > FOREGROUND_PATIENCE:
+                        raise RateLimited(wait)
+            try:
+                return self._fetch_torrent(candidate, retry=retry)
+            finally:
+                lock.release()
+        finally:
+            with self._ahead_lock:
+                _, users = self._fetch_locks[key]
+                if users == 1:
+                    del self._fetch_locks[key]
+                else:
+                    self._fetch_locks[key] = (lock, users - 1)
+
+    def _fetch_torrent(self, candidate: Candidate, *, retry: bool) -> bytes:
         if (data := self.cached_torrent(candidate)) is not None:
             return data
         if self.session is not None and self.session.session_downloads:
@@ -427,7 +499,9 @@ class Indexer:
             )
         ).json()
 
-    def torrent_json(self, infohash: str) -> dict[str, Any]:
+    def torrent_json(
+        self, infohash: str, *, retry: bool = True, stop: threading.Event | None = None
+    ) -> dict[str, Any]:
         """Read live metadata only; this does not grab a .torrent."""
         if (
             not self.is_c411
@@ -440,7 +514,9 @@ class Indexer:
                 f"https://c411.org/api/torrents/{infohash}",
                 None,
                 {"Authorization": f"Bearer {key}"},
-            )
+            ),
+            retry=retry,
+            stop=stop,
         ).json()
 
     def category_options(self, subcategory: int) -> dict[str, Any]:
@@ -455,22 +531,78 @@ class Indexer:
             )
         ).json()
 
+    @property
+    def adult_session(self) -> bool:
+        """XXX is on and the signed-in c411 tab can read what the key cannot see."""
+        return bool(self.adult_content() and self.session is not None and self.session.can_read)
+
+    def adult_read(self, path: str, *, keep: float = 0.0) -> dict[str, Any] | None:
+        """One adult page through the session, kept for `keep` seconds; None when the session
+        cannot deliver it (no companion, refused, slow), so the caller falls back to Torznab.
+        Reads are spaced as a person browsing would, and never use the API key."""
+        from torrentlinker.companion_downloads import SessionFetchError
+
+        if not self.adult_session:
+            return None
+        now = self._clock()
+        with self._adult_lock:
+            held = self._adult_cache.get(path)
+            if held is not None and now - held[0] < keep:
+                return held[1]
+            if self._adult_last and now - self._adult_last < ADULT_READ_SPACING:
+                self._sleep(ADULT_READ_SPACING - (now - self._adult_last))
+            try:
+                data = self.session.read_json(path)
+            except SessionFetchError as error:
+                log.warning("c411 session read refused (%s): %s", error.status, error)
+                return None
+            finally:
+                self._adult_last = self._clock()
+            if keep:
+                self._adult_cache[path] = (self._clock(), data)
+            return data
+
     def search_categories(self) -> dict[str, Any]:
-        """c411's native search tree; its IDs differ from Torznab categories."""
+        """c411's native search tree; its IDs differ from Torznab categories.
+
+        With adult content on, XXX (root 8, which the key cannot see) comes from the signed-in
+        session, or else as a Torznab-only entry with its subcategories."""
         if not self.is_c411:
             raise ValueError("Native search categories are only available on c411.org")
-        return self._request(
+        payload = self._request(
             lambda key: (
                 "https://c411.org/api/categories",
                 None,
                 {"Authorization": f"Bearer {key}"},
             )
         ).json()
+        data = payload.get("data") if isinstance(payload, dict) else None
+        if not self.adult_content() or not isinstance(data, list):
+            return payload
+        if any(isinstance(r, dict) and r.get("id") == ADULT_NATIVE_ROOT for r in data):
+            return payload
+        tree = self.adult_read("/api/categories", keep=ADULT_TREE_KEEP)
+        root = next(
+            (
+                r
+                for r in (tree or {}).get("data", [])
+                if isinstance(r, dict) and r.get("id") == ADULT_NATIVE_ROOT
+            ),
+            None,
+        )
+        return {**payload, "data": [*data, root or ADULT_TORZNAB_ROOT]}
 
     def search_filter_options(self, category: int) -> dict[str, Any]:
         """Search facets for a root category, distinct from required Upload options."""
         if not self.is_c411:
             raise ValueError("Native search filters are only available on c411.org")
+        if category == ADULT_NATIVE_ROOT:
+            if not self.adult_content():
+                return {"data": []}
+            found = self.adult_read(
+                f"/api/categories/{ADULT_NATIVE_ROOT}/filter-options", keep=ADULT_TREE_KEEP
+            )
+            return found if found is not None else {"data": []}
         return self._request(
             lambda key: (
                 f"https://c411.org/api/categories/{int(category)}/filter-options",
@@ -541,6 +673,7 @@ class Indexer:
         json: Any = None,
         main_key_only: bool = False,
         scope: str = "torznab:read",
+        stop: threading.Event | None = None,
     ) -> httpx.Response:
         """Send with the key whose queue is free soonest; `build(key)` gives the URL,
         parameters and headers. A key refused with 429 rests as long as c411 asks while
@@ -548,9 +681,12 @@ class Indexer:
         foreground one, or one with `retry=False`, raises RateLimited unless the wait is
         short. `main_key_only` keeps to the main key, for what only it may do."""
         background = getattr(self._thread, "background", False)
+        stop = stop if stop is not None else getattr(self._thread, "stop", None)
         waits = 0
         last: httpx.Response | None = None  # keys only rest after a 429, so it is set
         while True:
+            if stop is not None and stop.is_set():
+                raise InterruptedError("Indexer request cancelled before sending.")
             slots = self.slots[:1] if main_key_only else self.slots
             slot = self._pick(queue, slots)
             if slot is None:
@@ -560,11 +696,11 @@ class Indexer:
                 if waits >= MAX_RETRIES and last is not None:
                     return self._checked(last)
                 waits += 1
-                self._sleep(max(wait, 0.0))
+                cancellable_sleep(max(wait, 0.0), stop, self._sleep)
                 continue
             lane = slot.queue(queue)
             url, params, headers = build(slot.key)
-            with lane.turn(background):
+            with lane.turn(background, stop):
                 last = self._http.request(method, url, params=params, headers=headers, json=json)
                 lane.observe(last.headers)
             if last.status_code == 429:
@@ -669,6 +805,8 @@ def _parse_items(xml: str) -> list[Candidate]:
                         "subtitles",
                         "format",
                         "bitrate",
+                        "platform",
+                        "license",
                     }
                 },
             )

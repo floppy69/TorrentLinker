@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.shell_support import shell_navigate
 from tests.test_folder_probe import ProbeClient
 from torrentlinker.config import Settings
 from torrentlinker.domain import PathMapping
@@ -26,40 +27,49 @@ def categories():
 
 
 def test_desktop_checks_empty_mapping_and_shows_category_branches(qtbot, tmp_path, monkeypatch):
-    from torrentlinker.gui.settings_dialog import COL_CHECK, SettingsDialog
+    from tests.settings_support import settings_page
+    from tests.test_community_interfaces import js, wait_js
 
-    client = ProbeClient(tmp_path)
+    root = tmp_path / "media"
+    root.mkdir()
+    client = ProbeClient(root)
     client.default_save_path = lambda: "/downloads"
-    monkeypatch.setattr("torrentlinker.gui.settings_dialog.connect", lambda *a, **kw: client)
-    settings = Settings()
-    settings.path_mappings = [PathMapping(str(tmp_path), "/downloads")]
+    settings = Settings(language="en")
+    settings.path_mappings = [PathMapping(str(root), "/downloads")]
     settings.indexer_categories = categories()
-    dialog = SettingsDialog(settings)
-    qtbot.addWidget(dialog)
-    dialog.show()
-    dialog.check_button.click()
-    qtbot.waitUntil(lambda: "verified" in dialog.mappings.item(0, COL_CHECK).text(), timeout=10000)
+    dialog = settings_page(qtbot, tmp_path, settings, section="paths")
+    dialog.setup.connector = lambda *a, **kw: client
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent==='Edit').click()",
+    )
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent==='Test mapping').click()",
+    )
+    qtbot.waitUntil(lambda: dialog.view.pending == 0)
+    qtbot.wait(100)
+    assert js(qtbot, dialog.view, "document.querySelector('#settings-error').textContent") == ""
+    wait_js(qtbot, dialog.view, "document.body.textContent.includes('Mapping verified')")
     assert len(client.added) == 1 and len(client.removed) == 1
-    assert list(tmp_path.iterdir()) == []
-    assert dialog.download_table.item(0, 0).font().bold()
-    assert "└─ Animation" in dialog.download_table.item(1, 0).text()
-    assert "Films & Videos › Animation › Series" in dialog.download_table.item(2, 0).toolTip()
-    if output := os.getenv("TL_WEB_SCREENSHOTS"):
-        from PySide6.QtWidgets import QApplication, QListWidget
-
-        from torrentlinker.gui.theme import apply_theme
-
-        app = QApplication.instance()
-        apply_theme(app, "light")
-        Path(output).mkdir(parents=True, exist_ok=True)
-        dialog.resize(1200, 1000)
-        navigation = dialog.findChild(QListWidget, "navigation")
-        navigation.setCurrentRow(3)
-        app.processEvents()
-        dialog.grab().save(str(Path(output) / "folder-settings-desktop.png"))
-        navigation.setCurrentRow(4)
-        app.processEvents()
-        dialog.grab().save(str(Path(output) / "folder-check-desktop.png"))
+    assert list(root.iterdir()) == []
+    dialog.view.section = "downloads"
+    dialog.view.refresh()
+    wait_js(
+        qtbot,
+        dialog.view,
+        "document.querySelector('.settings-form h2').textContent==='Download Folders'",
+    )
+    labels = js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelector('[aria-label=Category]').options].m"
+        "ap(o=>o.textContent).join(' | ')",
+    )
+    assert "Films & Videos › Animation › Series" in labels
+    assert "Audio › Audio" in labels
 
 
 @pytest.mark.skipif(os.getenv("TL_WEB_BROWSER") != "1", reason="opt-in browser test")
@@ -103,32 +113,27 @@ def test_browser_category_tree_and_empty_folder_save(tmp_path):
             page.goto(f"http://127.0.0.1:{port}/")
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
-            page.locator("[data-view=setup]").first.click()
-            page.locator(".steps [data-step=storage]").click()
-            picker = page.locator("#library-download-form .category-picker")
-            picker.locator("summary").click()
-            expect(picker.get_by_role("button", name="Audio › Audio", exact=True)).to_be_visible()
-            picker.get_by_role(
-                "button", name="Films & Videos › Animation › Series", exact=True
-            ).click()
-            expect(picker.locator("summary")).to_have_text("Films & Videos › Animation › Series")
-            expect(page.locator("#library-download-feedback")).to_contain_text(str(root))
-            page.locator("#library-download-path").fill(str(root))
-            page.locator("#library-download-form .primary").click()
-            expect(page.locator("#library-download-feedback")).to_contain_text(
-                "verified and saved", timeout=15000
+            shell_navigate(page, "setup")
+            panel = page.frame_locator("#settings-frame")
+            panel.get_by_role("button", name="Download Folders", exact=True).click()
+            picker = panel.get_by_label("Category", exact=True)
+            expect(picker.locator("option").filter(has_text="Audio › Audio")).to_have_count(1)
+            picker.select_option("2031")
+            expect(picker.locator("option:checked")).to_have_text(
+                "Films & Videos › Animation › Series"
             )
+            expect(panel.locator(".settings-form")).to_contain_text(str(root))
+            panel.get_by_label("Folder on the TorrentLinker host", exact=True).fill(str(root))
+            panel.get_by_role("button", name="Save folder", exact=True).click()
+            expect(panel.locator(".client-card").filter(has_text="Series")).to_be_visible(
+                timeout=15000
+            )
+            assert setup.settings.download_folders.by_category[2031] == str(root)
             assert len(client.added) == 1 and len(client.removed) == 1
             assert list(root.iterdir()) == []
-            picker.locator("summary").click()
             if output := os.getenv("TL_WEB_SCREENSHOTS"):
                 Path(output).mkdir(parents=True, exist_ok=True)
                 page.screenshot(path=str(Path(output) / "folder-settings-web.png"), full_page=True)
-                picker.locator(".category-branches").screenshot(
-                    path=str(Path(output) / "category-menu-web.png")
-                )
-            picker.press("Escape")
-            expect(picker).not_to_have_attribute("open", "")
             assert not errors, errors
             browser.close()
     finally:

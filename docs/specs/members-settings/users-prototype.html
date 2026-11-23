@@ -1,0 +1,518 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway (ADR-0022, issue #127). Paramètres → Utilisateurs, built from approved components:
+     the shared palette (panel/base.css) and the Settings page's stylesheet (settings/view.css), embedded below.
+     Three layouts, ?variant=A|B|C and the floating bar (or ← →). Fictional data; nothing is saved. -->
+<html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Utilisateurs · aperçu #127</title>
+<style>
+/* Embedded copy of src/torrentlinker/web/static/panel/base.css (approved), so the prototype opens anywhere. */
+/* Shared palette for Qt, the Web shell and bundled panels.
+   Keep these two token blocks literal: gui/theme.py reads their declarations.
+   Approved panel-specific light overrides remain in each panel's view.css. */
+:root {
+  color-scheme: dark;
+  --bg: #161d23;
+  --panel: #202932;
+  --raised: #26323c;
+  --line: #33404b;
+  --text: #e2e9ed;
+  --muted: #98aab7;
+  --accent: #80bdb6;
+  --accent-text: #102a2b;
+  --tint: #263e43;
+  --hover: #263e43;
+  --danger: #ff9c9c;
+  --warning: #edbf73;
+  --success: #4ad394;
+  --link: #64c9c0;
+  --shadow: none;
+  --ink: var(--text);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f6fa;
+  --panel: #ffffff;
+  --raised: #f7f9fc;
+  --line: #d5dfe9;
+  --text: #203047;
+  --muted: #5c6c80;
+  --accent: #087f76;
+  --accent-text: #ffffff;
+  --tint: #d8eeeb;
+  --hover: #e8f3f2;
+  --danger: #b42332;
+  --warning: #8a5800;
+  --success: #1f9d63;
+  --link: #087f76;
+  --shadow: 0 16px 60px #172b3e12;
+}
+
+</style>
+<style>
+/* Embedded copy of src/torrentlinker/web/static/settings/view.css (approved), so the prototype opens anywhere. */
+.settings-layout {
+  align-items: start;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 24px;
+}
+#settings-navigation {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+#settings-navigation button {
+  text-align: left;
+  justify-content: flex-start;
+}
+#settings-navigation [aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--tint);
+}
+main,
+.settings-layout > * {
+  min-width: 0;
+}
+.settings-form {
+  align-content: start;
+  display: grid;
+  gap: 16px;
+}
+.settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.settings-field {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+.settings-field input,
+.settings-field select,
+.settings-field textarea {
+  width: 100%;
+}
+.settings-field input[type="checkbox"] {
+  width: auto;
+}
+.settings-form fieldset {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+}
+.settings-form legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.client-card {
+  border: 1px solid var(--line);
+  padding: 18px;
+  border-radius: 10px;
+  background: var(--panel);
+}
+.client-card h3 {
+  margin: 0;
+}
+#settings-error {
+  color: var(--danger);
+  white-space: pre-wrap;
+}
+#settings-error:empty,
+#settings-status:empty {
+  display: none;
+}
+@media (max-width: 720px) {
+  .settings-layout,
+  .settings-fields {
+    grid-template-columns: 1fr;
+  }
+  #settings-navigation {
+    display: flex;
+    overflow: auto;
+    padding: 3px 0 8px;
+  }
+  #settings-navigation button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  padding: 20px;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+h1 {
+  font-size: 26px;
+  margin: 0 0 22px;
+}
+h2 {
+  font-size: 20px;
+  margin: 0;
+}
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  min-width: 0;
+}
+button {
+  cursor: pointer;
+}
+button:hover {
+  background: var(--raised);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+small,
+.muted {
+  color: var(--muted);
+}
+
+.settings-form h3 {
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+.settings-form .card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  margin: 16px 0;
+  background: var(--panel);
+}
+.assistant-dialog {
+  width: min(720px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 22px;
+}
+.assistant-dialog form,
+.assistant-dialog label {
+  display: grid;
+  gap: 8px;
+}
+.assistant-dialog form {
+  gap: 16px;
+}
+.assistant-dialog input[type="checkbox"] {
+  justify-self: start;
+}
+.assistant-dialog::backdrop {
+  background: #0008;
+}
+.settings-form .toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.settings-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  background: var(--panel);
+}
+.settings-card h3 {
+  margin: 0 0 16px;
+}
+.settings-fields > button {
+  align-self: end;
+}
+.settings-check {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.settings-check input[type="checkbox"] {
+  width: auto;
+  flex: 0 0 auto;
+}
+.settings-check textarea {
+  flex-basis: 100%;
+}
+.settings-form > .settings-actions:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.file-access-status {
+  color: var(--accent);
+  font-weight: 600;
+}
+.file-access-address {
+  overflow-wrap: anywhere;
+}
+.file-access-capabilities {
+  width: 100%;
+  border-collapse: collapse;
+}
+.file-access-capabilities th,
+.file-access-capabilities td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.file-access-capabilities th {
+  width: 35%;
+  font-weight: 500;
+}
+.file-access-capabilities td {
+  padding-left: 20px;
+}
+.file-access-note {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  padding: 12px;
+}
+.settings-error {
+  color: var(--danger);
+}
+.file-access-confirm {
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  width: min(560px, 90vw);
+  padding: 24px;
+}
+
+</style>
+<style>
+/* Only what the Settings page has no equivalent for yet. */
+.member-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.member-head p{margin:4px 0 0}
+.tag{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;margin:0 6px 4px 0;color:var(--muted)}
+.tag.on{color:var(--accent);border-color:var(--accent)}.tag.off{text-decoration:line-through}
+.locked{opacity:.7}.locked input{cursor:not-allowed}
+.matrix input[type=checkbox]{width:auto}.matrix th,.matrix td{padding:8px 10px!important;vertical-align:middle!important}.matrix thead th{position:sticky;top:0;background:var(--bg);z-index:1}
+.matrix td{text-align:center;padding-left:10px!important}.matrix td:first-child,.matrix th:first-child{text-align:left}.matrix tr.group th{padding-top:18px!important;color:var(--accent);font-weight:600}
+.matrix input[type=number],.matrix select{width:84px;padding:4px 6px}
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}.preset{text-align:left;display:grid;gap:4px}.preset[aria-pressed=true]{border-color:var(--accent);background:var(--tint)}
+.diff{display:flex;gap:8px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0}
+.settings-check input[type=number]{width:90px}
+.assistant-dialog label.settings-check{display:flex}
+#switcher{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:#0d1216;color:#fff;border:1px solid #ffffff40;border-radius:999px;padding:6px 8px;box-shadow:0 10px 40px #0008;z-index:50;font-size:13px}
+#switcher button{background:#ffffff14;border-color:#ffffff30;color:#fff;border-radius:999px;padding:4px 12px}#switcher b{min-width:200px;text-align:center}
+</style>
+<h1>Paramètres</h1>
+<div class="settings-layout">
+ <nav id="settings-navigation" aria-label="Sections des paramètres">
+  <button>Connexions</button><button>Clients</button><button>Compagnon</button><button>Accès agent</button><button>Assistant</button><button>Général</button><button>Dossiers de bibliothèque</button><button>Dossiers de téléchargement</button><button>Chemins du client</button><button>Recherche et correspondance</button><button>ReleaseScore</button><button>Zen</button><button aria-current="page">Utilisateurs</button>
+ </nav>
+ <main><p id="settings-status" role="status"></p><div id="settings-body"></div></main>
+</div>
+<dialog class="assistant-dialog" id="invite"></dialog>
+<div id="switcher"><button id="prev" aria-label="Variante précédente">←</button><b id="label"></b><button id="next" aria-label="Variante suivante">→</button><button id="theme">Thème</button></div>
+<script>
+/* The permission catalogue this design settles. */
+const FOLDERS=[["films","Films"],["series","Séries"],["anime","Animés"],["music","Musique"],["xxx","XXX"]];
+const KINDS=[["film","Films"],["serie","Séries"],["anime","Animés"],["musique","Musique"]];
+const AGES=[["","Aucune limite"],["18","-18 ans"],["16","-16 ans"],["12","-12 ans"],["10","-10 ans"],["0","Tous publics"]];
+const GROUPS=[
+ ["Médias",[["video","Vidéo"],["music","Musique"],["center","Mode Media Center"],["adult","Contenu adulte (XXX)"]]],
+ ["Demandes",[["request","Demander des films"],["wish","Faire des vœux"]]],
+ ["Outils",[["search","Recherche c411 (consultation)"],["assistant","Assistant"],["queue","Voir la file de téléchargement"],["torrents","Voir les torrents"]]],
+ ["Équipe",[["approve","Accepter ou refuser les demandes"],["manage","Gérer les membres"],["ratings","Modifier classements et fiches"]]],
+];
+const OWNER_ONLY=["Paramètres et identifiants","Zen et profil c411","Upload","Accès agents","Fournisseurs de l'Assistant"];
+const LABEL=Object.fromEntries(GROUPS.flatMap(g=>g[1]));
+const PRESETS={
+ spectateur:{label:"Spectateur",text:"Regarde, sans rien demander.",p:{video:1,music:1,center:1},kinds:["film","serie","anime","musique"],age:"",caps:{}},
+ famille:{label:"Famille",text:"Regarde et demande, avec des quotas.",p:{video:1,music:1,center:1,request:1,wish:1,search:1},kinds:["film","serie","anime","musique"],age:"",caps:{week:5,size:100,pending:3}},
+ enfant:{label:"Enfant",text:"Dessins animés et films tous publics.",p:{video:1,center:1},kinds:["film","anime"],age:"10",caps:{}},
+ admin:{label:"Administrateur",text:"Demande, accepte et gère l'équipe.",p:{video:1,music:1,center:1,request:1,wish:1,search:1,queue:1,torrents:1,approve:1,manage:1,ratings:1},kinds:["film","serie","anime","musique"],age:"",caps:{}},
+};
+const clone=x=>JSON.parse(JSON.stringify(x));
+const grant=k=>{const v=clone(PRESETS[k]);return {p:v.p,kinds:v.kinds,age:v.age,caps:v.caps,preset:k}};
+let members=[
+ {id:"lea",name:"Léa",login:"lea",proxy:"",state:"Active",screens:[{name:"Télé du salon",used:"hier soir"},{name:"Tablette de la cuisine",used:"il y a 12 jours"}],viewers:[{name:"Léa",holder:true,pin:true,age:"",kinds:["film","serie","anime","musique"]},{name:"Hugo",pin:false,age:"10",kinds:["film","anime"]},{name:"Mamie",pin:false,age:"",kinds:["film","serie"]}],...grant("famille"),folders:["films","series","anime","music"]},
+ {id:"hugo",name:"Hugo",login:"hugo",proxy:"",state:"Profil de Léa",viewers:[],...grant("enfant"),folders:["films","anime"]},
+ {id:"maman",name:"Maman",login:"maman",proxy:"maman@famille",state:"Active",viewers:[],...grant("admin"),folders:["films","series","music"]},
+ {id:"karim",name:"Karim",login:"",proxy:"",state:"Invitation envoyée, expire dans 2 j",viewers:[],...grant("spectateur"),folders:["films","series"]},
+];
+const variants=[["A","Fiches"],["B","Tableau"],["C","Préréglages"]];
+let variant=new URLSearchParams(location.search).get("variant")||"A",editing="lea",dirty=false;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const m=id=>members.find(x=>x.id===id);
+const status=t=>{document.getElementById("settings-status").textContent=t};
+function summary(x){const on=Object.keys(x.p).filter(k=>x.p[k]);return on.map(k=>`<span class="tag on">${LABEL[k]}</span>`).join("")+(x.age?`<span class="tag">Limite ${AGES.find(a=>a[0]===x.age)[1]}</span>`:"")}
+function owner(){return `<section class="client-card locked"><div class="member-head"><div><h3>Vous</h3><p class="muted">Propriétaire · tous les droits, sans restriction possible</p></div><span class="tag on">Propriétaire</span></div>
+ <p class="muted" style="margin:10px 0 0">Toujours réservés au propriétaire : ${OWNER_ONLY.join(", ")}.</p></section>`}
+const intro=`<section class="settings-card"><h3>Partager TorrentLinker</h3><p class="muted" style="margin:0 0 12px">Chaque membre ne voit et ne fait que ce que vous cochez. Il demande ; vous, ou un membre qui en a le droit, acceptez.</p>
+ <div class="settings-actions"><button class="primary" data-invite>Inviter quelqu'un</button><button data-create>Créer un compte avec mot de passe</button></div></section>`;
+
+/* A fictional QR code: finder squares and a fixed pattern, enough to judge the layout. */
+function qr(){const n=25,c=[];for(let y=0;y<n;y++)for(let x=0;x<n;x++){const f=(a,b)=>x>=a&&x<a+7&&y>=b&&y<b+7,inner=(a,b)=>x>=a+2&&x<a+5&&y>=b+2&&y<b+5,ring=(a,b)=>f(a,b)&&(x===a||x===a+6||y===b||y===b+6);
+ const on=[[0,0],[18,0],[0,18]].some(([a,b])=>ring(a,b)||inner(a,b))||(![[0,0],[18,0],[0,18]].some(([a,b])=>x>=a-1&&x<a+8&&y>=b-1&&y<b+8)&&((x*7+y*13+x*y)%5<2));if(on)c.push(`<rect x="${x}" y="${y}" width="1" height="1"/>`)}
+ return `<svg viewBox="-2 -2 29 29" width="168" height="168" role="img" aria-label="QR code du lien" style="background:#fff;border-radius:8px"><g fill="#102a2b">${c.join("")}</g></svg>`}
+function inviteResult(){return `<form method="dialog"><h2>Invitation pour Karim</h2>
+ <p class="muted">Envoyez ce lien, ou faites scanner le QR code depuis un téléphone ou une télé. Il ne sert qu'une fois ; Karim y choisit son identifiant et son mot de passe.</p>
+ <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">${qr()}<div style="flex:1;min-width:240px;display:grid;gap:8px">
+  <label>Lien d'invitation<input readonly value="https://torrentlinker.maison.fr/rejoindre/4f7c2a9e81d3"></label>
+  <div class="settings-actions"><button type="button" class="primary" data-copy>Copier le lien</button></div>
+  <small>Valable jusqu'au samedi 23 novembre, 18 h · préréglage Spectateur</small></div></div>
+ <div class="file-access-note"><label>Envoyer par e-mail<input type="email" placeholder="karim@exemple.fr" disabled></label>
+  <small>Configurez d'abord l'envoi d'e-mails dans Paramètres → Notifications (SMTP ou MX Plan d'OVHcloud).</small></div>
+ <div class="settings-actions"><button value="close">Fermer</button></div></form>`}
+
+/* Viewers: people sharing one account on a shared screen, each never broader than the account. */
+function viewersDialog(){const x=m(editing),ages=AGES.filter(([v])=>v===""||!x.age||+v<=+(x.age||99));
+ const restricted=x.viewers.some(v=>!v.holder&&(v.age||v.kinds.length<x.kinds.length));
+ return `<form method="dialog"><h2>Profils et écrans partagés de ${esc(x.name)}</h2>
+ <p class="muted">Les profils regardent sous le compte de ${esc(x.name)} sans se connecter : Médias seulement, jamais plus large que le compte, et ils ne font pas de demandes. ${esc(x.name)} les gère aussi depuis son compte.</p>
+ ${x.viewers.map((v,i)=>`<section class="client-card" style="display:grid;gap:10px"><div class="member-head"><h3>${esc(v.name)}${v.holder?" <small class=\"muted\">· titulaire du compte</small>":""}</h3>
+  <div class="settings-actions">${v.holder?"":`<button type="button" data-promote="${i}">Inviter comme membre</button><button type="button" data-viewer-remove="${i}" style="color:var(--danger)">Retirer</button>`}</div></div>
+  ${v.holder?`<small class="muted">Voit tout ce que le compte permet.</small>`:`<div class="settings-fields"><label class="settings-field">Nom<input value="${esc(v.name)}" data-viewer="${i}" data-vfield="name"></label>
+  <label class="settings-field">Limite d'âge<select data-viewer="${i}" data-vfield="age">${ages.map(([a,l])=>`<option value="${a}" ${v.age===a?"selected":""}>${l}</option>`).join("")}</select></label></div>
+  <div>${KINDS.filter(([k])=>x.kinds.includes(k)).map(([k,l])=>`<label class="settings-check" style="display:inline-flex;margin-right:14px"><input type="checkbox" data-viewer="${i}" data-vkind="${k}" ${v.kinds.includes(k)?"checked":""}> ${l}</label>`).join("")}</div>`}
+  <label class="settings-check"><input type="checkbox" data-viewer="${i}" data-vfield="pin" ${v.pin||(v.holder&&restricted)?"checked":""} ${v.holder&&restricted?"disabled":""}> Code à 4 chiffres pour ouvrir ce profil${v.holder&&restricted?" (obligatoire : un profil plus restreint existe)":""}</label></section>`).join("")}
+ <div class="settings-actions"><button type="button" data-viewer-add>Ajouter un profil</button></div>
+ <h3 style="margin-top:20px">Écrans partagés</h3><p class="muted">Navigateurs que ${esc(x.name)} a déclarés partagés en se connectant ; on y demande qui regarde. Ils restent connectés 90 jours sans usage.</p>
+ ${(x.screens||[]).map((s,i)=>`<div class="member-head file-access-note" style="align-items:center;margin-bottom:8px"><span><strong>${esc(s.name)}</strong><br><small>Dernier usage : ${s.used}</small></span><button type="button" data-forget="${i}">Oublier cet écran</button></div>`).join("")||`<p class="muted">Aucun écran partagé.</p>`}
+ <div class="settings-actions" style="margin-top:12px"><button class="primary" value="close">Terminé</button></div></form>`}
+
+/* The full editor for one member: fieldsets of Settings checks and fields. */
+function editor(x){const check=(key,label)=>`<label class="settings-check"><input type="checkbox" data-perm="${key}" ${x.p[key]?"checked":""} ${key==="adult"&&!["","18"].includes(x.age)?"disabled":""}> ${label}</label>`;
+ const cap=(key,label,unit)=>`<label class="settings-check"><input type="checkbox" data-cap-on="${key}" ${x.caps[key]!=null?"checked":""} ${x.p.request?"":"disabled"}> ${label} <input type="number" min="1" value="${x.caps[key]??""}" data-cap="${key}" ${x.caps[key]!=null&&x.p.request?"":"disabled"}> ${unit}</label>`;
+ return `<form class="settings-form" onsubmit="return false">
+ <fieldset><legend>Compte</legend><div class="settings-fields">
+  <label class="settings-field">Nom affiché<input value="${esc(x.name)}" data-field="name"></label>
+  <label class="settings-field">Identifiant de connexion<input value="${esc(x.login)}" placeholder="choisi à l'invitation" data-field="login"></label>
+  <label class="settings-field">Nom transmis par le proxy (facultatif)<input value="${esc(x.proxy)}" placeholder="Remote-User, ex. lea@famille" data-field="proxy"></label>
+  <label class="settings-field">Partir d'un préréglage<select data-preset>${Object.entries(PRESETS).map(([k,v])=>`<option value="${k}" ${x.preset===k?"selected":""}>${v.label}</option>`).join("")}</select></label>
+ </div><div class="settings-actions" style="margin-top:12px"><button data-reset-password>Envoyer un lien de mot de passe</button><button type="button" data-viewers>Profils et écrans partagés</button></div></fieldset>
+ <fieldset><legend>Médias</legend>
+  ${check("video","Vidéo")}<div style="padding-left:26px">${KINDS.slice(0,3).map(([k,l])=>`<label class="settings-check" style="display:inline-flex;margin-right:14px"><input type="checkbox" data-kind="${k}" ${x.kinds.includes(k)?"checked":""} ${x.p.video?"":"disabled"}> ${l}</label>`).join("")}</div>
+  ${check("music","Musique")}${check("center","Mode Media Center")}
+  <div class="settings-fields" style="margin-top:12px">
+   <label class="settings-field">Limite d'âge<select data-age>${AGES.map(([v,l])=>`<option value="${v}" ${x.age===v?"selected":""}>${l}</option>`).join("")}</select><small>Un titre sans classement est caché sous une limite ; ajoutez-lui un classement dans sa fiche.</small></label>
+   <div class="settings-field">Dossiers visibles${FOLDERS.map(([k,l])=>`<label class="settings-check"><input type="checkbox" data-folder="${k}" ${x.folders.includes(k)?"checked":""}> ${l}</label>`).join("")}</div>
+  </div>
+  ${check("adult","Contenu adulte (XXX), seulement sans limite ou -18")}
+ </fieldset>
+ <fieldset><legend>Demandes</legend>${check("request","Demander des films (vous acceptez avant tout téléchargement)")}${check("wish","Faire des vœux pour un titre introuvable")}
+  <p class="muted" style="margin:10px 0 6px">Quotas, chacun facultatif</p>${cap("week","Au plus","demandes par semaine")}${cap("size","Au plus","Go par semaine")}${cap("pending","Au plus","demandes en attente à la fois")}</fieldset>
+ <fieldset><legend>Outils</legend>${check("search","Recherche c411, en consultation")}${check("assistant","Assistant (sur vos clés)")}<p class="muted" style="margin:0 0 8px 26px">Plafond d'usage : à définir dans une prochaine version.</p>${check("queue","Voir la file de téléchargement")}${check("torrents","Voir les torrents")}</fieldset>
+ <fieldset><legend>Équipe</legend>${check("approve","Accepter ou refuser les demandes")}${check("manage","Gérer les membres (jamais vous ni vos réglages)")}${check("ratings","Modifier classements et fiches")}</fieldset>
+ <fieldset class="locked"><legend>Réservé au propriétaire</legend>${OWNER_ONLY.map(t=>`<label class="settings-check"><input type="checkbox" disabled> ${t}</label>`).join("")}</fieldset>
+ <div class="settings-actions"><button class="primary" data-save>Enregistrer</button><button data-discard>Annuler les modifications</button><button data-remove style="margin-left:auto;color:var(--danger)">Retirer ${esc(x.name)}</button></div></form>`}
+
+/* A · Fiches: the Clients section's cards, the editor under the chosen one. */
+function A(){return `<div class="settings-form"><h2>Utilisateurs</h2>${intro}${owner()}
+ ${members.map(x=>`<section class="client-card"><div class="member-head"><div><h3>${esc(x.name)}</h3><p class="muted">${esc(x.state)} · ${PRESETS[x.preset].label}${x.viewers.length?` · ${x.viewers.length} profils`:""}</p></div>
+  <div class="settings-actions">${x.state.startsWith("Invitation")?`<button data-invite-show>Voir le lien</button><button data-cancel-invite="${x.id}">Annuler l'invitation</button>`:""}<button data-edit="${x.id}" ${editing===x.id?'aria-pressed="true" class="primary"':""}>${editing===x.id?"En cours de modification":"Modifier"}</button></div></div>
+  <div style="margin-top:10px">${summary(x)}</div>${editing===x.id?`<div style="margin-top:16px">${editor(x)}</div>`:""}</section>`).join("")}</div>`}
+
+/* B · Tableau: the File access table, permissions down, members across. */
+function B(){const cell=(x,html)=>`<td>${html}</td>`;
+ const row=(label,f)=>`<tr><th>${label}</th>${members.map(x=>cell(x,f(x))).join("")}</tr>`;
+ const box=key=>x=>`<input type="checkbox" aria-label="${LABEL[key]} · ${esc(x.name)}" data-who="${x.id}" data-perm="${key}" ${x.p[key]?"checked":""}>`;
+ return `<div class="settings-form"><h2>Utilisateurs</h2>${intro}
+ <section class="settings-card" style="overflow:auto"><table class="file-access-capabilities matrix"><thead><tr><th>Droit</th>${members.map(x=>`<th style="text-align:center">${esc(x.name)}<br><small>${PRESETS[x.preset].label}</small></th>`).join("")}</tr></thead><tbody>
+ ${GROUPS.map(([g,items])=>`<tr class="group"><th colspan="${members.length+1}">${g}</th></tr>${items.map(([k,l])=>row(l,box(k))).join("")}
+  ${g==="Médias"?row("Limite d'âge",x=>`<select data-who="${x.id}" data-age>${AGES.map(([v,l])=>`<option value="${v}" ${x.age===v?"selected":""}>${l}</option>`).join("")}</select>`)+row("Dossiers visibles",x=>`<small>${x.folders.length} / ${FOLDERS.length}</small> <button data-edit="${x.id}" data-to="A" style="padding:2px 8px">Choisir</button>`):""}
+  ${g==="Demandes"?[["week","Demandes / semaine"],["size","Go / semaine"],["pending","En attente"]].map(([k,l])=>row(l,x=>`<input type="number" min="1" placeholder="—" value="${x.caps[k]??""}" data-who="${x.id}" data-cap="${k}" ${x.p.request?"":"disabled"}>`)).join(""):""}`).join("")}
+ <tr class="group"><th colspan="${members.length+1}">Réservé au propriétaire</th></tr>${OWNER_ONLY.map(t=>`<tr class="locked"><th>${t}</th>${members.map(()=>`<td><input type="checkbox" disabled></td>`).join("")}</tr>`).join("")}
+ </tbody></table></section>
+ <div class="settings-actions"><button class="primary" data-save>Enregistrer</button><button data-discard>Annuler les modifications</button></div></div>`}
+
+/* C · Préréglages: pick a starting point, then only what differs from it. */
+function C(){const x=m(editing),base=PRESETS[x.preset];
+ const diffs=GROUPS.flatMap(g=>g[1]).filter(([k])=>!!x.p[k]!==!!base.p[k]);
+ return `<div class="settings-form"><h2>Utilisateurs</h2>${intro}
+ <div class="settings-fields">${members.map(y=>`<button class="client-card preset" style="text-align:left" data-edit="${y.id}" aria-pressed="${y.id===editing}"><strong>${esc(y.name)}</strong><small>${PRESETS[y.preset].label}${GROUPS.flatMap(g=>g[1]).some(([k])=>!!y.p[k]!==!!PRESETS[y.preset].p[k])?" · ajusté":""}</small><small>${esc(y.state)}</small></button>`).join("")}</div>
+ <section class="settings-card"><h3>${esc(x.name)} part de…</h3><div class="presets">${Object.entries(PRESETS).map(([k,v])=>`<button class="preset" data-preset-pick="${k}" aria-pressed="${x.preset===k}"><strong>${v.label}</strong><small>${v.text}</small></button>`).join("")}</div></section>
+ <section class="settings-card"><h3>Ce qui diffère de « ${base.label} »</h3>
+  ${diffs.length?diffs.map(([k,l])=>`<div class="diff"><span>${x.p[k]?"＋":"－"} ${l}</span><button data-perm-toggle="${k}">Revenir au préréglage</button></div>`).join(""):`<p class="muted" style="margin:0">Rien : ${esc(x.name)} a exactement « ${base.label} ».</p>`}
+  <label class="settings-field" style="margin-top:14px">Ajouter une différence<select data-add-diff><option value="">Choisir un droit…</option>${GROUPS.map(([g,items])=>`<optgroup label="${g}">${items.filter(([k])=>!!x.p[k]===!!base.p[k]).map(([k,l])=>`<option value="${k}">${x.p[k]?"Retirer":"Ajouter"} : ${l}</option>`).join("")}</optgroup>`).join("")}</select></label>
+  <div class="settings-fields" style="margin-top:14px"><label class="settings-field">Limite d'âge<select data-age>${AGES.map(([v,l])=>`<option value="${v}" ${x.age===v?"selected":""}>${l}</option>`).join("")}</select></label>
+  <div class="settings-field">Quotas de demandes<small>${x.p.request?[["week","demandes / semaine"],["size","Go / semaine"],["pending","en attente"]].map(([k,l])=>x.caps[k]!=null?`${x.caps[k]} ${l}`:`sans limite (${l})`).join(" · "):"Ne demande pas"}</small></div></div></section>
+ <div class="file-access-note">Toujours réservés au propriétaire : ${OWNER_ONLY.join(", ")}.</div>
+ <div class="settings-actions"><button class="primary" data-save>Enregistrer</button><button data-discard>Annuler les modifications</button></div></div>`}
+
+function render(){document.getElementById("settings-body").innerHTML=({A,B,C})[variant]();document.getElementById("label").textContent=`${variant} — ${variants.find(v=>v[0]===variant)[1]}`}
+function target(el){return m(el.dataset.who||editing)}
+document.addEventListener("change",e=>{const t=e.target,x=target(t),d=t.dataset;if(!x)return;dirty=true;
+ if(d.viewer!==undefined){const v=x.viewers[+d.viewer];if(d.vkind)v.kinds=t.checked?[...v.kinds,d.vkind]:v.kinds.filter(k=>k!==d.vkind);else if(d.vfield==="pin")v.pin=t.checked;else v[d.vfield]=t.value;status("Modifications non enregistrées");render();return}
+ if(d.perm){x.p[d.perm]=t.checked?1:0;if(d.perm==="request"&&!t.checked)x.caps={}}
+ else if(d.kind){x.kinds=t.checked?[...x.kinds,d.kind]:x.kinds.filter(k=>k!==d.kind)}
+ else if(d.folder){x.folders=t.checked?[...x.folders,d.folder]:x.folders.filter(k=>k!==d.folder)}
+ else if("age" in d){x.age=t.value;if(!["","18"].includes(x.age))x.p.adult=0}
+ else if(d.capOn){if(t.checked)x.caps[d.capOn]={week:5,size:100,pending:3}[d.capOn];else delete x.caps[d.capOn]}
+ else if(d.cap){if(t.value)x.caps[d.cap]=+t.value;else delete x.caps[d.cap]}
+ else if("preset" in d){Object.assign(x,grant(t.value))}
+ else if("addDiff" in d&&t.value){x.p[t.value]=x.p[t.value]?0:1}
+ else if(d.field){x[d.field]=t.value}
+ status("Modifications non enregistrées");render()});
+document.addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;const d=t.dataset;
+ if(d.edit){editing=d.edit;if(d.to){variant=d.to}render()}
+ else if(d.presetPick){Object.assign(m(editing),grant(d.presetPick));status("Modifications non enregistrées");render()}
+ else if(d.permToggle){const x=m(editing);x.p[d.permToggle]=PRESETS[x.preset].p[d.permToggle]?1:0;render()}
+ else if("save" in d){dirty=false;status("Utilisateurs enregistrés")}
+ else if("discard" in d){status("Modifications annulées");render()}
+ else if("remove" in d){const x=m(editing);if(confirm(`Retirer ${x.name} ? Ses demandes en attente sont refusées ; ses films restent.`)){members=members.filter(y=>y!==x);editing=members[0]?.id;render()}}
+ else if("resetPassword" in d){status(`Lien envoyé à ${m(editing).name}, valable 3 jours`)}
+ else if("invite" in d||"create" in d){const dlg=document.getElementById("invite");dlg.innerHTML=`<form method="dialog"><h2>${"invite" in d?"Inviter quelqu'un":"Créer un compte"}</h2>
+  <label>Nom affiché<input placeholder="ex. Karim"></label><label>Préréglage<select>${Object.values(PRESETS).map(v=>`<option>${v.label}</option>`).join("")}</select></label>
+  ${"invite" in d?`<label>Validité du lien<select><option>3 jours</option><option>7 jours</option><option>24 heures</option></select></label><p class="muted">Le lien et son QR code s'affichent après création ; la personne choisit son mot de passe.</p>`:`<label>Identifiant<input></label><label>Mot de passe<input type="password"></label>`}
+  <div class="settings-actions">${"invite" in d?`<button class="primary" type="button" data-invite-created>Créer le lien</button>`:`<button class="primary" value="ok">Créer le compte</button>`}<button value="cancel">Annuler</button></div></form>`;dlg.showModal()}
+ else if("inviteCreated" in d||"inviteShow" in d){const dlg=document.getElementById("invite");dlg.innerHTML=inviteResult();if(!dlg.open)dlg.showModal()}
+ else if("viewers" in d){const dlg=document.getElementById("invite");dlg.innerHTML=viewersDialog();dlg.showModal()}
+ else if("viewerAdd" in d){m(editing).viewers.push({name:"Nouveau profil",pin:false,age:m(editing).age,kinds:[...m(editing).kinds]});document.getElementById("invite").innerHTML=viewersDialog();render()}
+ else if(d.promote!==undefined){const v=m(editing).viewers[+d.promote];status(`Invitation créée pour ${v.name} : son historique la suivra`);m(editing).viewers.splice(+d.promote,1);document.getElementById("invite").innerHTML=viewersDialog();render()}
+ else if(d.forget!==undefined){const s=m(editing).screens.splice(+d.forget,1)[0];status(`${s.name} oublié : il devra se reconnecter`);document.getElementById("invite").innerHTML=viewersDialog()}
+ else if(d.viewerRemove!==undefined){m(editing).viewers.splice(+d.viewerRemove,1);document.getElementById("invite").innerHTML=viewersDialog();render()}
+ else if("copy" in d){status("Lien copié");t.textContent="Copié"}
+ else if("cancelInvite" in d){const x=m(d.cancelInvite);if(confirm(`Annuler l'invitation de ${x.name} ? Le lien ne fonctionnera plus.`)){members=members.filter(y=>y!==x);editing=members[0]?.id;status("Invitation annulée");render()}}
+});
+function go(step){const i=variants.findIndex(v=>v[0]===variant);variant=variants[(i+step+variants.length)%variants.length][0];const u=new URL(location);u.searchParams.set("variant",variant);history.replaceState(null,"",u);render()}
+document.getElementById("prev").onclick=()=>go(-1);document.getElementById("next").onclick=()=>go(1);
+document.getElementById("theme").onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="light"?"dark":"light"};
+document.addEventListener("keydown",e=>{if(e.target.closest("input,textarea,select,[contenteditable]"))return;if(e.key==="ArrowLeft")go(-1);if(e.key==="ArrowRight")go(1)});
+if(!variants.some(v=>v[0]===variant))variant="A";render();
+</script>

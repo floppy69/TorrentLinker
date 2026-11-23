@@ -791,3 +791,15 @@ def test_a_refusal_reporting_its_limit_paces_later_requests_at_that_rate(caplog)
     assert clock.now - sent_before == pytest.approx(2 * 1.05)
     assert "refused a api request with key 1 (429)" in caplog.text
     assert "limit 60 per 60 s" in caplog.text
+
+
+def test_rss_retains_nonvideo_structured_facts_without_inferring_from_names():
+    xml = """<rss xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel><item>
+      <title>Some.Windows.Application</title>
+      <torznab:attr name="category" value="4050"/>
+      <torznab:attr name="platform" value="Linux"/>
+      <torznab:attr name="license" value="Freeware"/>
+      <torznab:attr name="format" value="DEB"/>
+    </item></channel></rss>"""
+    row = make_indexer(lambda request: httpx.Response(200, text=xml)).search(SearchQuery())[0]
+    assert row.metadata == {"platform": "Linux", "license": "Freeware", "format": "DEB"}

@@ -11,6 +11,7 @@ from tests.torrents import make_torrent
 from torrentlinker.clients import connect
 from torrentlinker.config import Settings
 from torrentlinker.domain import TorrentClient
+from torrentlinker.login_guard import LoginRefused
 from torrentlinker.matching import Match
 from torrentlinker.qbit import AlreadyInClient
 from torrentlinker.rtorrent import TAGS_KEY, RtorrentApi, RtorrentError, _state
@@ -156,7 +157,7 @@ def test_an_address_rtorrent_cannot_answer_on_is_refused(host: str) -> None:
 def test_the_web_servers_login_and_rtorrent_faults_are_clear() -> None:
     fake = FakeRtorrent()
     fake.auth = httpx.BasicAuth("me", "secret")._auth_header
-    with pytest.raises(RtorrentError, match="username or password"):
+    with pytest.raises(LoginRefused, match="refused the login"):
         api_for(fake).check()
     api = api_for(fake, username="me", password="secret")
     assert api.check() == "0.15.2"

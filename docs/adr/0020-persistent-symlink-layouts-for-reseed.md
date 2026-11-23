@@ -7,3 +7,5 @@ Links are permanent for the lifetime of a Reseed, not temporary verification fil
 The board requires every torrent file, including ignored small files. It verifies source pieces locally before adding the torrent stopped, then verifies again in the Torrent Client before starting it. Archives, incomplete matches and ambiguous candidates stop for review. The board never falls back to a disk rename, creates replacement media, or automatically downloads missing content. It retains link layouts on cancellation or failure; removing them while seeding would break the Reseed.
 
 One shared workflow drives both interfaces. Run all processes each item through search, comparison, links, verification and sharing. Pause takes effect between operations and during local hashing; a client hash check already in flight may finish while paused. Cancellation retains completed steps. Restart never automatically resumes a run or starts a torrent.
+
+Configured client workflows now use the per-client layout choice in ADR-0021. Existing layouts and recovery journals remain intact.

@@ -64,3 +64,13 @@ rTorrent a ses propres limites (voir l’[ADR-0017](../../adr/0017-rtorrent-thro
 - **Retirer un torrent ne supprime jamais ses fichiers** ; supprimez-les vous-même si vous le souhaitez.
 
 Pour le développement, `tests/test_rtorrent_integration.py` s’exécute contre un rTorrent jetable dans Docker : voir `scripts/rtorrent_sandbox.py`.
+
+## Transférer vers ou depuis une seedbox
+
+Sélectionnez les torrents, puis ouvrez **Transférer vers un autre client**. Choisissez le client de destination. Ses dossiers par catégorie sont proposés automatiquement ; vous pouvez changer un dossier pour ce transfert sans modifier les réglages enregistrés.
+
+Pour des fichiers qui ne sont pas montés localement, choisissez **Configurer l’accès aux fichiers** pour la source ou la destination. Saisissez le serveur SFTP, le port, l’utilisateur et le mot de passe ou la clé privée SSH non chiffrée. Faites correspondre le dossier vu par le client torrent au dossier vu en SFTP. Testez l’accès, comparez l’empreinte affichée à celle fournie par votre hébergeur, puis confirmez-la et testez à nouveau. Les identifiants utilisent le stockage sécurisé existant et restent séparés de la connexion au client torrent.
+
+TorrentLinker copie les données depuis l’ordinateur de bureau ou le serveur Web. Un transfert entre deux seedboxes passe par cette machine. Le navigateur ne transporte pas les fichiers. Le serveur doit fournir l’espace disponible ; les dossiers contenant des liens symboliques ne sont pas pris en charge. Tous les éléments du plan doivent passer les contrôles avant l’activation du bouton de démarrage.
+
+Chaque torrent affiche les octets copiés, le débit et le temps restant. Après une interruption, ouvrez son historique de transfert et reprenez après vérification. TorrentLinker contrôle les données partielles avant de continuer. Le nettoyage à la source demande une confirmation séparée, disponible seulement après vérification du contenu et du seed à destination.

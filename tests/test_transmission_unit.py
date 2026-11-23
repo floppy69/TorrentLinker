@@ -7,13 +7,13 @@ import httpx
 import pytest
 
 from tests.torrents import make_torrent
+from torrentlinker.login_guard import LoginRefused
 from torrentlinker.qbit import AlreadyInClient
 from torrentlinker.torrent_meta import read_torrent
 from torrentlinker.transmission import (
     PartialNamesOn,
     RenameUnsupported,
     TransmissionApi,
-    TransmissionError,
     _state,
 )
 
@@ -160,7 +160,7 @@ def test_the_session_id_handshake_and_version() -> None:
 
 
 def test_a_wrong_password_is_reported() -> None:
-    with pytest.raises(TransmissionError, match="username or password"):
+    with pytest.raises(LoginRefused, match="refused the login"):
         api_for(FakeRpc(password="secret"), "me", "wrong").check()
     assert api_for(FakeRpc(password="secret"), "me", "secret").check() == "4.1.3"
 

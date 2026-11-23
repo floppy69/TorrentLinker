@@ -203,6 +203,7 @@ def test_near_match_diagnostic_counts_valid_bytes_without_modifying_original(tmp
     )
     result = library.diagnose(str(video), candidate, data, threading.Event())
     assert result["verified_bytes"] == len(original) - meta.piece_length
+    assert result["size_difference"] == 0
     assert result["eligible"] is True
     assert result["status"] == "awaiting-confirmation"
     assert video.read_bytes() == b"X" * 128 + original[128:]
@@ -278,6 +279,12 @@ def test_selected_seasons_share_a_virtual_manifest_without_copying_files(tmp_pat
     assert entry.item.files == {"S01/Show.S01E01.mkv": 300, "S02/Show.S02E01.mkv": 300}
     assert not entry.item.path.exists()
     assert sorted(p.name for p in root.iterdir()) == ["S01", "S02"]
+    rows = library.rows()
+    group = next(row for row in rows if row["path"] == selected["path"])
+    assert group["members"] == [str(root / "S01"), str(root / "S02")]
+    assert group["state"] == "orphan"
+    assert group["size"] == 600
+    assert {str(root / "S01"), str(root / "S02")} <= {row["path"] for row in rows}
 
 
 def test_import_refuses_invalid_metadata_and_never_persists_tracker_secrets(tmp_path):

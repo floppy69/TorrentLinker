@@ -19,7 +19,10 @@ from xml.etree import ElementTree
 from guessit import guessit
 
 from torrentlinker import media_tracks
+from torrentlinker.accounts import OWNER, OWNER_ACTOR, Actor, Permission
 from torrentlinker.domain import ContentKind
+from torrentlinker.media_ratings import AgeRatings
+from torrentlinker.media_tracker import TrackerRows
 
 VIDEO = {".mp4", ".m4v", ".mkv", ".webm", ".avi", ".mov", ".mpeg", ".mpg", ".ts", ".wmv"}
 AUDIO = {".mp3", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".aiff", ".wma", ".wv"}
@@ -115,12 +118,21 @@ def bounded_number(value, maximum=8640000):
     return number
 
 
-class MediaLibrary:
+class UnfinishedMedia(ValueError):
+    """A registered file belongs to a download or verification still in progress."""
+
+
+class MediaLibrary(TrackerRows, AgeRatings):
     def __init__(self, agent):
         self.agent = agent
         self.lock = threading.RLock()
         self.db = sqlite3.connect(agent.setup.path.parent / "media.sqlite", check_same_thread=False)
         self.db.row_factory = sqlite3.Row
+        # The player saves its position every second: without WAL each save waited for
+        # several disk syncs. NORMAL keeps the database intact; a power cut may lose the
+        # last few position updates.
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA synchronous=NORMAL")
         self.scanning: set[str] = set()
         self.previews: dict[str, dict[str, Any]] = {}
         self.observations: dict[str, tuple[object, set[str]]] = {}
@@ -131,17 +143,61 @@ class MediaLibrary:
                     modified INTEGER, added REAL, body TEXT, PRIMARY KEY(client,id));
                 CREATE TABLE IF NOT EXISTS media_progress
                     (client TEXT, item TEXT, position REAL, duration REAL, watched INTEGER,
-                    PRIMARY KEY(client,item));
+                    account TEXT NOT NULL DEFAULT 'owner', viewer TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY(client,item,account,viewer));
                 CREATE TABLE IF NOT EXISTS media_options (key TEXT PRIMARY KEY, body TEXT);
                 CREATE TABLE IF NOT EXISTS media_sessions
                     (id TEXT PRIMARY KEY, token TEXT, client TEXT, platform TEXT,
                     updated REAL, body TEXT, commands TEXT, actor TEXT DEFAULT '',
-                    conversation TEXT DEFAULT '');
+                    conversation TEXT DEFAULT '', account TEXT NOT NULL DEFAULT 'owner',
+                    viewer TEXT NOT NULL DEFAULT '');
                 CREATE TABLE IF NOT EXISTS media_playlists
-                    (id TEXT PRIMARY KEY, client TEXT, name TEXT, items TEXT);
+                    (id TEXT PRIMARY KEY, client TEXT, name TEXT, items TEXT,
+                    account TEXT NOT NULL DEFAULT 'owner', viewer TEXT NOT NULL DEFAULT '');
                 CREATE TABLE IF NOT EXISTS media_selections
                     (id TEXT PRIMARY KEY, actor TEXT, client TEXT, items TEXT);
             """)
+        self.migrate_to_actors()
+        self.create_ratings()
+
+    def migrate_to_actors(self):
+        """Give progress, playlists and sessions an actor (ADR-0022); old rows are the Owner's.
+
+        Runs once, in one transaction: an interrupted migration leaves the old tables intact.
+        The account column's default is only for the old rows; new rows always name theirs.
+        """
+
+        def missing(table):
+            return "account" not in {r[1] for r in self.db.execute(f"PRAGMA table_info({table})")}
+
+        script = ""
+        if missing("media_progress"):
+            script += """
+                ALTER TABLE media_progress RENAME TO media_progress_old;
+                CREATE TABLE media_progress
+                    (client TEXT, item TEXT, position REAL, duration REAL, watched INTEGER,
+                    account TEXT NOT NULL DEFAULT 'owner', viewer TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY(client,item,account,viewer));
+                INSERT INTO media_progress (client, item, position, duration, watched)
+                    SELECT client, item, position, duration, watched FROM media_progress_old;
+                DROP TABLE media_progress_old;
+            """
+        for table in ("media_playlists", "media_sessions"):
+            if missing(table):
+                script += f"""
+                    ALTER TABLE {table} ADD COLUMN account TEXT NOT NULL DEFAULT 'owner';
+                    ALTER TABLE {table} ADD COLUMN viewer TEXT NOT NULL DEFAULT '';
+                """
+        if not script:
+            return
+        with self.lock:
+            try:
+                # executescript commits first, so the script holds its own transaction.
+                self.db.executescript("BEGIN IMMEDIATE;" + script + "COMMIT;")
+            except BaseException:
+                if self.db.in_transaction:
+                    self.db.rollback()
+                raise
 
     def setup(self, client_id):
         client_id = client_id or self.agent.setup.settings.default_client_id
@@ -179,16 +235,92 @@ class MediaLibrary:
             raise ValueError("This media folder is no longer registered.")
         return row
 
+    def visibility(self, client_id, actor: Actor, item=None):
+        """Whether the actor sees a library record (ADR-0022): its Library Folder and Content
+        Kind are allowed, its Age Rating is at or under the limit (an unrated video is hidden
+        under any limit; music has no rating) and adult content needs its Permission. The
+        Owner sees everything. `item` narrows the ratings read to one item."""
+        if actor.owner:
+            return lambda record: True
+        settings = self.setup(client_id).settings
+        adult_folders = {
+            str(folder.path.absolute())
+            for folder in settings.library_folders
+            if folder.kind is ContentKind.ADULT
+        }
+        ranks: dict[str, int] = {}
+        if actor.age_limit is not None:
+            query = "SELECT item, rank FROM media_ratings WHERE client=? AND rank IS NOT NULL"
+            values = [client_id]
+            if item is not None:
+                query, values = query + " AND item=?", [client_id, item]
+            with self.lock:
+                ranks = {r["item"]: r["rank"] for r in self.db.execute(query, values)}
+
+        def sees(record) -> bool:
+            if actor.folders is not None and record["folder"] not in actor.folders:
+                return False
+            if record["folder"] in adult_folders and not (
+                settings.adult_content and actor.holds(Permission.ADULT)
+            ):
+                return False
+            body = json.loads(record["body"])
+            if body.get("kind") == "music":
+                return actor.holds(Permission.MUSIC)
+            kind = (
+                Permission.ANIME
+                if is_anime(body, record["path"])
+                else Permission.SERIES
+                if body.get("series")
+                else Permission.FILMS
+            )
+            if not actor.holds(kind):
+                return False
+            rank = ranks.get(record["id"])
+            return actor.age_limit is None or rank is not None and rank <= actor.age_limit
+
+        return sees
+
+    def visible(self, client_id, identifier, actor: Actor):
+        """The item's record when the actor sees it. KeyError for a hidden item, the same as
+        for a missing one, so a guessed identifier tells nothing."""
+        try:
+            record = self.record(client_id, identifier)
+        except ValueError:
+            raise KeyError(identifier) from None
+        if not self.visibility(client_id, actor, identifier)(record):
+            raise KeyError(identifier)
+        return record
+
+    def visible_ids(self, client_id, actor: Actor) -> set[str]:
+        sees = self.visibility(client_id, actor)
+        with self.lock:
+            records = self.db.execute(
+                "SELECT * FROM media_items WHERE client=?", (client_id,)
+            ).fetchall()
+        return {r["id"] for r in records if sees(r)}
+
+    def holder(self, identifier) -> str | None:
+        """The Torrent Client whose library holds this item, the default client first: a
+        Member never chooses one."""
+        default = self.agent.setup.settings.default_client_id
+        with self.lock:
+            row = self.db.execute(
+                "SELECT client FROM media_items WHERE id=? ORDER BY client<>? LIMIT 1",
+                (identifier, default),
+            ).fetchone()
+        return row["client"] if row else None
+
     def resolve(self, client_id, identifier):
         row = self.record(client_id, identifier)
         body = json.loads(row["body"])
         if body.get("incomplete"):
-            raise ValueError("This file is still downloading or awaiting Verification.")
+            raise UnfinishedMedia("This file is still downloading or awaiting Verification.")
         path = self.checked_path(client_id, row["path"], row["folder"])
         if not path.is_file() or path.stat().st_size != row["size"] or row["size"] <= 0:
             raise ValueError("This file is missing or has changed. Refresh the media library.")
         if any(path.is_relative_to(p) for p in self.incomplete_paths(client_id)):
-            raise ValueError("This file is still downloading or awaiting Verification.")
+            raise UnfinishedMedia("This file is still downloading or awaiting Verification.")
         return path
 
     def incomplete_paths(self, client_id):
@@ -220,11 +352,14 @@ class MediaLibrary:
                 raise ValueError("A media refresh is already running for this client.")
             self.scanning.add(client_id)
         try:
-            before = self.revision(client_id)
+            before, saves = self.revision(client_id), self.tracker_saves()
             result = self._scan(client_id, setup, stop, progress)
             if not result.get("cancelled"):
-                # Lets an automatic refresh reload the screen only when something changed.
-                result["changed"] = self.revision(client_id) != before
+                # Lets an automatic refresh reload the screen only when something changed,
+                # in the library or in the tracker's suggestions.
+                result["changed"] = (
+                    self.revision(client_id) != before or self.tracker_saves() != saves
+                )
             return result
         finally:
             with self.lock:
@@ -366,6 +501,9 @@ class MediaLibrary:
                             ):
                                 # Classified as a series by the older filename rule: read again.
                                 body = self.inspect(path, extension, client_id, base)
+                            elif body.get("kind") == "video" and "certification" not in body:
+                                # Read before Age Ratings: only the NFO's rating is new.
+                                body.update(self.nfo_age_rating(client_id, path, base))
                         else:
                             body = self.inspect(path, extension, client_id, base)
                         known = enrichment.get(str(path))
@@ -432,6 +570,9 @@ class MediaLibrary:
         details = self.enrich(client_id, setup, stop, progress, target.observed)
         if stop.is_set():
             return {"cancelled": True}
+        self.apply_age_ratings(client_id, setup, stop)
+        if details not in {"limit", "rejected"}:
+            self.tracker_refresh(client_id, setup, stop)
         if details in {"limit", "unavailable", "rejected"}:
             # The library is complete; the remaining descriptions come with a later refresh.
             note = {
@@ -660,9 +801,36 @@ class MediaLibrary:
         if not body.get("artwork") and not body.get("remote_artwork"):
             body["remote_artwork"] = text("posterUrl", 2000)
         content = text("id", 40)
+        if content.isdigit() and not body.get("tmdb_id"):
+            body["tmdb_id"] = content  # a film's, or a series' (for Age Ratings)
         if content and body.get("identity_source") == "filename" and not body.get("series"):
             body["content_id"] = identity("tmdb:movie:" + content)
             body["identity_source"] = "c411 release description"
+
+    def nfo_age_rating(self, client_id, path, folder) -> dict:
+        """The Age Rating and TMDb id of a video's NFO, without reading the video again."""
+        found: dict[str, str] = {"certification": ""}
+        for nfo in (
+            path.with_suffix(".nfo"),
+            path.parent / "movie.nfo",
+            path.parent / "tvshow.nfo",
+        ):
+            try:
+                metadata = ElementTree.fromstring(self.sidecar(client_id, nfo, folder))
+            except (OSError, ValueError, ElementTree.ParseError):
+                continue
+            if metadata.tag not in {"movie", "tvshow", "episodedetails"}:
+                continue
+            found["certification"] = " / ".join(
+                text.strip()
+                for tag in ("certification", "mpaa")
+                if (text := metadata.findtext(tag)) and text.strip()
+            )[:200]
+            for unique in metadata.findall("uniqueid"):
+                if unique.get("type") == "tmdb" and (unique.text or "").strip().isdigit():
+                    found["tmdb_id"] = unique.text.strip()  # type: ignore[union-attr]
+            break
+        return found
 
     def sidecar(self, client_id, path, folder, maximum=262144):
         checked = self.checked_path(client_id, str(path), folder)
@@ -692,6 +860,8 @@ class MediaLibrary:
             "subtitles": [],
             "artwork": "",
         }
+        if kind == "video":
+            body["certification"] = ""  # read: an NFO's Age Rating, when it has one
         if kind == "music":
             from torrentlinker.audio_tags import read_tags
 
@@ -786,6 +956,7 @@ class MediaLibrary:
                 body.update(
                     duration=facts.duration,
                     codec=facts.video_codec,
+                    audio_codecs=sorted({a.codec for a in facts.audio if a.codec}),
                     language=", ".join(sorted({a.language for a in facts.audio if a.language})),
                     embedded_subtitles=[
                         {"label": s.language or "Unknown language", "format": s.format}
@@ -809,8 +980,18 @@ class MediaLibrary:
                     ):
                         if text := metadata.findtext(tag):
                             body[field] = text[:16000]
+                    # Age Ratings: "FR:12", "Rated R"… (Kodi writes both tags).
+                    certification = " / ".join(
+                        text.strip()
+                        for tag in ("certification", "mpaa")
+                        if (text := metadata.findtext(tag)) and text.strip()
+                    )
+                    if certification:
+                        body["certification"] = certification[:200]
                     for unique in metadata.findall("uniqueid"):
                         provider = unique.get("type", "")
+                        if provider == "tmdb" and unique.text and unique.text.strip().isdigit():
+                            body["tmdb_id"] = unique.text.strip()
                         if provider in {"tmdb", "imdb"} and unique.text:
                             episode_key = (
                                 f":{body['season']}:{body['episode']}"
@@ -851,7 +1032,7 @@ class MediaLibrary:
                 continue
         return body
 
-    def row(self, record, *, check=True):
+    def row(self, record, *, check=True, account=OWNER, viewer=""):
         body = json.loads(record["body"])
         public = {
             k: v
@@ -866,17 +1047,25 @@ class MediaLibrary:
                 "remote_artwork",
             }
         }
+        # Capability only: starting a preview still validates the live torrent,
+        # sequential mode, single-file layout and verified piece map.
+        public["preview_supported"] = (
+            body.get("kind") == "video"
+            and self.setup(record["client"]).settings.client == "qbittorrent"
+        )
         public["subtitles"] = [
             {"id": s["id"], "label": s["label"]} for s in body.get("subtitles", [])
         ]
         with self.lock:
             saved = self.db.execute(
-                "SELECT * FROM media_progress WHERE client=? AND item=?",
-                (record["client"], record["id"]),
+                "SELECT * FROM media_progress WHERE client=? AND item=? AND account=? AND viewer=?",
+                (record["client"], record["id"], account, viewer),
             ).fetchone()
         public.update(
             id=record["id"],
+            size=record["size"],
             added=record["added"],
+            age_rating=self.age_rating(record["client"], record["id"]),
             anime=is_anime(body, record["path"]),
             oav=bool(body.get("oav")),
             position=saved["position"] if saved else 0,
@@ -910,7 +1099,9 @@ class MediaLibrary:
             # Do not expose paths, which low-level filesystem exceptions can contain.
             public.update(
                 available=False,
-                availability="unfinished" if body.get("incomplete") else "unavailable",
+                availability="unfinished"
+                if body.get("incomplete") or isinstance(error, UnfinishedMedia)
+                else "unavailable",
                 reason=reason
                 if isinstance(error, ValueError)
                 and not isinstance(error, OSError)
@@ -937,6 +1128,7 @@ class MediaLibrary:
         adult=False,
         anime=None,
         oav=None,
+        actor=OWNER_ACTOR,
         **unused,
     ):
         self.setup(client_id)
@@ -957,14 +1149,17 @@ class MediaLibrary:
             if folder.kind is ContentKind.ADULT
         }
         adult = bool(adult)
+        sees = self.visibility(client_id, actor)
         records = [
             record
             for record in records
             if record["folder"] in registered
             and (record["folder"] in adult_folders) == adult
             and (settings.adult_content or not adult)
+            and sees(record)
         ]
-        rows = [self.row(r, check=bool(availability)) for r in records]
+        who = {"account": actor.account, "viewer": actor.viewer}
+        rows = [self.row(r, check=bool(availability), **who) for r in records]
         rows = [r for r in rows if (not kind or r["kind"] == kind)]
         filters = {
             name: sorted({str(r.get(name) or "") for r in rows if r.get(name)})
@@ -1031,10 +1226,10 @@ class MediaLibrary:
         by_id = {record["id"]: record for record in records}
         page = []
         for row in rows[offset : offset + limit]:
-            checked = self.row(by_id[row["id"]])
+            checked = self.row(by_id[row["id"]], **who)
             if not checked["available"] and row["kind"] == "video" and not availability:
                 for alternative in releases_by_content[row["content_id"]][:200]:
-                    candidate = self.row(by_id[alternative])
+                    candidate = self.row(by_id[alternative], **who)
                     if candidate["available"]:
                         checked = candidate
                         break
@@ -1085,14 +1280,16 @@ class MediaLibrary:
         order = {(row["series"], bool(row.get("oav"))): i for i, row in enumerate(rows)}
         return sorted(cards.values(), key=lambda card: order[card["series"], card["oav"]])
 
-    def home_rows(self, client_id, *, kind="video", limit=20, genres=8, scope="home"):
+    def home_rows(
+        self, client_id, *, kind="video", limit=20, genres=8, scope="home", actor=OWNER_ACTOR
+    ):
         """Video browsing as rows. The home: what to continue, what is new, the main genres,
         series, the best rated and what is not watched yet. The Films and Series views: what
         is new and the main genres of that kind. Each row says how to see all of it."""
         rows = []
 
         def add(key, title, **filters):
-            page = self.listing(client_id, kind=kind, limit=limit, **filters)
+            page = self.listing(client_id, kind=kind, limit=limit, actor=actor, **filters)
             if page["rows"]:
                 rows.append(
                     {
@@ -1105,7 +1302,7 @@ class MediaLibrary:
                 )
 
         def genre_rows(view, least=3, **extra):
-            page = self.listing(client_id, kind=kind, view=view, limit=200, **extra)
+            page = self.listing(client_id, kind=kind, view=view, limit=200, actor=actor, **extra)
             counts: dict[str, int] = {}
             while True:
                 for row in page["rows"]:
@@ -1119,6 +1316,7 @@ class MediaLibrary:
                     view=view,
                     limit=200,
                     offset=page["next_offset"],
+                    actor=actor,
                     **extra,
                 )
             top = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
@@ -1147,21 +1345,54 @@ class MediaLibrary:
             add("recent", "", view="recent")
         else:
             add("recent", "", view=base, **apart)
+        # Films on c411 whose release scores well: the newest right after the library's,
+        # better versions of library films last.
+        tracker = (
+            self.tracker_rows(client_id, self.setup(client_id))
+            if scope in {"home", "films"} and kind == "video"
+            else {}
+        )
+        if not actor.owner:
+            # Films not in the library yet: films, with no Age Rating, so hidden under a
+            # limit. Better versions of library films are the Owner's concern.
+            tracker.pop("upgrades", None)
+            if not self.sees_tracker(actor):
+                tracker.pop("tracker", None)
+        if "tracker" in tracker:
+            rows.append(tracker["tracker"])
         # Libraries hold far fewer series than films.
         genre_rows(base, least=2 if base == "series" else 3, **apart)
         if scope == "home":
             add("series", "", view="series")
             add("rated", "", view="rated")
             add("unwatched", "", view="unwatched")
+        if "upgrades" in tracker:
+            rows.append(tracker["upgrades"])
         return {"rows": rows}
 
-    def detail(self, client_id, identifier, *, episodes_offset=0, releases_offset=0, limit=200):
-        item = self.row(self.record(client_id, identifier))
+    @staticmethod
+    def sees_tracker(actor: Actor) -> bool:
+        """Tracker films are unrated films: shown with the Films Permission and no limit."""
+        return actor.owner or actor.holds(Permission.FILMS) and actor.age_limit is None
+
+    def detail(
+        self,
+        client_id,
+        identifier,
+        *,
+        episodes_offset=0,
+        releases_offset=0,
+        limit=200,
+        actor=OWNER_ACTOR,
+    ):
+        who = {"account": actor.account, "viewer": actor.viewer}
+        item = self.row(self.record(client_id, identifier), **who)
+        sees = self.visibility(client_id, actor)
         with self.lock:
             records = self.db.execute(
                 "SELECT * FROM media_items WHERE client=?", (client_id,)
             ).fetchall()
-        others = [self.row(r, check=False) for r in records]
+        others = [self.row(r, check=False, **who) for r in records if sees(r)]
         releases = [r for r in others if r["content_id"] == item["content_id"]]
         episodes = sorted(
             [
@@ -1210,6 +1441,8 @@ class MediaLibrary:
         return "asset:" + key
 
     def artwork(self, client_id, identifier):
+        if identifier.startswith("tracker-"):
+            return self.tracker_artwork(client_id, identifier[8:])
         row = self.record(client_id, identifier)
         image = json.loads(row["body"]).get("artwork")
         if not image:
@@ -1261,59 +1494,101 @@ class MediaLibrary:
             text = "WEBVTT\n\n" + re.sub(r"(\d\d:\d\d:\d\d),(\d{3})", r"\1.\2", text)
         return text.encode(), "text/vtt; charset=utf-8"
 
-    def watched(self, client_id, identifier, watched):
-        item = self.row(self.record(client_id, identifier))
+    def watched(self, client_id, identifier, watched, *, account=OWNER, viewer=""):
+        who = {"account": account, "viewer": viewer}
+        item = self.row(self.record(client_id, identifier), **who)
         with self.lock, self.db:
-            self.db.execute(
-                "INSERT OR REPLACE INTO media_progress VALUES (?,?,?,?,?)",
-                (client_id, identifier, item["position"], item["duration"], bool(watched)),
+            self.save_progress(
+                client_id, identifier, item["position"], item["duration"], watched, **who
             )
-        return self.row(self.record(client_id, identifier))
+        return self.row(self.record(client_id, identifier), **who)
 
-    def forget_progress(self, client_id, identifier):
+    def save_progress(self, client_id, identifier, position, duration, watched, *, account, viewer):
+        self.db.execute(
+            "INSERT OR REPLACE INTO media_progress "
+            "(client, item, position, duration, watched, account, viewer) VALUES (?,?,?,?,?,?,?)",
+            (client_id, identifier, position, duration, bool(watched), account, viewer),
+        )
+
+    def forget_account(self, account):
+        """Erase a deleted Member's progress, playlists and Media sessions, Viewers' included."""
+        with self.lock, self.db:
+            for table in ("media_progress", "media_playlists", "media_sessions"):
+                self.db.execute(f"DELETE FROM {table} WHERE account=?", (account,))
+
+    def forget_viewer(self, account, viewer):
+        """Erase a removed Viewer's progress, playlists and Media sessions."""
+        with self.lock, self.db:
+            for table in ("media_progress", "media_playlists", "media_sessions"):
+                self.db.execute(
+                    f"DELETE FROM {table} WHERE account=? AND viewer=?", (account, viewer)
+                )
+
+    def move_viewer(self, account, viewer, member):
+        """A Viewer promoted to Member keeps their history under their new account."""
+        with self.lock, self.db:
+            for table in ("media_progress", "media_playlists", "media_sessions"):
+                self.db.execute(
+                    f"UPDATE {table} SET account=?, viewer='' WHERE account=? AND viewer=?",
+                    (member, account, viewer),
+                )
+
+    def forget_progress(self, client_id, identifier, *, account=OWNER, viewer=""):
         """Reset playback progress so the title leaves Continue watching."""
-        self.setup(client_id)
+        self.record(client_id, identifier)
         with self.lock, self.db:
             self.db.execute(
-                "DELETE FROM media_progress WHERE client=? AND item=?", (client_id, identifier)
+                "DELETE FROM media_progress WHERE client=? AND item=? AND account=? AND viewer=?",
+                (client_id, identifier, account, viewer),
             )
 
-    def playlists(self, client_id):
+    def playlists(self, client_id, *, account=OWNER, viewer=""):
         self.setup(client_id)
         with self.lock:
             rows = self.db.execute(
-                "SELECT * FROM media_playlists WHERE client=? ORDER BY name", (client_id,)
+                "SELECT * FROM media_playlists WHERE client=? AND account=? AND viewer=? "
+                "ORDER BY name",
+                (client_id, account, viewer),
             ).fetchall()
         return [
             {"id": r["id"], "name": r["name"], "media_ids": json.loads(r["items"])} for r in rows
         ]
 
-    def save_playlist(self, client_id, name, media_ids, identifier=""):
+    def save_playlist(self, client_id, name, media_ids, identifier="", *, account=OWNER, viewer=""):
         if not name.strip() or len(name) > 100 or len(media_ids) > 1000:
             raise ValueError("Use a playlist name and at most 1,000 tracks.")
         for media_id in media_ids:
             row = self.record(client_id, media_id)
             if json.loads(row["body"])["kind"] != "music":
                 raise ValueError("Music playlists accept tracks only.")
-        if identifier and not any(p["id"] == identifier for p in self.playlists(client_id)):
+        owned = self.playlists(client_id, account=account, viewer=viewer)
+        if identifier and not any(p["id"] == identifier for p in owned):
             raise ValueError("Playlist unavailable for this client.")
         identifier = identifier or uuid4().hex
         with self.lock, self.db:
             self.db.execute(
-                "INSERT OR REPLACE INTO media_playlists VALUES (?,?,?,?)",
-                (identifier, client_id, name.strip(), json.dumps(media_ids)),
+                "INSERT OR REPLACE INTO media_playlists "
+                "(id, client, name, items, account, viewer) VALUES (?,?,?,?,?,?)",
+                (identifier, client_id, name.strip(), json.dumps(media_ids), account, viewer),
+            )
+        if media_ids:
+            from torrentlinker.achievements import record_completion
+
+            record_completion(
+                self.agent.setup.path.parent, "playlist", identifier, account=account, viewer=viewer
             )
         return {"id": identifier, "name": name.strip(), "media_ids": media_ids}
 
-    def delete_playlist(self, client_id, identifier):
+    def delete_playlist(self, client_id, identifier, *, account=OWNER, viewer=""):
         self.setup(client_id)
         with self.lock, self.db:
             self.db.execute(
-                "DELETE FROM media_playlists WHERE client=? AND id=?", (client_id, identifier)
+                "DELETE FROM media_playlists WHERE client=? AND id=? AND account=? AND viewer=?",
+                (client_id, identifier, account, viewer),
             )
         return {"ok": True}
 
-    def open_session(self, client_id, platform="web"):
+    def open_session(self, client_id, platform="web", *, account=OWNER, viewer=""):
         self.setup(client_id)
         identifier, token = uuid4().hex, secrets.token_urlsafe(32)
         state = {
@@ -1331,7 +1606,8 @@ class MediaLibrary:
         }
         with self.lock, self.db:
             self.db.execute(
-                "INSERT INTO media_sessions VALUES (?,?,?,?,?,?,?,'','')",
+                "INSERT INTO media_sessions (id, token, client, platform, updated, body, commands, "
+                "account, viewer) VALUES (?,?,?,?,?,?,?,?,?)",
                 (
                     identifier,
                     identity(token),
@@ -1340,6 +1616,8 @@ class MediaLibrary:
                     time.time(),
                     json.dumps(state),
                     "[]",
+                    account,
+                    viewer,
                 ),
             )
         return {"id": identifier, "token": token, "state": state, "commands": []}
@@ -1443,8 +1721,9 @@ class MediaLibrary:
                 state["command_ack"] = max(state.get("command_ack", 0), ack)
                 if current:
                     previous = self.db.execute(
-                        "SELECT watched FROM media_progress WHERE client=? AND item=?",
-                        (row["client"], current),
+                        "SELECT watched FROM media_progress "
+                        "WHERE client=? AND item=? AND account=? AND viewer=?",
+                        (row["client"], current, row["account"], row["viewer"]),
                     ).fetchone()
                     watched = bool(previous[0]) if previous else False
                     browsing = context or state.get("context", {})
@@ -1459,9 +1738,14 @@ class MediaLibrary:
                             watched = True
                         except (ValueError, OSError):
                             pass
-                    self.db.execute(
-                        "INSERT OR REPLACE INTO media_progress VALUES (?,?,?,?,?)",
-                        (row["client"], current, state["position"], state["duration"], watched),
+                    self.save_progress(
+                        row["client"],
+                        current,
+                        state["position"],
+                        state["duration"],
+                        watched,
+                        account=row["account"],
+                        viewer=row["viewer"],
                     )
             if command_ack is not None:
                 state["command_ack"] = max(state.get("command_ack", 0), int(command_ack))
@@ -1718,7 +2002,7 @@ class MediaLibrary:
             raise ValueError("qBittorrent returned an incomplete piece map.")
         return path, size, piece_size, [piece == 2 for piece in pieces]
 
-    def create_preview(self, client_id, identifier):
+    def create_preview(self, client_id, identifier, *, account=OWNER):
         from torrentlinker.paths import PathMapper
 
         setup = self.setup(client_id)
@@ -1742,6 +2026,7 @@ class MediaLibrary:
             self.previews[preview_id] = {
                 "client": client_id,
                 "item": identifier,
+                "account": account,
                 "hash": torrent_hash,
                 "bytes": verified,
                 "created": time.time(),
@@ -1757,6 +2042,12 @@ class MediaLibrary:
             "note": "Fixed verified prefix. Refresh preview as the download progresses. "
             "Formats needing the missing end of the file may not play yet.",
         }
+
+    def preview_owner(self, preview_id) -> tuple[str, str, str] | None:
+        """The client, item and account of an open preview."""
+        with self.lock:
+            preview = self.previews.get(preview_id)
+        return (preview["client"], preview["item"], preview["account"]) if preview else None
 
     def preview_source(self, client_id, preview_id):
         with self.lock:

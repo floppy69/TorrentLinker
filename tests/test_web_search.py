@@ -111,7 +111,7 @@ def png():
     )
 
 
-def fake_net(monkeypatch, seen):
+def fake_net(monkeypatch, seen, caps="<caps><categories/></caps>"):
     def handler(request):
         seen.append(request)
         path = request.url.path
@@ -127,7 +127,7 @@ def fake_net(monkeypatch, seen):
             return httpx.Response(200, json=c411_listing(request))
         if path.startswith("/api/torrents/"):
             return httpx.Response(200, json=DETAIL)
-        return httpx.Response(200, text="<caps><categories/></caps>")
+        return httpx.Response(200, text=caps)
 
     monkeypatch.setattr(
         net, "client", lambda **kwargs: httpx.Client(transport=httpx.MockTransport(handler))

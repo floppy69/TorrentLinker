@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from PySide6.QtCore import QBuffer, QCoreApplication, QEvent, QIODevice, QUrl
 from PySide6.QtGui import QImage, QTextDocument
 
+from tests.shell_support import shell_navigate
 from tests.test_assistant import login
 from torrentlinker.assistant.images import fetch_image
 from torrentlinker.assistant.markdown import render
@@ -261,32 +262,37 @@ def test_browser_cover_uses_authenticated_proxy_and_opens_original(
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
             expect(page.locator("#workspace")).to_be_visible()
-            page.evaluate(
+            shell_navigate(page, "assistant")
+            panel = page.frame_locator("#assistant-frame")
+            panel.locator("#assistant-prompt").wait_for(state="attached")
+            frame = next(f for f in page.frames if f.url.endswith("assistant/view.html"))
+            frame.wait_for_function("typeof aMarkdown === 'function'")
+            frame.evaluate(
                 "html => document.body.append(aMarkdown({html}))",
                 render("![Book cover](https://covers.example/cover.png)"),
             )
-            image = page.locator(".assistant-markdown img")
+            image = panel.locator(".assistant-markdown img")
             expect(image).to_be_visible()
-            page.wait_for_function(
+            frame.wait_for_function(
                 "document.querySelector('.assistant-markdown img').naturalWidth === 480"
             )
             assert image.bounding_box()["height"] <= 360
-            link = page.locator(".assistant-markdown a")
+            link = panel.locator(".assistant-markdown a")
             expect(link).to_have_attribute("href", "https://covers.example/cover.png")
             expect(link).to_have_attribute("target", "_blank")
             assert not errors and not remote
-            page.locator(".assistant-markdown").screenshot(path=str(tmp_path / "chat-cover.png"))
-            page.evaluate(
+            panel.locator(".assistant-markdown").screenshot(path=str(tmp_path / "chat-cover.png"))
+            frame.evaluate(
                 "html => document.body.append(aMarkdown({html}))",
                 render("![Unavailable cover](https://covers.example/html)"),
             )
-            expect(page.locator(".assistant-image-error")).to_be_visible()
-            expect(page.locator(".assistant-markdown a").last).to_have_attribute(
+            expect(panel.locator(".assistant-image-error")).to_be_visible()
+            expect(panel.locator(".assistant-markdown a").last).to_have_attribute(
                 "href", "https://covers.example/html"
             )
             run = narrative_run()
-            page.evaluate("run => document.body.append(aRunCard(run))", run)
-            card = page.locator(".assistant-run").last
+            frame.evaluate("run => document.body.append(aRunCard(run))", run)
+            card = panel.locator(".assistant-run").last
             assert card.locator(":scope > *").evaluate_all(
                 "nodes => nodes.map(n => n.className)"
             ) == [
@@ -302,26 +308,28 @@ def test_browser_cover_uses_authenticated_proxy_and_opens_original(
             activity.locator(".assistant-tool > summary").click()
             expect(activity.locator(".assistant-json")).to_be_visible()
             assert activity.locator(".json-key").count() > 0
-            page.evaluate(
+            frame.evaluate(
                 "run => document.querySelector('.assistant-run').replaceWith(aRunCard(run))", run
             )
-            expect(page.locator(".assistant-tool .assistant-json")).to_be_visible()
-            page.locator(".assistant-run").screenshot(path=str(tmp_path / "chat-tool-activity.png"))
+            expect(panel.locator(".assistant-tool .assistant-json")).to_be_visible()
+            panel.locator(".assistant-run").screenshot(
+                path=str(tmp_path / "chat-tool-activity.png")
+            )
             failed = narrative_run()
             failed["id"] = "failed-tool"
             failed["events"][0]["status"] = "finished"
             error = "Choose an allowed client. <b>Literal error</b>"
             failed["events"][0]["result"] = {"job": {"status": "failed", "error": error}}
-            page.evaluate("run => document.body.append(aRunCard(run))", failed)
-            failed_card = page.locator(".assistant-run").last
+            frame.evaluate("run => document.body.append(aRunCard(run))", failed)
+            failed_card = panel.locator(".assistant-run").last
             summary = failed_card.locator(".assistant-activity > summary")
             expect(failed_card.locator(".assistant-tool-error")).to_have_count(0)
             assert failed_card.locator(".assistant-tool-error b").count() == 0
-            expect(summary).to_have_css("color", "rgb(182, 56, 72)")
+            expect(summary).to_have_css("color", "rgb(180, 35, 50)")
             assert failed_card.locator("pre").count() == 0
             summary.click()
             expect(failed_card.locator(".assistant-tool > summary")).to_have_css(
-                "color", "rgb(182, 56, 72)"
+                "color", "rgb(180, 35, 50)"
             )
             failed_card.locator(".assistant-tool > summary").click()
             expect(failed_card.locator(".assistant-tool-error")).to_have_text(error)
@@ -329,11 +337,11 @@ def test_browser_cover_uses_authenticated_proxy_and_opens_original(
             assert failed_card.locator(".assistant-tool-error b").count() == 0
             expect(failed_card.locator(".assistant-json")).to_be_visible()
             failed_card.screenshot(path=str(tmp_path / "chat-tool-error.png"))
-            page.evaluate(
+            frame.evaluate(
                 "html => document.body.append(aMarkdown({html}))",
                 render("[Documentation](/documentation/guide/en/agents.md#connections)"),
             )
-            citation = page.get_by_role("link", name="Documentation", exact=True)
+            citation = panel.get_by_role("link", name="Documentation", exact=True)
             assert citation.evaluate("link => new URL(link.href).pathname") == (
                 root_path + "/documentation/guide/en/agents.md"
             )
@@ -347,25 +355,25 @@ def test_browser_cover_uses_authenticated_proxy_and_opens_original(
                 {"id": "film", "name": "Find a film", "folder": "film_research"},
                 {"id": "upload", "name": "My upload", "folder": "uploads"},
             ]
-            page.evaluate(
+            frame.evaluate(
                 "chats => { const pane = document.createElement('aside'); "
                 "pane.id = 'folder-demo'; document.body.append(pane); "
                 "aConversationFolders(pane, chats); }",
                 chats,
             )
-            groups = page.locator("#folder-demo .assistant-folder")
+            groups = panel.locator("#folder-demo .assistant-folder")
             expect(groups).to_have_count(2)
             expect(groups.nth(0).get_by_role("button", name="Find a film")).to_be_visible()
             groups.nth(0).locator("summary").click()
             expect(groups.nth(0).get_by_role("button", name="Find a film")).not_to_be_visible()
             chats[1]["name"] = "Upload ready"
-            page.evaluate(
+            frame.evaluate(
                 "chats => aConversationFolders(document.getElementById('folder-demo'), chats)",
                 chats,
             )
             expect(groups.nth(0).get_by_role("button", name="Find a film")).not_to_be_visible()
             expect(groups.nth(1).get_by_role("button", name="Upload ready")).to_be_visible()
-            identifier = page.evaluate(
+            identifier = frame.evaluate(
                 """async () => {
                   const model = await api('setup/assistant/providers',
                     {name: 'Local', kind: 'ollama', model: 'test'});
@@ -377,19 +385,19 @@ def test_browser_cover_uses_authenticated_proxy_and_opens_original(
                   return chat.id;
                 }"""
             )
-            dialog = page.locator("dialog.assistant-dialog")
+            dialog = panel.locator("dialog.assistant-dialog")
             dialog.locator("select").select_option("__new__")
             dialog.locator('input[type="text"]').fill("My films")
             expect(dialog.locator('input[type="checkbox"]')).not_to_be_checked()
             dialog.locator(".toolbar button").first.click()
             expect(dialog).not_to_be_visible()
-            moved = page.evaluate(
+            moved = frame.evaluate(
                 "async id => (await api('assistant/conversations')).find(c => c.id === id)",
                 identifier,
             )
             assert (moved["folder"], moved["folder_source"]) == ("My films", "manual")
-            expect(page.locator("#assistant-folders summary")).to_have_text("▱My films")
-            page.evaluate(
+            expect(panel.locator("#assistant-folders summary")).to_have_text("▱My films")
+            frame.evaluate(
                 """async id => {
                   await api(`assistant/conversations/${id}/folder`, {folder: '__new__'}, 'PUT');
                   const chats = await api('assistant/conversations');
@@ -401,7 +409,7 @@ def test_browser_cover_uses_authenticated_proxy_and_opens_original(
             expect(dialog.locator('input[type="text"]')).not_to_be_visible()
             dialog.locator(".toolbar button").first.click()
             expect(dialog).not_to_be_visible()
-            expect(page.locator("#assistant-folders summary")).to_have_text("▱__new__")
+            expect(panel.locator("#assistant-folders summary")).to_have_text("▱__new__")
             browser.close()
     finally:
         server.should_exit = True

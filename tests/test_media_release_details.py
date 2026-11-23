@@ -186,7 +186,11 @@ def test_home_rows_group_films_by_genre_rating_and_watch_state(tmp_path):
             media.db.execute(
                 "UPDATE media_items SET body=? WHERE id=?", (json.dumps(film), row["id"])
             )
-        media.db.execute("INSERT INTO media_progress VALUES ('default',?,30,100,0)", (ids[4],))
+        media.db.execute(
+            "INSERT INTO media_progress (client,item,position,duration,watched) "
+            "VALUES ('default',?,30,100,0)",
+            (ids[4],),
+        )
     rows = {(r["key"], r["title"]): r for r in media.home_rows("default", limit=10)["rows"]}
     horror = rows[("genre", "Horreur")]
     assert horror["total"] == 3 and horror["filters"] == {"view": "films", "genre": "Horreur"}

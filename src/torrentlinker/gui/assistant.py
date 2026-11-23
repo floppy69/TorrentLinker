@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMenu,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -33,8 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from torrentlinker.assistant.models import Conversation, Schedule
-from torrentlinker.gui.automation_cards import AutomationCards
+from torrentlinker.assistant.models import Conversation
 from torrentlinker.gui.chat_composer import ChatComposer
 from torrentlinker.gui.chat_folders import ChatFolders
 from torrentlinker.gui.chat_transcript import ChatTranscript
@@ -44,18 +42,14 @@ from torrentlinker.gui.tasks import run_in_background
 
 
 class AssistantEditor(QDialog):
-    def __init__(self, service, *, task=False, initial=None, defaults=False, parent=None):
+    def __init__(self, service, *, initial=None, defaults=False, parent=None):
         super().__init__(parent)
-        self.service, self.task, self.defaults = service, task, defaults
+        self.service, self.defaults = service, defaults
         self.initial = initial or {}
         self.setWindowTitle(
-            self.tr("Scheduled task")
-            if task
-            else self.tr("Chat defaults")
-            if defaults
-            else self.tr("Discussion settings")
+            self.tr("Chat defaults") if defaults else self.tr("Discussion settings")
         )
-        self.resize(620, 700 if task else 440)
+        self.resize(620, 440)
         layout = QVBoxLayout(self)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -140,99 +134,20 @@ class AssistantEditor(QDialog):
         self.calls = self.number(
             af,
             self.tr("Model calls per run"),
-            self.initial.get("max_calls", 12 if task else 0),
-            1 if task else 0,
-            40 if task else 200,
+            self.initial.get("max_calls", 0),
+            0,
+            200,
         )
         self.seconds = self.number(
             af,
             self.tr("Maximum duration, seconds"),
-            self.initial.get("max_seconds", 300 if task else 0),
-            10 if task else 0,
+            self.initial.get("max_seconds", 0),
+            0,
             1800,
         )
-        if not task:
-            self.calls.setSpecialValueText(self.tr("No limit"))
-            self.seconds.setSpecialValueText(self.tr("No limit"))
+        self.calls.setSpecialValueText(self.tr("No limit"))
+        self.seconds.setSpecialValueText(self.tr("No limit"))
         form.addRow(advanced)
-        if task:
-            self.instruction = QPlainTextEdit(self.initial.get("instruction", ""))
-            self.instruction.setMaximumHeight(130)
-            form.addRow(self.tr("Instructions"), self.instruction)
-            self.kind = QComboBox()
-            for label, value in [
-                (self.tr("Model task"), "model"),
-                (self.tr("Refresh torrents (no model)"), "refresh"),
-                (self.tr("Refresh Catalogue (no model)"), "catalogue"),
-            ]:
-                self.kind.addItem(label, value)
-            self.kind.setCurrentIndex(self.kind.findData(self.initial.get("kind", "model")))
-            self.kind.currentIndexChanged.connect(
-                lambda: self.provider.setEnabled(self.kind.currentData() == "model")
-            )
-            self.provider.setEnabled(self.kind.currentData() == "model")
-            form.addRow(self.tr("Task type"), self.kind)
-            self.frequency = QComboBox()
-            for label, value in [
-                (self.tr("Every X minutes"), "interval"),
-                (self.tr("Daily"), "daily"),
-                (self.tr("Weekly"), "weekly"),
-            ]:
-                self.frequency.addItem(label, value)
-            self.frequency.setCurrentIndex(
-                self.frequency.findData(self.initial.get("frequency", "daily"))
-            )
-            form.addRow(self.tr("Frequency"), self.frequency)
-            self.interval = self.number(
-                form,
-                self.tr("Interval, minutes"),
-                self.initial.get("interval_minutes", 60),
-                5,
-                525600,
-            )
-            self.at = QLineEdit(self.initial.get("at", "09:00"))
-            self.zone = QLineEdit(self.initial.get("timezone", "Europe/Paris"))
-            days = QWidget()
-            days_layout = QHBoxLayout(days)
-            days_layout.setContentsMargins(0, 0, 0, 0)
-            self.days = []
-            for index, label in enumerate(
-                [
-                    self.tr("Mon"),
-                    self.tr("Tue"),
-                    self.tr("Wed"),
-                    self.tr("Thu"),
-                    self.tr("Fri"),
-                    self.tr("Sat"),
-                    self.tr("Sun"),
-                ]
-            ):
-                check = QCheckBox(label)
-                check.setChecked(index in self.initial.get("weekdays", [0]))
-                days_layout.addWidget(check)
-                self.days.append(check)
-            form.addRow(self.tr("Time (HH:MM)"), self.at)
-            form.addRow(self.tr("Timezone"), self.zone)
-            form.addRow(self.tr("Days"), days)
-
-            def frequency_changed():
-                value = self.frequency.currentData()
-                for widget, visible in [
-                    (self.interval, value == "interval"),
-                    (self.at, value != "interval"),
-                    (self.zone, value != "interval"),
-                    (days, value == "weekly"),
-                ]:
-                    form.setRowVisible(widget, visible)
-
-            self.frequency.currentIndexChanged.connect(frequency_changed)
-            frequency_changed()
-            self.enabled = QCheckBox(self.tr("Enable schedule"))
-            self.enabled.setChecked(self.initial.get("enabled", False))
-            form.addRow(self.enabled)
-            preview = QPushButton(self.tr("Preview next run"))
-            preview.clicked.connect(self.preview)
-            form.addRow(preview)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
@@ -270,38 +185,12 @@ class AssistantEditor(QDialog):
                 reserve_bytes=self.reserve.value() * 1024**3,
             ),
         )
-        if self.task:
-            data.update(
-                instruction=self.instruction.toPlainText(),
-                kind=self.kind.currentData(),
-                frequency=self.frequency.currentData(),
-                interval_minutes=self.interval.value(),
-                at=self.at.text(),
-                timezone=self.zone.text(),
-                weekdays=[i for i, check in enumerate(self.days) if check.isChecked()],
-                enabled=self.enabled.isChecked(),
-            )
-        return Schedule(**data) if self.task else Conversation(**data)
-
-    def preview(self):
-        import time
-
-        try:
-            value = self.value()
-            QMessageBox.information(
-                self,
-                self.tr("Next run"),
-                datetime.fromtimestamp(value.next_at(time.time())).astimezone().isoformat(),
-            )
-        except Exception as error:
-            QMessageBox.warning(self, self.tr("Assistant"), str(error))
+        return Conversation(**data)
 
     def save(self):
         try:
             value = self.value()
-            if self.task:
-                result = self.service.save_schedule(value, self.initial.get("id", ""))
-            elif self.defaults:
+            if self.defaults:
                 result = self.service.save_chat_defaults(value)
             else:
                 result = self.service.update_conversation(self.initial["id"], value)
@@ -326,21 +215,16 @@ class AssistantTab(QWidget):
             "finished": self.tr("Finished"),
         }.get(value, value)
 
-    # Compact mode: ask the host to open a discussion ("" for a new one), or to close.
-    conversationRequested = Signal(str)
-    closeRequested = Signal()
     # Model connections live in Settings → Assistant; the host opens them.
     connectionsRequested = Signal()
 
-    def __init__(self, get_service, parent=None, *, compact=False):
+    def __init__(self, get_service, parent=None):
         super().__init__(parent)
-        self.compact = compact
         self.get_service = get_service
         self.service: Any = None
         self.conversation_id = ""
         self.run_id = ""
         self.render_key = ""
-        self.task_data = []
         self.provider_data = []
         self.drafts = {}
         # The mode chosen with the chip before a new discussion exists.
@@ -445,29 +329,6 @@ class AssistantTab(QWidget):
         )
         cl.addWidget(splitter)
         self.pages.addTab(chat, self.tr("Discussion"))
-        tasks = QWidget()
-        tl = QVBoxLayout(tasks)
-        help_text = QLabel(
-            self.tr(
-                "Keep TorrentLinker open to run scheduled tasks. Missed intervals "
-                "are combined into one run. Review interrupted runs before using "
-                "Run now."
-            )
-        )
-        help_text.setWordWrap(True)
-        help_text.setProperty("role", "muted")
-        top = QHBoxLayout()
-        top.addWidget(help_text, 1)
-        create = set_role(QPushButton(self.tr("Create task")), "primary")
-        create.clicked.connect(lambda: self.edit(True))
-        top.addWidget(create, 0, Qt.AlignmentFlag.AlignTop)
-        tl.addLayout(top)
-        self.tasks = AutomationCards()
-        self.tasks.editRequested.connect(lambda task: self.edit(True, task))
-        self.tasks.toggleRequested.connect(self.toggle_task)
-        self.tasks.runRequested.connect(self.run_task)
-        tl.addWidget(self.tasks, 1)
-        self.pages.addTab(tasks, self.tr("Automations"))
         self.history = ChatTranscript(
             presentation_page=lambda *a, **kw: self.service.presentation_page(*a, **kw),
             presentation_item=lambda *a, **kw: self.service.presentation_item(*a, **kw),
@@ -481,50 +342,6 @@ class AssistantTab(QWidget):
         self.timer.setInterval(1500)
         self.timer.timeout.connect(self.refresh_run)
         self.timer.start()
-        if compact:
-            self._make_compact()
-
-    def _make_compact(self):
-        """One discussion in a side panel: small header menus and one send/stop button.
-
-        Folders, automations, history and connections stay on the Assistant page.
-        """
-        self.setObjectName("chatPanel")
-        # Hidden tabs would still widen the panel's minimum; keep only the discussion.
-        while self.pages.count() > 1:
-            self.pages.removeTab(1)
-        self.pages.tabBar().hide()
-        self.folder_column.hide()
-        # Media discussions stay in their folder; moving them belongs to the Assistant page.
-        self.move_chat.setVisible(False)
-        self.transcript.example_columns = 1
-        self.history_menu = QMenu(self)
-        self.history_menu.aboutToShow.connect(self._fill_history_menu)
-        history = icon_button("☰", self.tr("Discussions"))
-        history.setMenu(self.history_menu)
-        history.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.header.insertWidget(1, history)
-        close = icon_button("✕", self.tr("Close chat"))
-        close.clicked.connect(self.closeRequested.emit)
-        self.header.addWidget(close)
-
-    def _fill_history_menu(self):
-        self.history_menu.clear()
-        self.history_menu.addAction(
-            self.tr("New discussion"), lambda: self.conversationRequested.emit("")
-        )
-        self.history_menu.addSeparator()
-        rows = [c for c in getattr(self, "conversation_data", []) if c.get("folder") == "Media"]
-        rows = rows[:20]
-        for row in rows:
-            action = self.history_menu.addAction(
-                row["name"],
-                lambda _checked=False, identifier=row["id"]: self.conversationRequested.emit(
-                    identifier
-                ),
-            )
-            action.setCheckable(True)
-            action.setChecked(row["id"] == self.conversation_id)
 
     def _sync_header(self):
         current = next(
@@ -567,7 +384,7 @@ class AssistantTab(QWidget):
         else:
             current = self.pending_mode or self.service.chat_defaults().policy.mode
         mode = "propose" if current == "execute" else "execute"
-        if mode == "execute" and not QSettings().value("assistant/execute_confirmed", False, bool):
+        if mode == "execute" and not self.service.setup()["execute_acknowledged"]:
             answer = QMessageBox.question(
                 self,
                 self.tr("Execute within limits"),
@@ -581,6 +398,7 @@ class AssistantTab(QWidget):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
+            self.service.acknowledge_execute()
             QSettings().setValue("assistant/execute_confirmed", True)
         if self.conversation_id:
             body.policy.mode = mode
@@ -622,8 +440,6 @@ class AssistantTab(QWidget):
             return
         self.conversation_data = self.service.conversations()
         self.conversations.set_rows(self.conversation_data, self.conversation_id)
-        self.task_data = self.service.schedules()
-        self.tasks.set_rows(self.task_data)
         self.provider_data = self.service.setup()["providers"]
         current = next((c for c in self.conversation_data if c["id"] == self.conversation_id), None)
         chosen = (
@@ -761,30 +577,11 @@ class AssistantTab(QWidget):
             self.render_key = ""
             self.refresh_run()
 
-    def edit(self, task, initial=None):
-        if not self.service:
-            self.activate()
-        if self.service:
-            editor = AssistantEditor(self.service, task=task, initial=initial, parent=self)
-            if editor.exec():
-                if not task:
-                    self.conversation_id = editor.saved
-                self.refresh()
-
     def run_heading(self, run):
         names = {c["id"]: c["name"] for c in getattr(self, "conversation_data", [])}
         name = names.get(run.get("conversation_id"), self.tr("Automation"))
         when = datetime.fromtimestamp(run.get("created") or 0).astimezone()
         return " · ".join((name, when.strftime("%d/%m %H:%M"), self.status_text(run["status"])))
-
-    def toggle_task(self, task):
-        body = {k: v for k, v in task.items() if k in Schedule.model_fields}
-        body["enabled"] = not task["enabled"]
-        self.perform(lambda: self.service.save_schedule(Schedule(**body), task["id"]))
-
-    def run_task(self, task):
-        self.perform(lambda: self.service.run_schedule(task["id"]))
-        self.pages.setCurrentIndex(2)
 
     def stop_run(self):
         if self.service and self.run_id:
@@ -858,7 +655,7 @@ class AssistantTab(QWidget):
         self.conversation_data = self.service.conversations()
         self.conversations.set_rows(self.conversation_data, self.conversation_id)
         rows = self.service.history(self.conversation_id) if self.conversation_id else []
-        all_rows = self.service.history() if self.pages.currentIndex() == 2 else []
+        all_rows = self.service.history() if self.pages.currentWidget() is self.history else []
         key = json.dumps([rows, all_rows])
         if key == self.render_key:
             return

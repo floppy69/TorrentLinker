@@ -103,10 +103,6 @@ def distributed_plan(
         ]
     spaces = disk_space(sorted(folders), settings.free_space_margin)
     physical = {space.disk: space.available for space in spaces}
-    remaining = dict(physical)
-    client_remaining = {
-        identifier: budgets.get(identifier, 0) or sum(physical.values()) for identifier in clients
-    }
     by_hash: dict[str, dict[str, PlanCandidate]] = {}
     for identifier, candidates in available.items():
         for item in candidates:
@@ -122,28 +118,57 @@ def distributed_plan(
     # Reserve space in goal order so placement cannot discard a higher-note download.
     ordered = sorted(by_hash.values(), key=placement_priority)
     identifiers = list(clients)
-    assigned = []
-    cursor = 0
-    for choices in ordered:
-        for offset in range(len(identifiers)):
-            index = (cursor + offset) % len(identifiers)
-            identifier = identifiers[index]
-            candidate = choices.get(identifier)
-            if (
-                candidate is not None
-                and candidate.infohash not in excluded
-                and candidate.size <= client_remaining[identifier]
-                and candidate.size <= remaining.get(candidate.disk, 0)
-            ):
-                assigned.append(candidate)
-                client_remaining[identifier] -= candidate.size
-                remaining[candidate.disk] -= candidate.size
-                cursor = (index + 1) % len(identifiers)
-                break
+
+    def place(ordering: list[dict[str, PlanCandidate]]) -> list[PlanCandidate]:
+        remaining = dict(physical)
+        client_remaining = {
+            identifier: budgets.get(identifier, 0) or sum(physical.values())
+            for identifier in clients
+        }
+        assigned: list[PlanCandidate] = []
+        cursor = 0
+        for choices in ordering:
+            for offset in range(len(identifiers)):
+                index = (cursor + offset) % len(identifiers)
+                identifier = identifiers[index]
+                candidate = choices.get(identifier)
+                if (
+                    candidate is not None
+                    and candidate.infohash not in excluded
+                    and candidate.size <= client_remaining[identifier]
+                    and candidate.size <= remaining.get(candidate.disk, 0)
+                ):
+                    assigned.append(candidate)
+                    client_remaining[identifier] -= candidate.size
+                    remaining[candidate.disk] -= candidate.size
+                    cursor = (index + 1) % len(identifiers)
+                    break
+        return assigned
+
+    assigned = place(ordered)
     slots = max(0, settings.zen.torrent_cap - current.count) if settings.zen.torrent_cap else None
     result = make_plan(
         settings.zen, assigned, physical, current.active, slots, options=options, disk_spaces=spaces
     )
+    if len(result.items) < options.min_torrents:
+        smaller_first = sorted(
+            by_hash.values(),
+            key=lambda choices: (
+                next(iter(choices.values())).download_size,
+                next(iter(choices.values())).infohash,
+            ),
+        )
+        alternative = make_plan(
+            settings.zen,
+            place(smaller_first),
+            physical,
+            current.active,
+            slots,
+            options=options,
+            disk_spaces=spaces,
+        )
+        if len(alternative.items) > len(result.items):
+            result = alternative
     issues = [PlanIssue(code, count) for code, count in input_issues.items()]
     if not assigned and by_hash:
         candidates = [c for choices in by_hash.values() for c in choices.values()]

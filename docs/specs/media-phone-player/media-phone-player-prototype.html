@@ -1,0 +1,230 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway. How a video plays in Médias on a phone (≤ 650 px). Today it opens a boxed player in the
+     corner with no way to close it. Three layouts, ?variant=A|B|C: A full screen like a streaming app, B video on
+     top with its details below, C full screen that shrinks to a mini bar. Shared palette (panel/base.css) embedded.
+     On a computer the page shows a 390 × 844 phone; on a phone it fills the screen. Fictional films; the "picture"
+     is a moving gradient. -->
+<html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lecteur mobile · aperçu</title>
+<style>
+/* Embedded copy of the two token blocks of src/torrentlinker/web/static/panel/base.css (approved). */
+:root {
+  color-scheme: dark;
+  --bg: #161d23; --panel: #202932; --raised: #26323c; --line: #33404b; --text: #e2e9ed; --muted: #98aab7;
+  --accent: #80bdb6; --accent-text: #102a2b; --tint: #263e43; --hover: #263e43; --danger: #ff9c9c;
+  --warning: #edbf73; --success: #4ad394; --link: #64c9c0; --shadow: none; --ink: var(--text);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f6fa; --panel: #ffffff; --raised: #f7f9fc; --line: #d5dfe9; --text: #203047; --muted: #5c6c80;
+  --accent: #087f76; --accent-text: #ffffff; --tint: #d8eeeb; --hover: #e8f3f2; --danger: #b42332;
+  --warning: #8a5800; --success: #1f9d63; --link: #087f76; --shadow: 0 16px 60px #172b3e12;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #0c1014; color: var(--text); }
+:root[data-theme="light"] body { background: #cfd8e0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+#stage { min-height: 100%; display: grid; place-items: center; padding: 24px 0 90px; }
+#phone { position: relative; width: 390px; height: 844px; overflow: hidden; background: var(--bg); border-radius: 38px; border: 10px solid #000; box-shadow: 0 30px 80px #0008; }
+#phone.landscape { width: 844px; height: 390px; }
+@media (max-width: 500px) { #stage { padding: 0; display: block; } #phone { width: 100vw; height: 100dvh; border: 0; border-radius: 0; } }
+
+/* The Médias page underneath (cinematic home). */
+.page { position: absolute; inset: 0; overflow: auto; }
+.topbar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.topbar h1 { font-size: 18px; margin: 0; flex: 1; }
+.iconbtn { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); padding: 0; }
+.feature { position: relative; min-height: 400px; padding: 120px 20px 26px; background: linear-gradient(180deg, transparent 0, var(--bg) 92%), linear-gradient(135deg, #2c5a63, #1d2a3a 55%, #3b2a3e); }
+:root[data-theme="light"] .feature { background: linear-gradient(180deg, transparent 0, var(--bg) 92%), linear-gradient(135deg, #8fc2c0, #c7d4e6 55%, #d6c3d9); }
+.eyebrow { font-size: 11px; letter-spacing: .2em; color: var(--accent); font-weight: 700; }
+.feature h2 { font-size: 40px; line-height: 1.05; margin: 8px 0 8px; }
+.meta { color: var(--muted); font-size: 13px; }
+.actions { display: flex; gap: 10px; margin-top: 16px; }
+.primary { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 10px; padding: 11px 22px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+.secondary { background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 11px 18px; }
+.row-title { font-size: 16px; font-weight: 700; margin: 18px 16px 10px; }
+.posters { display: flex; gap: 10px; overflow-x: auto; padding: 0 16px 6px; }
+.poster { flex: none; width: 112px; height: 166px; border-radius: 10px; display: flex; align-items: end; padding: 8px; font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px #000; border: 0; text-align: left; }
+
+/* The picture (a moving gradient stands in for the film). */
+.picture { position: absolute; inset: 0; display: grid; place-items: center; background: #000; overflow: hidden; }
+.film { width: 100%; aspect-ratio: 16 / 9; background: linear-gradient(110deg, #0e3b46, #5c3b6b, #b06a3b, #0e3b46); background-size: 300% 100%; animation: pan 8s linear infinite; position: relative; }
+.film::after { content: "Big Movie"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; color: #fff8; letter-spacing: .3em; text-transform: uppercase; }
+.paused .film { animation-play-state: paused; }
+@keyframes pan { to { background-position: 300% 0; } }
+.landscape .film { width: auto; height: 100%; }
+
+/* Controls over the picture. */
+.overlay { position: absolute; inset: 0; color: #fff; display: grid; grid-template-rows: auto 1fr auto; background: linear-gradient(#000a, transparent 22%, transparent 70%, #000c); transition: opacity .2s; }
+.overlay.hidden { opacity: 0; pointer-events: none; }
+.overlay .top { display: flex; align-items: center; gap: 12px; padding: max(14px, env(safe-area-inset-top)) 14px 0; }
+.overlay .top b { flex: 1; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.round { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 0; background: #0006; color: #fff; padding: 0; }
+.center { display: flex; align-items: center; justify-content: center; gap: 38px; }
+.center .big { width: 72px; height: 72px; background: #0008; }
+.center .big svg { width: 34px; height: 34px; }
+.bottom { padding: 0 16px max(16px, env(safe-area-inset-bottom)); display: grid; gap: 8px; }
+.scrub { height: 4px; border-radius: 4px; background: #ffffff40; position: relative; }
+.scrub i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 4px; }
+.scrub i::after { content: ""; position: absolute; right: -7px; top: -5px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); }
+.tools { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.tools .time { flex: 1; }
+.tools button { border: 0; background: transparent; color: #fff; display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; font-size: 13px; }
+.player { position: absolute; inset: 0; z-index: 30; }
+
+/* B · video on top, details below. */
+.docked { position: absolute; inset: 0; z-index: 30; background: var(--bg); display: flex; flex-direction: column; }
+.docked .screen { position: relative; flex: none; aspect-ratio: 16 / 9; background: #000; }
+.docked .screen .overlay .center { gap: 26px; }
+.docked .screen .center .big { width: 56px; height: 56px; }
+.docked .details { flex: 1; overflow: auto; padding: 16px; }
+.details h2 { margin: 0 0 4px; font-size: 22px; }
+.details p { color: var(--muted); font-size: 14px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 16px; }
+.chips button { border: 1px solid var(--line); background: var(--raised); border-radius: 999px; padding: 7px 12px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+.chips svg { width: 18px; height: 18px; }
+.ep { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.ep .thumb { width: 110px; aspect-ratio: 16/9; border-radius: 8px; flex: none; background: linear-gradient(135deg, #2c5a63, #3b2a3e); }
+.ep b { display: block; font-size: 14px; }
+.ep small { color: var(--muted); }
+
+/* Mini bar (B collapsed, C minimised). */
+.mini { position: absolute; left: 8px; right: 8px; bottom: 10px; z-index: 30; display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px; box-shadow: 0 12px 40px #0009; overflow: hidden; }
+.mini .thumbfilm { width: 96px; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; flex: none; position: relative; }
+.mini .thumbfilm .film::after { content: none; }
+.mini .txt { flex: 1; min-width: 0; }
+.mini .txt b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini .txt small { color: var(--muted); font-size: 12px; }
+.mini .plain { border: 0; background: transparent; padding: 6px; display: grid; place-items: center; color: var(--text); }
+.mini .line { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); }
+
+/* A panel inside the player: audio and subtitles. */
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #151b20f2; color: #fff; border-radius: 16px 16px 0 0; padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; z-index: 2; }
+.sheet h3 { margin: 0 0 6px; font-size: 13px; color: #fffa; letter-spacing: .06em; text-transform: uppercase; }
+.sheet button { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: #fff; padding: 8px 0; font-size: 15px; }
+.sheet button.on::before { content: "✓ "; color: var(--accent); }
+.sheet .done { grid-column: 1 / -1; text-align: center; background: #ffffff1c; border-radius: 10px; margin-top: 8px; }
+
+#switcher { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 14px; background: #000d; color: #fff; font-size: 13px; box-shadow: 0 10px 30px #0008; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 20px); }
+#switcher button { background: #ffffff1c; color: #fff; border: 0; border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+#switcher #state { color: #b7c6cf; font-size: 12px; }
+@media (max-width: 500px) { #switcher { bottom: auto; top: 8px; opacity: .92; } }
+</style>
+<div id="stage"><div id="phone"></div></div>
+<div id="switcher"><button id="prev" aria-label="Variante précédente">←</button><b id="label"></b><button id="next" aria-label="Variante suivante">→</button>
+ <button id="rotate">Tourner le téléphone</button><button id="theme">Thème</button><span id="state"></span></div>
+<script>
+const I = {
+  back: '<path d="M15 5l-7 7 7 7"/>', close: '<path d="M6 6l12 12M18 6L6 18"/>', down: '<path d="M6 9l6 6 6-6"/>',
+  play: '<path d="M8 5l11 7-11 7z" fill="currentColor"/>', pause: '<path d="M8 5v14M16 5v14"/>',
+  rew: '<path d="M11 7l-6 5 6 5M19 7l-6 5 6 5"/>', fwd: '<path d="M13 7l6 5-6 5M5 7l6 5-6 5"/>',
+  subs: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 13h4M13 13h4M7 16h7"/>',
+  next: '<path d="M6 5l9 7-9 7zM18 5v14"/>', full: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+};
+const ic = n => `<svg viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+const variants = [["A", "Plein écran, ← arrête"], ["B", "Vidéo en haut + fiche"], ["C", "Plein écran, ⌄ réduit en mini-barre"]];
+const DURATION = 7920; // 2 h 12
+let variant = new URLSearchParams(location.search).get("variant") || "A";
+let mode = "page", playing = false, position = 1260, controls = true, sheet = false, landscape = false, hideTimer;
+
+const clock = s => `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const pct = () => `${(position / DURATION * 100).toFixed(2)}%`;
+const film = () => `<div class="film"></div>`;
+function page() {
+  const posters = ["Dune", "Arcane", "The Bear", "Interstellar", "Severance", "Shōgun"].map((t, i) =>
+    `<button class="poster" style="background:linear-gradient(160deg,hsl(${i * 55} 35% 38%),hsl(${i * 55 + 40} 30% 18%))">${t}</button>`).join("");
+  return `<div class="page"><div class="topbar"><button class="iconbtn" aria-label="Navigation">☰</button><h1>Médias</h1></div>
+   <section class="feature"><div class="eyebrow">DANS VOTRE MÉDIATHÈQUE</div><h2>Big Movie</h2><div class="meta">2024 · 2 h 12 · −12 · Reprendre à 21 min</div>
+   <div class="actions"><button class="primary" data-act="play">${ic("play")}Reprendre</button><button class="secondary">Détails</button></div></section>
+   <div class="row-title">Récemment ajoutés</div><div class="posters">${posters}</div>
+   <div class="row-title">Continuer à regarder</div><div class="posters">${posters}</div></div>`;
+}
+function overlay(compact) {
+  return `<div class="overlay ${controls || sheet ? "" : "hidden"}" data-act="tap">
+   <div class="top">${compact ? `<button class="round" data-act="collapse" aria-label="Réduire">${ic("down")}</button><b></b><button class="round" data-act="stop" aria-label="Fermer">${ic("close")}</button>`
+     : variant === "C" ? `<button class="round" data-act="minimise" aria-label="Réduire">${ic("down")}</button><b>Big Movie</b><small style="opacity:.75">⌄ continue en mini-barre</small><button class="round" data-act="stop" aria-label="Fermer">${ic("close")}</button>`
+     : `<button class="round" data-act="stop" aria-label="Retour">${ic("back")}</button><b>Big Movie</b>`}</div>
+   <div class="center"><button class="round" data-act="rew" aria-label="Reculer de 10 secondes">${ic("rew")}</button>
+    <button class="round big" data-act="toggle" aria-label="${playing ? "Pause" : "Lecture"}">${ic(playing ? "pause" : "play")}</button>
+    <button class="round" data-act="fwd" aria-label="Avancer de 10 secondes">${ic("fwd")}</button></div>
+   <div class="bottom"><div class="scrub"><i style="width:${pct()}"></i></div>
+    <div class="tools"><span class="time">${clock(position)} / ${clock(DURATION)}</span>
+     ${compact ? "" : `<button data-act="subs">${ic("subs")}Audio et sous-titres</button>`}
+     <button data-act="full" aria-label="Plein écran">${ic("full")}</button></div></div></div>
+   ${sheet ? `<div class="sheet"><div><h3>Audio</h3><button class="on">Français (5.1)</button><button>Anglais</button></div>
+     <div><h3>Sous-titres</h3><button>Aucun</button><button class="on">Français (forcés)</button><button>Anglais</button></div>
+     <button class="done" data-act="subs">Terminé</button></div>` : ""}`;
+}
+// A tap anywhere on the picture shows or hides the controls, even while they are hidden.
+const full = () => `<div class="player"><div class="picture ${playing ? "" : "paused"}" data-act="tap">${film()}</div>${overlay(false)}</div>`;
+function docked() {
+  return `<div class="docked"><div class="screen"><div class="picture ${playing ? "" : "paused"}" data-act="tap">${film()}</div>${overlay(true)}</div>
+   <div class="details"><h2>Big Movie</h2><div class="meta">2024 · 2 h 12 · −12 · 1080p · Français 5.1</div>
+    <div class="chips"><button data-act="subs">${ic("subs")}Audio et sous-titres</button><button>${ic("next")}Suivant</button><button>Marquer comme vu</button></div>
+    <p>Aucun synopsis local disponible.</p>
+    ${["Version 2160p HDR", "Version 1080p", "Version 720p"].map(v => `<div class="ep"><div class="thumb"></div><div><b>${v}</b><small>MULTi · 2 h 12</small></div></div>`).join("")}
+   </div>${sheet ? `<div class="picture" style="display:none"></div>` : ""}</div>`;
+}
+function mini() {
+  return `<div class="mini" data-act="expand"><div class="thumbfilm ${playing ? "" : "paused"}">${film()}</div>
+   <div class="txt"><b>Big Movie</b><small>${clock(position)} · ${playing ? "lecture" : "en pause"}</small></div>
+   <button class="plain" data-act="toggle" aria-label="${playing ? "Pause" : "Lecture"}">${ic(playing ? "pause" : "play")}</button>
+   <button class="plain" data-act="stop" aria-label="Fermer">${ic("close")}</button><span class="line" style="width:${pct()}"></span></div>`;
+}
+function render() {
+  const phone = document.getElementById("phone");
+  phone.classList.toggle("landscape", landscape);
+  let html = page();
+  if (mode === "full") html += full();
+  else if (mode === "docked") html += landscape ? full() : docked();
+  else if (mode === "mini") html += mini();
+  phone.innerHTML = html;
+  document.getElementById("label").textContent = `${variant} — ${variants.find(v => v[0] === variant)[1]}`;
+  document.getElementById("rotate").textContent = landscape ? "Téléphone en portrait" : "Téléphone en paysage";
+  document.getElementById("state").textContent = `${{page: "page Médias", full: "plein écran", docked: "vidéo + fiche", mini: "mini-barre"}[mode]} · ${playing ? "lecture" : "pause"} · ${clock(position)}${sheet ? " · audio et sous-titres" : ""}`;
+}
+function reveal() { controls = true; clearTimeout(hideTimer); hideTimer = setTimeout(() => { if (playing && !sheet) { controls = false; render(); } }, 3000); }
+const actions = {
+  play() { if (mode === "mini") { mode = "full"; reveal(); return; } playing = true; mode = variant === "B" ? "docked" : "full"; reveal(); },
+  tap() { if (controls && playing) { controls = false; clearTimeout(hideTimer); } else reveal(); },
+  toggle() { playing = !playing; reveal(); },
+  rew() { position = Math.max(0, position - 10); reveal(); },
+  fwd() { position = Math.min(DURATION, position + 10); reveal(); },
+  subs() { sheet = !sheet; controls = true; clearTimeout(hideTimer); if (!sheet) reveal(); },
+  full() { landscape = !landscape; reveal(); },
+  stop() { playing = false; mode = "page"; sheet = false; landscape = false; },
+  collapse() { mode = "mini"; sheet = false; },
+  minimise() { mode = "mini"; sheet = false; landscape = false; },
+  expand() { mode = variant === "B" ? "docked" : "full"; reveal(); },
+};
+document.getElementById("phone").addEventListener("click", event => {
+  const target = event.target.closest("[data-act]");
+  if (!target) return;
+  event.stopPropagation();
+  actions[target.dataset.act]();
+  render();
+});
+// The clock moves without redrawing, so a tap is never lost to a redraw.
+setInterval(() => {
+  if (!playing || mode === "page") return;
+  position = Math.min(DURATION, position + 1);
+  const phone = document.getElementById("phone");
+  phone.querySelectorAll(".time").forEach(node => node.textContent = `${clock(position)} / ${clock(DURATION)}`);
+  phone.querySelectorAll(".scrub i, .mini .line").forEach(node => node.style.width = pct());
+  phone.querySelectorAll(".mini small").forEach(node => node.textContent = `${clock(position)} · lecture`);
+}, 1000);
+function step(n) {
+  const k = variants.findIndex(v => v[0] === variant);
+  variant = variants[(k + n + variants.length) % variants.length][0];
+  mode = "page"; playing = false; sheet = false; landscape = false;
+  const u = new URL(location); u.searchParams.set("variant", variant); history.replaceState(null, "", u); render();
+}
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+document.getElementById("rotate").onclick = () => { landscape = !landscape; render(); };
+document.getElementById("theme").onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme === "light" ? "dark" : "light"; };
+if (!variants.some(v => v[0] === variant)) variant = "A";
+render();
+</script>

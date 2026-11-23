@@ -7,6 +7,7 @@ import time
 
 import pytest
 
+from tests.shell_support import shell_navigate
 from tests.test_web_profile import ORIGIN, prepared, snapshot
 
 pytestmark = pytest.mark.skipif(os.getenv("TL_WEB_BROWSER") != "1", reason="opt-in browser test")
@@ -40,7 +41,7 @@ def test_profile_first_pair_snapshot_disconnect_browser(tmp_path, monkeypatch):
             page.goto(f"http://127.0.0.1:{port}/")
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
-            page.locator("[data-view=zen]").first.click()
+            shell_navigate(page, "zen")
             expect(page.locator("#zen-profile-tab")).to_have_attribute("aria-selected", "true")
             expect(
                 page.frame_locator("#profile-frame").locator("#profile-username")
@@ -79,13 +80,13 @@ def test_profile_first_pair_snapshot_disconnect_browser(tmp_path, monkeypatch):
             panel.locator('[data-days="7"]').click()
             expect(panel.locator('[data-days="7"]')).to_have_attribute("aria-pressed", "true")
             assert page.evaluate("localStorage.getItem('profile-period')") == "7"
-            page.locator("#language").select_option("fr")
+            page.frame_locator("#shell-navigation-frame").locator("#language").select_option("fr")
             expect(panel.locator("#profile-refresh")).to_have_text("Actualiser")
             expect(panel.locator('[data-days="0"]')).to_have_text("Tout")
             expect(panel.locator("#profile-contribution")).to_contain_text(
                 "Contribution communautaire du jour"
             )
-            page.locator("#theme").select_option("light")
+            page.frame_locator("#shell-navigation-frame").locator("#theme").select_option("light")
             expect(panel.locator("html")).to_have_attribute("data-theme", "light")
             assert (
                 page.locator("html").evaluate(
@@ -101,7 +102,7 @@ def test_profile_first_pair_snapshot_disconnect_browser(tmp_path, monkeypatch):
             )
             page.emulate_media(color_scheme="dark")
             expect(page.locator("html")).to_have_attribute("data-theme", "light")
-            page.locator("#theme").select_option("auto")
+            page.frame_locator("#shell-navigation-frame").locator("#theme").select_option("auto")
             expect(page.locator("html")).to_have_attribute("data-theme", "dark")
             expect(panel.locator("html")).to_have_attribute("data-theme", "dark")
             page.emulate_media(color_scheme="light")
@@ -116,8 +117,8 @@ def test_profile_first_pair_snapshot_disconnect_browser(tmp_path, monkeypatch):
             )
             assert panel.locator("html").evaluate("e => e.scrollWidth <= e.clientWidth")
             page.set_viewport_size({"width": 1500, "height": 1100})
-            page.locator("#language").select_option("en")
-            page.locator("#theme").select_option("dark")
+            page.frame_locator("#shell-navigation-frame").locator("#language").select_option("en")
+            page.frame_locator("#shell-navigation-frame").locator("#theme").select_option("dark")
             expect(panel.locator("html")).to_have_attribute("data-theme", "dark")
             page.set_viewport_size({"width": 1500, "height": 700})
             panel.locator("html").evaluate("() => window.scrollTo(0, 200)")
@@ -169,13 +170,16 @@ def test_profile_first_pair_snapshot_disconnect_browser(tmp_path, monkeypatch):
 
                 target = Path(output)
                 target.mkdir(parents=True, exist_ok=True)
-                page.locator("#theme").select_option("dark")
+                page.frame_locator("#shell-navigation-frame").locator("#theme").select_option(
+                    "dark"
+                )
                 page.evaluate("window.scrollTo(0, 0)")
                 page.screenshot(path=str(target / "web-profile.png"), full_page=True)
-            page.locator("[data-view=setup]").first.click()
-            page.locator("[data-settings-section=companion]").click()
-            page.locator("#profile-disconnect").click()
-            page.locator("[data-view=zen]").first.click()
+            shell_navigate(page, "setup")
+            settings = page.frame_locator("#settings-frame")
+            settings.get_by_role("button", name="Companion", exact=True).click()
+            settings.get_by_role("button", name="Disconnect & clear", exact=True).click()
+            shell_navigate(page, "zen")
             expect(
                 page.frame_locator("#profile-frame").locator("#profile-seeding")
             ).not_to_contain_text("42")

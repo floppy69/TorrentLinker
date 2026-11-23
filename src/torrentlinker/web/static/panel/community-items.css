@@ -1,0 +1,21 @@
+/* Shared Community controls use each host's existing palette. */
+.community-review{width:min(850px,92vw);max-height:90vh;overflow:auto;background:var(--panel,#202b35);color:var(--ink,var(--text,#edf2f8));border:1px solid var(--line,#405066);border-radius:12px;padding:24px}
+.community-review::backdrop{background:#0009}
+.community-dialog-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px}
+.community-dialog-heading h2{font-size:22px;margin:0}.community-review .community-close{margin:0;flex-shrink:0}
+.community-review label{display:block;margin:12px 0;font-size:14px}
+.community-review input:not([type=checkbox]),.community-review textarea{display:block;width:100%;margin-top:7px;box-sizing:border-box}
+.community-review textarea{min-height:90px;resize:vertical}
+.community-review pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:45vh;overflow:auto;padding:14px;background:#0002;border-radius:8px;font-size:13px}
+.community-review section{padding:18px;border:1px solid var(--line,#405066);border-radius:9px}
+.community-review button{margin:8px 8px 8px 0}
+.community-search{display:flex;gap:12px;align-items:flex-end}.community-search label{flex:1;margin:0}.community-search button{margin:0}
+.community-browse-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.community-browse-tools button{font-size:13px;margin:0}
+.community-status{font-size:14px;color:var(--muted);min-height:1.4em;margin:18px 0 10px}
+.community-results{display:grid;gap:12px}.community-result h3{margin:0 0 10px;font-size:17px}.community-result p{line-height:1.6}.community-result small{display:block;color:var(--muted)}
+.community-empty{padding:24px;border:1px dashed var(--line);border-radius:9px;color:var(--muted)}.community-error{color:var(--danger,#f39797)}
+.community-pagination{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.community-pagination button{margin:0}
+.community-menu{position:relative}.community-menu summary{cursor:pointer;border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:13px;color:var(--muted)}
+.community-menu-actions{position:absolute;bottom:calc(100% + 6px);right:0;z-index:30;min-width:210px;display:grid;gap:4px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 24px #0004}
+.community-menu-actions button{text-align:left;white-space:normal}.assistant-community-menu{margin-left:auto}
+@media(max-width:520px){.community-review{padding:16px}.community-dialog-heading h2{font-size:19px}.community-search{align-items:stretch;flex-direction:column}}

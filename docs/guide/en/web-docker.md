@@ -47,7 +47,7 @@ The image still starts as UID/GID 1000 by default. Existing deployments with `ca
 Runtime PUID/PGID support is available from **1.0.0-beta.21**. Select that version or the `beta` tag; the older `latest` stable image does not include it. To use a NAS account, enable initialization explicitly:
 
 ```bash
-TL_IMAGE_TAG=1.0.0-beta.43 PUID=1001 PGID=100 docker compose \
+TL_IMAGE_TAG=1.0.0-beta.48 PUID=1001 PGID=100 docker compose \
   -f compose.yaml -f deploy/compose.identity.yaml up -d --pull always
 ```
 
@@ -186,3 +186,26 @@ Open **Settings** to revisit setup. At the storage step, import client folders a
 ![Storage setup in the browser](../images/web/storage-en.png)
 
 **Documentation**, above **Settings**, opens these guides inside the Web UI. Choose a guide from the selector; the arrow returns to the previous guide. The sidebar language selector also changes the guides’ language. **GitHub** opens their online version.
+
+### Optional Members
+
+Members are off by default. Set `TL_WEB_MEMBERS=on` or pass `--members on` to enable personal accounts, invitations, Shared Screens and Requests. Restart the server after changing this setting.
+
+With Members off, the startup password or a trusted proxy still signs in as the Owner. Proxy user headers are ignored, including headers sent by Authelia or Authentik. Member routes return 404 and the Members controls are hidden. Disabling Members revokes existing invitation/password links, Member sessions and Shared Screen tokens. Accounts and their history remain, but users must sign in again after re-enabling Members.
+
+### Using Members
+
+The Owner opens **Settings → Users** to create a Member, choose their Permissions (features, Library Folders, Content Kinds, adult content, making or accepting Requests, managing Members) and send an invitation link. A Member signs in with their own name and password, sees only what their Permissions allow, and manages their password, Viewers and PINs under **My account**.
+
+- **Viewers and Shared Screens.** A Viewer watches under an account without signing in, with their own progress and playlists. A browser marked as a Shared Screen asks who is watching; a less restricted Viewer needs a PIN.
+- **Age Ratings.** Films and series carry a minimum age (All audiences, −10, −12, −16, −18). A Member's age limit hides anything above it, and unrated titles under any limit.
+- **Requests and Wishes.** A Member asks for a tracker release from Media or Search. An Approver (the Owner, or a Member allowed to) accepts it, and it goes to the Torrent Client at once, or refuses it with a note. A Wish asks for a title that has no release yet; an Approver can match it to one later.
+- **Member Assistant.** Each Member has a private Assistant with daily caps set by the Owner.
+
+### Member notifications
+
+With Members enabled, Notifications lists events for your account and shows an unread badge. Approvers receive new Requests and Wishes; requesters receive decisions and availability updates. The Owner also receives invitation, Shared Screen, sign-in lockout and configured download-margin alerts.
+
+In Settings → Notifications, the Owner can enable SMTP email and browser push, choose event defaults, and set the public app address. The OVHcloud MX Plan preset uses `ssl0.ovh.net`, port 465 and SSL/TLS. Use your full email address as the login. Each account chooses its own delivery preferences. Email and browser delivery start disabled; in-app notices remain available. Emails contain the title, state and app link. Refusal notes stay in the app.
+
+Browser delivery requires HTTPS and permission in that browser. Signing out removes its subscription. Failed delivery retries up to five times. SMTP credentials and browser signing keys use the configured secret store. Invitation and password links can also be sent from Users after SMTP is configured.

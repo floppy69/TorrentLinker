@@ -7,6 +7,7 @@ no browser session, arbitrary URL, filesystem or general API is exposed to JS.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from pathlib import Path
@@ -19,6 +20,8 @@ from PySide6.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 from torrentlinker import i18n
 from torrentlinker.community import message_library
 from torrentlinker.profile_workspace import ProfileWorkspace
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -82,7 +85,7 @@ class BundledView(QWidget):
     def __init__(self, bridge: ViewBridge, assets: Path, channel_name: str, language: str = "en"):
         super().__init__()
         self.setProperty("ownsScrolling", True)
-        self.assets = assets
+        self.assets = assets.resolve()
         self.channel_name = channel_name
         self.language = language
         self.bridge = bridge
@@ -131,26 +134,94 @@ class BundledView(QWidget):
                 url = info.requestUrl()
                 allowed = (
                     url.toString() == "qrc:///qtwebchannel/qwebchannel.js"
-                    or self_view.channel_name == "profile"
+                    or self_view.channel_name
+                    in {"profile", "search", "assistant", "media", "documentation", "nowplaying"}
                     and re.match(r"^data:image/(png|jpeg|gif|webp);base64,", url.toString())
                     is not None
                     or url.isLocalFile()
                     and Path(url.toLocalFile()).resolve()
                     in {
                         assets / name
-                        for name in ("view.html", "view.css", "view.js", "transport.js")
+                        for name in (
+                            "view.html",
+                            "view.css",
+                            "view.js",
+                            "transfers.js",
+                            "audit.js",
+                            "tracker-updates.js",
+                            "transport.js",
+                            "inspector.js",
+                            "recovery.js",
+                            "preparation.js",
+                            "rules.js",
+                            "results.js",
+                            "release-score.js",
+                            "indexers.js",
+                            "indexers.css",
+                            "secrets.js",
+                            "secrets.css",
+                            "cross-seed.js",
+                            "cross-seed.css",
+                            "details.js",
+                            "details.css",
+                            "queue.js",
+                            "browser.js",
+                            "common.js",
+                            "assistant.js",
+                            "companion.js",
+                            "agents.js",
+                            "file-access.js",
+                            "members.js",
+                            "account.js",
+                            "notifications.js",
+                            "community-site.js",
+                            "achievements.js",
+                            "prerolls.js",
+                            "prerolls.css",
+                            "studio.js",
+                            "ratings.js",
+                            "requests.js",
+                            "watch.js",
+                        )
                     }
                     | {
                         assets.parent / "panel" / name
-                        for name in ("base.css", "transport.js", "i18n.js")
+                        for name in (
+                            "base.css",
+                            "toast.js",
+                            "toast.css",
+                            "community-items.js",
+                            "community-items.css",
+                            "transport.js",
+                            "i18n.js",
+                            "media-flags.js",
+                            "torrent-list.css",
+                            "torrent-filters.js",
+                            "file-access.js",
+                            "file-access.css",
+                        )
                     }
+                    or self_view.channel_name == "shell"
+                    and url.isLocalFile()
+                    and Path(url.toLocalFile()).resolve() == assets.parent / "favicon.svg"
+                    or self_view.channel_name == "media"
+                    and url.isLocalFile()
+                    and Path(url.toLocalFile()).resolve() == assets.parent / "media.css"
                 )
+                if not allowed:
+                    # A blocked page or script leaves the view blank: say which one.
+                    log.warning("%s view blocked %s", self_view.channel_name, url.toString()[:200])
                 info.block(not allowed)
 
         channel_name = self.channel_name
         host_view = self
 
         class LocalPage(QWebEnginePage):
+            def javaScriptConsoleMessage(self, level, message, line, source):
+                if level == QWebEnginePage.JavaScriptConsoleMessageLevel.ErrorMessageLevel:
+                    name = source.rsplit("/", 2)[-2:]
+                    log.warning("%s view: %s (%s:%s)", channel_name, message, "/".join(name), line)
+
             def createWindow(self, window_type):
                 if channel_name != "upload":
                     return None
@@ -180,6 +251,15 @@ class BundledView(QWidget):
                 is_main_frame: bool,
             ) -> bool:
                 target = QUrl(url)
+                if (
+                    channel_name == "search"
+                    and navigation_type == QWebEnginePage.NavigationType.NavigationTypeLinkClicked
+                    and target.scheme() in {"http", "https"}
+                    and target.host()
+                    and not target.userInfo()
+                ):
+                    QDesktopServices.openUrl(target)
+                    return False
                 if (
                     navigation_type == QWebEnginePage.NavigationType.NavigationTypeLinkClicked
                     and target.scheme() == "https"
@@ -214,6 +294,12 @@ class BundledView(QWidget):
         self.channel.registerObject(self.channel_name, self.bridge)
         page.setWebChannel(self.channel)
         self.web.loadFinished.connect(self.refresh)
+        self.web.loadFinished.connect(self._load_failed)
+        page.renderProcessTerminated.connect(
+            lambda status, code: log.warning(
+                "%s view lost its render process: %s (%s)", self.channel_name, status, code
+            )
+        )
         self._layout.addWidget(self.web)
         self.web.setUrl(QUrl.fromLocalFile(str(assets / "view.html")))
 
@@ -232,6 +318,10 @@ class BundledView(QWidget):
         if self.web is None:
             self._load_view()
         self.refresh()
+
+    def _load_failed(self, ok: bool) -> None:
+        if not ok:
+            log.warning("%s view failed to load", self.channel_name)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         # pytest and shutdown can stop the event loop before deferred widget

@@ -177,3 +177,9 @@ def test_uploads_seed_from_the_local_files_under_their_own_names(
     from tests.test_qbit_integration import check_uploads_seed_from_the_local_files
 
     check_uploads_seed_from_the_local_files(deluge, shared)
+
+
+def test_tracker_updates_keep_tiers_and_private_keys(deluge, shared):
+    from tests.tracker_support import check_tracker_updates
+
+    check_tracker_updates(deluge, shared)

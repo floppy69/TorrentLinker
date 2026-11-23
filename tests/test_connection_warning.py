@@ -3,26 +3,27 @@ from types import SimpleNamespace
 import pytest
 from qbittorrentapi import LoginFailed
 
-from torrentlinker.config import Settings
-from torrentlinker.gui.settings_dialog import SettingsDialog
-
 
 @pytest.mark.parametrize(
     "error", [LoginFailed(), TimeoutError(), RuntimeError("connection refused")]
 )
-def test_connection_warning_always_explains_failure(qtbot, monkeypatch, error):
-    dialog = SettingsDialog(Settings())
-    qtbot.addWidget(dialog)
-    monkeypatch.setattr(dialog, "_form_qbit", lambda: SimpleNamespace(check=lambda: None))
-    monkeypatch.setattr(
-        "torrentlinker.gui.settings_dialog.run_in_background",
-        lambda fn, done, failed: failed(error),
+def test_connection_warning_always_explains_failure(qtbot, tmp_path, monkeypatch, error):
+    from tests.settings_support import settings_page
+    from tests.test_community_interfaces import js, wait_js
+
+    dialog = settings_page(qtbot, tmp_path)
+
+    def fail():
+        raise error
+
+    monkeypatch.setattr(dialog.setup, "connector", lambda *args: SimpleNamespace(check=fail))
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent"
+        "==='Test connection').click()",
     )
-    messages = []
-    monkeypatch.setattr(
-        "torrentlinker.gui.settings_dialog.QMessageBox.warning",
-        lambda parent, title, text: messages.append(text),
-    )
-    dialog._test_qbit()
-    assert messages and "Web UI" in messages[0] and "running" in messages[0]
-    assert (str(error) or type(error).__name__) in messages[0]
+    wait_js(qtbot, dialog.view, "Boolean(document.querySelector('#settings-error').textContent)")
+    message = js(qtbot, dialog.view, "document.querySelector('#settings-error').textContent")
+    assert "Cannot connect" in message
+    assert "address" in message and "port" in message

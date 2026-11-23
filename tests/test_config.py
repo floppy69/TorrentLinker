@@ -70,7 +70,14 @@ def test_plan_goal_and_both_limits_survive_a_save_and_load(tmp_path: Path, goal:
 
     settings = Settings()
     settings.plan_options = PlanOptions(
-        PlanGoal(goal), 25 * GB, 100, max_seeders=10, min_size=GB // 2, max_size=8 * GB
+        PlanGoal(goal),
+        25 * GB,
+        100,
+        max_seeders=10,
+        min_size=GB // 2,
+        max_size=8 * GB,
+        min_torrents=20,
+        min_seeders=3,
     )
     settings.save(tmp_path / "settings.json")
 

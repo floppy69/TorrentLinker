@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import os
 import threading
 import time
@@ -17,6 +18,7 @@ from torrentlinker.indexer import Candidate, RateLimited
 from torrentlinker.library import LibraryEntry, LibraryResult, build_library, indexer_contents
 from torrentlinker.paths import MappedQbit, PathMapper
 from torrentlinker.reseed import start_reseed
+from torrentlinker.reseed_layout import ReseedLayout, needs_disk_rename_review
 from torrentlinker.review import (
     CheckedCandidate,
     candidate_key,
@@ -36,7 +38,17 @@ class Library:
         self.setup = setup
         self.entries: list[LibraryEntry] = []
         self.selections: dict[str, list[str]] = {}
+        self.selection_rows: dict[str, dict] = {}
         self.folder_errors: list[ScanError] = []
+
+    def snapshot(self):
+        """Pin the published Library for a one-item read while a scan builds its replacement."""
+        result = copy.copy(self)
+        result.entries = list(self.entries)
+        result.selections = self.selections.copy()
+        result.selection_rows = self.selection_rows.copy()
+        result.folder_errors = list(self.folder_errors)
+        return result
 
     def client(self) -> MappedQbit:
         settings = self.setup.settings
@@ -44,6 +56,10 @@ class Library:
             self.setup.client(),
             PathMapper(settings.path_mappings),
             sequential_video=settings.sequential_video,
+            reseed_policy=ReseedLayout.for_settings(
+                settings,
+                None if hasattr(self.setup, "_folder_candidate") else self.setup.path_under_root,
+            ),
         )
 
     def check_tree(self, path: Path, stop: threading.Event) -> None:
@@ -73,6 +89,7 @@ class Library:
         stop: threading.Event,
         progress: Callable[[Any], None],
         folders: list[str] | None = None,
+        on_discovered: Callable[[list[LibraryEntry]], None] | None = None,
     ) -> dict:
         selected = self.setup.settings.library_folders
         if folders is not None:
@@ -118,32 +135,29 @@ class Library:
         result = LibraryResult()
         retained_paths = {f.path for f in self.setup.settings.library_folders} - selected_paths
         result.extend(e for e in previous if e.folder.path in retained_paths)
-        scanned_paths: set[Path] = set()
         for folder in selected:
             if stop.is_set():
                 return {"cancelled": True}
             if folder.path in unavailable:
                 result.errors.append(ScanError(folder.path, str(unavailable[folder.path])))
-                result.extend(entry for entry in self.entries if entry.folder == folder)
+                result.extend(entry for entry in previous if entry.folder == folder)
             else:
                 scanned = build_library(
                     [folder],
                     torrents,
                     self.setup.settings.matching.ignore,
                     self.setup.store,
-                    previous=self.entries,
+                    previous=previous,
                 )
                 result.extend(scanned)
                 result.errors.extend(scanned.errors)
-            scanned_paths.add(folder.path)
             published = (
                 [replace(e, state=ItemState.UNKNOWN) for e in result]
                 if client_unavailable
                 else list(result)
             )
-            self.entries = published + [
-                e for e in previous if e.folder.path in selected_paths - scanned_paths
-            ]
+            if on_discovered is not None:
+                on_discovered([e for e in published if e.folder == folder])
             progress(
                 {
                     "items": len(result),
@@ -167,7 +181,7 @@ class Library:
         }
 
     def rows(self) -> list[dict[str, Any]]:
-        return [
+        rows = [
             {
                 "path": str(e.item.path),
                 "name": e.item.path.name,
@@ -179,28 +193,41 @@ class Library:
             }
             for e in self.entries
         ]
+        paths = {row["path"] for row in rows}
+        return rows + [row for row in self.selection_rows.values() if set(row["members"]) <= paths]
 
-    def combine(self, paths: list[str], stop: threading.Event) -> dict:
+    def combine(self, paths: list[str], stop: threading.Event, name: str = "") -> dict:
         from torrentlinker.compatible import combine_items
         from torrentlinker.domain import TorrentClient
 
         if self.setup.settings.client != TorrentClient.QBITTORRENT:
             raise ValueError("Combining folders currently requires qBittorrent.")
-        entries = [self.entry(p) for p in dict.fromkeys(paths)]
+        paths = list(dict.fromkeys(paths))
+        if not 2 <= len(paths) <= 100:
+            raise ValueError("Select between 2 and 100 Local Items.")
+        entries = [self.entry(p) for p in paths]
         if any(p in self.selections for p in paths):
             raise ValueError("Select real Local Items, not another combined selection.")
         if len({e.folder.kind for e in entries}) != 1:
             raise ValueError("Select items with the same Content Kind.")
+        if any(a.item.path in b.item.path.parents for a in entries for b in entries if a is not b):
+            raise ValueError("Select a pack or its episodes, not both.")
         items = [self.scan_entry(e, stop) for e in entries]
         item = combine_items(items, self.setup.settings.path_mappings)
         self.selections[str(item.path)] = list(dict.fromkeys(paths))
-        return {
+        row = {
             "path": str(item.path),
-            "name": "Selected Local Items",
+            "name": name.strip()[:200] or "Selected Local Items",
             "size": item.size,
-            "folder": str(item.save_path),
+            "folder": str(entries[0].folder.path),
+            "common_parent": str(item.save_path),
             "kind": entries[0].folder.kind,
+            "state": ItemState.ORPHAN,
+            "within": "",
+            "members": list(dict.fromkeys(paths)),
         }
+        self.selection_rows[str(item.path)] = row
+        return row
 
     def scan_entry(self, entry: LibraryEntry, stop: threading.Event):
         from torrentlinker.compatible import combine_items
@@ -265,6 +292,46 @@ class Library:
 
     def start_repair(self, identifier: str, confirmation: str, *, client=None) -> dict:
         return self.repairs().start(identifier, confirmation, client or self.repair_client())
+
+    def inspector(
+        self,
+        path: str,
+        action: str,
+        stop: threading.Event,
+        *,
+        key: str = "",
+        torrent_data: str = "",
+        progress: Callable[[Any], None] = lambda _: None,
+    ) -> Any:
+        """Candidate inspection shared by the desktop bridge and Web jobs."""
+        if action in {"review", "check", "reject"}:
+            return self.review(path, stop, key=key, action="" if action == "review" else action)
+        if action == "search":
+            return self.compatible(path, stop, progress)
+        if action == "repairs":
+            return self.repairs().rows()
+        if action == "provenance":
+            return self.provenance(path)
+        if action == "evidence":
+            return {**self.evidence(path, stop), "provenance": self.provenance(path)}
+        if action == "import":
+            import base64
+
+            if len(torrent_data) > 12_000_000:
+                raise ValueError("Torrent upload is too large.")
+            self.import_provenance(path, base64.b64decode(torrent_data, validate=True), stop)
+            return self.provenance(path)
+        if action == "details":
+            from torrentlinker.torrent_details import parse_details, preview_html
+
+            rows = self.review(path, stop)
+            row = next((r for r in rows if r["key"] == key), None)
+            if not row or not row["hash"]:
+                raise ValueError("Select a current Candidate with an infohash.")
+            detail = parse_details(self.setup.indexer().torrent_json(row["hash"]))
+            markup, _ = preview_html(detail.description, detail.poster)
+            return {"description": markup, "nfo": detail.nfo}
+        raise ValueError("Unknown candidate inspection action.")
 
     def import_provenance(self, path: str, data: bytes, stop: threading.Event) -> dict:
         from torrentlinker.provenance import Provenance
@@ -523,7 +590,9 @@ class Library:
                     checked = check_candidate(indexer, item, candidate, rules)
                     if not checked.meta or not checked.match or not checked.match.is_full:
                         continue
-                    if checked.unpack or (client.requires_disk_renames and checked.match.renames):
+                    if checked.unpack or (
+                        needs_disk_rename_review(client) and checked.match.renames
+                    ):
                         skipped += 1
                         continue
                     infohash = checked.meta.infohash.lower()
@@ -573,7 +642,11 @@ class Library:
         client = self.client()
         if refusal := (None if checked.match.is_full else partial_refusal(client)):
             raise ValueError(refusal)
-        if client.requires_disk_renames and checked.match.renames and approve_disk_renames is None:
+        if (
+            needs_disk_rename_review(client)
+            and checked.match.renames
+            and approve_disk_renames is None
+        ):
             raise ValueError(disk_renames_elsewhere(client))
         hash = start_reseed(
             client,

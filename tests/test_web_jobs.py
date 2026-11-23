@@ -159,7 +159,7 @@ def test_browser_reuses_running_and_queued_requests_with_the_same_parameters(tmp
                 calls.append((request.kind, request.path))
                 if request.kind == "scan":
                     entered.set()
-                    assert release.wait(5)
+                assert release.wait(5)
                 return {"path": request.path}
             return super().run(request, stop, progress)
 

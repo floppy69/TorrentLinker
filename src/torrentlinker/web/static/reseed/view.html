@@ -4,24 +4,29 @@
     name="viewport"
     content="width=device-width,initial-scale=1"
   /><title>Bibliothèque</title
-  ><link rel="stylesheet" href="../panel/base.css" />
+  ><link rel="stylesheet" href="../panel/base.css" /><link rel="stylesheet" href="../panel/toast.css" />
   <link rel="stylesheet" href="view.css" />
+  <link rel="stylesheet" href="cross-seed.css" />
   <body>
     <nav class="tabs">
       <button class="on" data-tab="reseed">Remise en seed</button
+      ><button data-tab="cross">Cross-seed</button
       ><button data-tab="folders">Dossiers</button
-      ><button data-tab="activity">Activité</button>
+      ><button data-tab="activity">Activité</button><button data-command="refresh" style="margin-left:auto">Actualiser</button>
     </nav>
-    <p id="error" class="error" role="alert"></p>
-    <div id="content"></div>
+    <p id="error" class="error" role="alert" data-toast="bad"></p>
+    <div id="library-jobs" aria-live="polite"></div><div id="content"></div>
     <dialog id="dialog">
       <p id="dialog-error" class="error" role="alert"></p>
       <div id="dialog-body"></div>
       <button data-command="close">Fermer</button>
     </dialog>
-    <script src="../panel/i18n.js"></script>
+    <script src="../panel/i18n.js"></script><script defer src="../panel/toast.js"></script>
     <script src="../panel/transport.js"></script>
     <script src="transport.js"></script>
     <script src="view.js"></script>
+    <script src="inspector.js"></script>
+    <script src="recovery.js"></script>
+    <script src="cross-seed.js"></script>
   </body>
 </html>

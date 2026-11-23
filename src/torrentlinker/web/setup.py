@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 import os
 import threading
+import time
+import uuid
 from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -13,17 +15,19 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from torrentlinker import net
+from torrentlinker import indexer_hub, net
 from torrentlinker.clients import connect
-from torrentlinker.config import ProxySettings, Settings
+from torrentlinker.config import C411_ID, HUB_SECRET, IndexerSettings, ProxySettings, Settings
 from torrentlinker.domain import ContentKind, LibraryFolder, PathMapping, TorrentClient
-from torrentlinker.indexer import Indexer
+from torrentlinker.indexer import Caps, Indexer
 from torrentlinker.library import known_files
+from torrentlinker.login_guard import LoginRefused
 from torrentlinker.paths import PathMapper
 from torrentlinker.profile_history import ProfileHistory
 from torrentlinker.profile_workspace import ProfileWorkspace
 from torrentlinker.qbit import ClientApi
 from torrentlinker.store import Store
+from torrentlinker.torznab import TorznabIndexer
 from torrentlinker.web.security import ServerSecrets
 
 Connector = Callable[..., ClientApi]
@@ -43,23 +47,53 @@ CLIENT_SETTINGS = {
 }
 
 
+CLIENT_ADDRESS = (
+    "Client address: enter for example http://192.168.0.50:8080, "
+    "without user name, password, query or fragment."
+)
+CLIENT_PORT = "Client address: the port must be between 1 and 65535."
+INDEXER_ADDRESS = (
+    "Indexer address: enter a full address such as https://c411.org/api/torznab, "
+    "without user name, password, query or fragment."
+)
+SCGI_ADDRESS = (
+    "Client address: enter rTorrent's SCGI address as scgi://host:port, "
+    "for example scgi://192.168.0.50:5000."
+)
+SCGI_ONLY_RTORRENT = "Client address: scgi:// is only for rTorrent; use http://host:port."
+
+
 def http_url(value: str) -> str:
-    return _url(value, {"http", "https"})
+    return _url(value, {"http", "https"}, INDEXER_ADDRESS)
 
 
-def _url(value: str, schemes: set[str]) -> str:
-    parsed = urlsplit(value)
+def with_scheme(value: str) -> str:
+    """A client address typed as host, host:port or [ipv6]:port is an http:// one."""
+    value = value.strip()
+    if value and "://" not in value:
+        return "http://" + value
+    return value
+
+
+def _url(value: str, schemes: set[str], hint: str = INDEXER_ADDRESS) -> str:
+    port_hint = CLIENT_PORT if hint == CLIENT_ADDRESS else hint
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+        hostname = parsed.hostname
+    except ValueError:
+        raise ValueError(port_hint) from None
     if (
         parsed.scheme not in schemes
-        or not parsed.hostname
+        or not hostname
         or parsed.username
         or parsed.password
         or parsed.query
         or parsed.fragment
     ):
-        raise ValueError("Use an HTTP(S) address without credentials, query or fragment.")
-    if parsed.port is not None and not 1 <= parsed.port <= 65535:
-        raise ValueError("Invalid port.")
+        raise ValueError(hint)
+    if port is not None and not 1 <= port <= 65535:
+        raise ValueError(port_hint)
     return value.rstrip("/")
 
 
@@ -78,14 +112,16 @@ class Connection(BaseModel):
     @classmethod
     def valid_host(cls, value: str) -> str:
         # rTorrent's SCGI port is reached over TCP only here, never a socket path.
-        return _url(value, {"http", "https", "scgi"})
+        value = with_scheme(value)
+        hint = SCGI_ADDRESS if value.lower().startswith("scgi:") else CLIENT_ADDRESS
+        return _url(value, {"http", "https", "scgi"}, hint)
 
     @model_validator(mode="after")
     def scgi_for_rtorrent(self) -> Connection:
         if self.host.startswith("scgi:") and self.client is not TorrentClient.RTORRENT:
-            raise ValueError("Use an HTTP(S) address.")
+            raise ValueError(SCGI_ONLY_RTORRENT)
         if self.host.startswith("scgi:") and urlsplit(self.host).port is None:
-            raise ValueError("Enter rTorrent's SCGI address as scgi://host:port")
+            raise ValueError(SCGI_ADDRESS)
         return self
 
 
@@ -95,21 +131,65 @@ class PartialNamesRefused(ValueError):
     action = "turn_off_partial_names"
 
 
+class KeptKey(BaseModel):
+    """An additional API key left as saved: the number of its stored slot, 1 to 4."""
+
+    keep: int = Field(ge=1, le=4)
+
+
 class IndexerConnection(BaseModel):
     url: str = "https://c411.org/api/torznab"
     api_key: str | None = Field(default=None, max_length=4096)
-    extra_keys: list[str] | None = Field(default=None, max_length=4)
+    # Each entry is a key typed in, or a KeptKey standing for a saved one the page never read.
+    extra_keys: list[str | KeptKey] | None = Field(default=None, max_length=4)
 
     @field_validator("extra_keys")
     @classmethod
-    def valid_extra_keys(cls, values: list[str] | None) -> list[str] | None:
+    def valid_extra_keys(cls, values: list[str | KeptKey] | None) -> list[str | KeptKey] | None:
         if values is None:
             return None
-        if any(len(key) > 4096 for key in values):
+        if any(isinstance(key, str) and len(key) > 4096 for key in values):
             raise ValueError("API key too long.")
-        return list(dict.fromkeys(key.strip() for key in values if key.strip()))
+        return [key.strip() if isinstance(key, str) else key for key in values]
 
     _url = field_validator("url")(http_url)
+
+
+class IndexerEntry(BaseModel):
+    """An Indexer added by hand: a Torznab URL and its API key, kept as a secret."""
+
+    name: str = Field(default="", max_length=100)
+    url: str = ""
+    api_key: str | None = Field(default=None, max_length=4096)
+    enabled: bool | None = None
+
+    _url = field_validator("url")(lambda value: http_url(value) if value else value)
+
+
+class IndexerHubEntry(BaseModel):
+    """A Prowlarr or Jackett instance: its address and API key (kept as a secret)."""
+
+    service: Literal["prowlarr", "jackett"]
+    url: str
+    api_key: str | None = Field(default=None, max_length=4096)
+
+    _url = field_validator("url")(http_url)
+
+
+class IndexerHubImport(BaseModel):
+    ids: list[str] = Field(max_length=1000)
+
+
+class CrossSeedRules(BaseModel):
+    """What Cross-seed adds without a review, and its pause."""
+
+    auto_add: bool | None = None
+    threshold: float | None = Field(default=None, ge=0.5, le=1.0)
+    paused: bool | None = None
+
+
+def mode_names(caps: Caps) -> dict[str, list[str]]:
+    return {mode.value: sorted(params) for mode, params in caps.modes.items()}
 
 
 class ProxySetup(BaseModel):
@@ -172,6 +252,7 @@ class Setup:
         self.download_guard: Callable[[bytes, str], None] | None = None
         self._client: ClientApi | None = None
         self._indexer: Indexer | None = None
+        self._torznab: dict[str, tuple[tuple[str, str], TorznabIndexer]] = {}
         self.store = Store(directory / "catalogue.sqlite").for_client(
             self.settings.active_client_id
         )
@@ -185,6 +266,13 @@ class Setup:
     def profile_workspace(self) -> ProfileWorkspace:
         root = self._root or self
         root._profile_workspace.bind(root.settings.indexer.url, root.secrets.get("indexer-api-key"))
+
+        def creation(action, values):
+            from torrentlinker.community_site import community_site
+
+            return community_site(root).request(action, values)
+
+        root._profile_workspace.creation_handler = creation
         return root._profile_workspace
 
     def for_client(self, identifier: str) -> Setup:
@@ -213,7 +301,12 @@ class Setup:
                     if name == "qbit"
                     else "",
                 )
-            return self._client
+            from torrentlinker.client_access import SerializedClient
+
+            port = getattr(self, "_client_port", None)
+            if port is None or port.client is not self._client:
+                self._client_port = SerializedClient(self._client)
+            return self._client_port
 
     def indexer(self) -> Indexer:
         with self.lock:
@@ -228,10 +321,19 @@ class Setup:
                     extra_keys=self.extra_indexer_keys(),
                 )
                 self._indexer.session = (self._root or self)._profile_workspace
+                self._indexer.adult_content = lambda: self.settings.adult_content
             return self._indexer
 
     def extra_indexer_keys(self) -> list[str]:
         return [key for i in range(1, 5) if (key := self.secrets.get(f"indexer-extra-key-{i}"))]
+
+    def resolve_extra_keys(self, entries: list[str | KeptKey]) -> list[str]:
+        """The final additional keys: typed and kept ones, without blanks or repeats."""
+        keys = [
+            self.secrets.get(f"indexer-extra-key-{key.keep}") if isinstance(key, KeptKey) else key
+            for key in entries
+        ]
+        return list(dict.fromkeys(key for key in keys if key))
 
     def indexer_key_count(self) -> int:
         return len(
@@ -243,6 +345,8 @@ class Setup:
         )
 
     def snapshot(self) -> dict[str, Any]:
+        from torrentlinker.reseed_layout import effective_layout
+
         with self.lock:
             name = CLIENT_SETTINGS[self.settings.client]
             config = getattr(self.settings, name)
@@ -250,6 +354,8 @@ class Setup:
                 "client_id": self.settings.active_client_id,
                 "name": self.settings.profile().name,
                 "reseed_link_root": self.settings.profile().reseed_link_root,
+                "reseed_layout": self.settings.profile().reseed_layout,
+                "reseed_effective_layout": effective_layout(self.settings.profile()),
                 "default_client_id": (self._root or self).settings.default_client_id,
                 "clients": [
                     {"id": p.id, "name": p.name, "client": p.client, "enabled": p.enabled}
@@ -328,6 +434,8 @@ class Setup:
                     version = client.check()
             except PartialNamesRefused:
                 raise
+            except LoginRefused as refused:
+                raise ValueError(refused.text(self.settings.language)) from None
             except Exception as error:
                 if any(
                     word in str(error).lower()
@@ -418,7 +526,11 @@ class Setup:
             key = body.api_key if body.api_key is not None else self.secrets.get("indexer-api-key")
             if not key:
                 raise ValueError("Enter your c411 API key.")
-            extras = self.extra_indexer_keys() if body.extra_keys is None else body.extra_keys
+            extras = (
+                self.extra_indexer_keys()
+                if body.extra_keys is None
+                else self.resolve_extra_keys(body.extra_keys)
+            )
             indexer = Indexer(body.url, key, cache=self.store, extra_keys=extras)
             try:
                 caps = indexer.caps()
@@ -439,6 +551,7 @@ class Setup:
                 if credentials:
                     self.secrets.update(credentials)
                 self.settings.indexer.url = body.url
+                self.settings.indexer.modes = mode_names(caps)
                 from torrentlinker.downloads import IndexerCategory
 
                 self.settings.indexer_categories = {
@@ -446,8 +559,286 @@ class Setup:
                 }
                 self.save()
                 indexer.session = (self._root or self)._profile_workspace
+                indexer.adult_content = lambda: self.settings.adult_content
                 self._indexer = indexer
-            return {"ok": True, "categories": len(caps.categories)}
+            return {
+                "ok": True,
+                "categories": len(caps.categories),
+                "keys": len(dict.fromkeys([key, *extras])),
+            }
+
+    def indexer_for(self, identifier: str) -> Indexer | TorznabIndexer:
+        """The Indexer to search: c411's own, or an added one with its pacer kept."""
+        if identifier == C411_ID:
+            return self.indexer()
+        with self.lock:
+            entry = self.settings.find_indexer(identifier)
+            key = self.secrets.get(Settings.indexer_secret(identifier))
+            if not key:
+                raise ValueError(f"Add the API key of {entry.name} first.")
+            held = self._torznab.get(identifier)
+            if held is None or held[0] != (entry.url, key):
+                held = ((entry.url, key), TorznabIndexer(entry.url, key, entry.name))
+                self._torznab[identifier] = held
+            return held[1]
+
+    def set_cross_seed(self, body: CrossSeedRules) -> dict[str, Any]:
+        with self.lock:
+            rules = self.settings.cross_seed
+            for name, value in body.model_dump(exclude_none=True).items():
+                setattr(rules, name, value)
+            self.save()
+            return asdict(rules)
+
+    def indexer_rows(self) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = []
+            for entry in self.settings.indexers:
+                row = {
+                    "id": entry.id,
+                    "name": entry.name,
+                    "url": entry.url,
+                    "enabled": entry.enabled,
+                    "has_key": bool(self.secrets.get(Settings.indexer_secret(entry.id))),
+                    "modes": entry.modes,
+                    "searchable_ids": entry.searchable_ids,
+                    "c411": entry.id == C411_ID,
+                    "source": entry.source,
+                    "missing": entry.missing,
+                    "next_request_in": 0.0,
+                }
+                held = self._torznab.get(entry.id)
+                if held is not None:
+                    row["next_request_in"] = held[1].next_request_in()
+                elif entry.id == C411_ID and self._indexer is not None:
+                    row["next_request_in"] = self._indexer.next_request_in()
+                rows.append(row)
+            return rows
+
+    def _probe(self, url: str, key: str, name: str) -> Caps:
+        try:
+            return TorznabIndexer(url, key, name).caps()
+        except Exception:
+            raise ValueError(
+                "Indexer test failed. Check its Torznab address and API key."
+            ) from None
+
+    def probe_indexer(self, body: IndexerEntry, identifier: str = "") -> dict[str, Any]:
+        """Read an Indexer's caps without saving it: what the add dialog's Test shows."""
+        with self.lock:
+            saved = self.settings.find_indexer(identifier) if identifier else None
+            url = body.url or (saved.url if saved else "")
+            key = body.api_key or (
+                self.secrets.get(Settings.indexer_secret(identifier)) if saved else ""
+            )
+            if not url or not key:
+                raise ValueError("Enter the Indexer's Torznab URL and API key.")
+            entry = IndexerSettings(modes=mode_names(self._probe(url, key, body.name or url)))
+            return {"ok": True, "modes": entry.modes, "searchable_ids": entry.searchable_ids}
+
+    def add_indexer(self, body: IndexerEntry) -> dict[str, Any]:
+        name = body.name.strip()
+        if not name or not body.url or not body.api_key:
+            raise ValueError("Enter the Indexer's name, Torznab URL and API key.")
+        with self.lock:
+            if name.casefold() in {i.name.casefold() for i in self.settings.indexers}:
+                raise ValueError("An Indexer already has this name.")
+            caps = self._probe(body.url, body.api_key, name)
+            entry = IndexerSettings(
+                url=body.url,
+                id=uuid.uuid4().hex[:8],
+                name=name,
+                enabled=body.enabled is not False,
+                modes=mode_names(caps),
+            )
+            self.secrets.update({Settings.indexer_secret(entry.id): body.api_key})
+            self.settings.indexers.append(entry)
+            self.save()
+            return {"ok": True, "id": entry.id, "searchable_ids": entry.searchable_ids}
+
+    def update_indexer(self, identifier: str, body: IndexerEntry) -> dict[str, Any]:
+        with self.lock:
+            entry = self.settings.find_indexer(identifier)
+            if identifier == C411_ID:
+                if body.enabled is not None:
+                    entry.enabled = body.enabled
+                self.save()  # c411's URL and keys are set by the connection
+                return {"ok": True}
+            name = body.name.strip() or entry.name
+            if name.casefold() in {
+                i.name.casefold() for i in self.settings.indexers if i.id != identifier
+            }:
+                raise ValueError("An Indexer already has this name.")
+            url = body.url or entry.url
+            key = body.api_key or self.secrets.get(Settings.indexer_secret(identifier))
+            if (url, key) != (entry.url, self.secrets.get(Settings.indexer_secret(identifier))):
+                entry.modes = mode_names(self._probe(url, key, name))
+                if body.api_key:
+                    self.secrets.update({Settings.indexer_secret(identifier): body.api_key})
+            entry.name, entry.url = name, url
+            if body.enabled is not None:
+                entry.enabled = body.enabled
+            self.save()
+            return {"ok": True, "searchable_ids": entry.searchable_ids}
+
+    def test_indexer_entry(self, identifier: str) -> dict[str, Any]:
+        """Read the Indexer's caps again and keep which id searches it supports."""
+        with self.lock:
+            entry = self.settings.find_indexer(identifier)
+            key = self.secrets.get(Settings.indexer_secret(identifier))
+            if not key:
+                raise ValueError(f"Add the API key of {entry.name} first.")
+            entry.modes = mode_names(self._probe(entry.url, key, entry.name))
+            self.save()
+            return {"ok": True, "modes": entry.modes, "searchable_ids": entry.searchable_ids}
+
+    def remove_indexer(self, identifier: str) -> None:
+        with self.lock:
+            if identifier == C411_ID:
+                raise ValueError("c411 cannot be removed.")
+            entry = self.settings.find_indexer(identifier)
+            self.settings.indexers.remove(entry)
+            self.secrets.update({Settings.indexer_secret(identifier): ""})
+            self._torznab.pop(identifier, None)
+            self.save()
+
+    def hub_state(self) -> dict[str, Any]:
+        with self.lock:
+            hub = self.settings.indexer_hub
+            return {
+                "service": hub.service,
+                "url": hub.url,
+                "has_key": bool(self.secrets.get(HUB_SECRET)),
+                "last_sync": hub.last_sync,
+                "imported": sum(1 for i in self.settings.indexers if i.source),
+            }
+
+    def _hub_listing(self) -> list[indexer_hub.HubIndexer]:
+        hub = self.settings.indexer_hub
+        key = self.secrets.get(HUB_SECRET)
+        if not hub.service or not key:
+            raise ValueError("Connect Prowlarr or Jackett first.")
+        try:
+            return indexer_hub.list_indexers(hub.service, hub.url, key)
+        except Exception as error:
+            raise ValueError(indexer_hub.refused(error)) from None
+
+    def _hub_rows(self, listing: list[indexer_hub.HubIndexer]) -> list[dict[str, Any]]:
+        service = self.settings.indexer_hub.service
+        known = {i.source_id for i in self.settings.indexers if i.source == service}
+        return [
+            {
+                "id": h.source_id,
+                "name": h.name,
+                "enabled": h.enabled,
+                "imported": h.source_id in known,
+            }
+            for h in listing
+        ]
+
+    def connect_hub(self, body: IndexerHubEntry) -> dict[str, Any]:
+        """Save the instance once it answers, and list its indexers."""
+        with self.lock:
+            key = body.api_key or self.secrets.get(HUB_SECRET)
+            if not key:
+                raise ValueError("Enter the API key.")
+            try:
+                listing = indexer_hub.list_indexers(body.service, body.url, key)
+            except Exception as error:
+                raise ValueError(indexer_hub.refused(error)) from None
+            hub = self.settings.indexer_hub
+            if body.service != hub.service:  # another service: its imports are no longer synced
+                for entry in self.settings.indexers:
+                    entry.source = entry.source_id = ""
+                    entry.missing = False
+            hub.service, hub.url = body.service, body.url.rstrip("/")
+            if body.api_key:
+                self.secrets.update({HUB_SECRET: body.api_key})
+            self.save()
+            return {"ok": True, "available": self._hub_rows(listing)}
+
+    def hub_available(self) -> dict[str, Any]:
+        with self.lock:
+            return {"available": self._hub_rows(self._hub_listing())}
+
+    def disconnect_hub(self) -> None:
+        """Forget the instance; imported Indexers stay, as added by hand."""
+        with self.lock:
+            for entry in self.settings.indexers:
+                entry.source = entry.source_id = ""
+                entry.missing = False
+            self.settings.indexer_hub = type(self.settings.indexer_hub)()
+            self.secrets.update({HUB_SECRET: ""})
+            self.save()
+
+    def _hub_name(self, name: str, taken: set[str]) -> str:
+        if name.casefold() in taken:
+            name = f"{name} ({self.settings.indexer_hub.service.title()})"
+        return name
+
+    def import_hub(self, body: IndexerHubImport) -> dict[str, Any]:
+        """Import the chosen indexers in one step; each one's caps are read on the way."""
+        with self.lock:
+            hub = self.settings.indexer_hub
+            key = self.secrets.get(HUB_SECRET)
+            wanted = {h.source_id: h for h in self._hub_listing() if h.source_id in set(body.ids)}
+            known = {i.source_id for i in self.settings.indexers if i.source == hub.service}
+            taken = {i.name.casefold() for i in self.settings.indexers}
+            added, failed = [], []
+            for source_id, found in wanted.items():
+                if source_id in known:
+                    continue
+                name = self._hub_name(found.name, taken)
+                try:
+                    caps = self._probe(found.url, key, name)
+                except ValueError:
+                    failed.append(found.name)
+                    continue
+                entry = IndexerSettings(
+                    url=found.url,
+                    id=uuid.uuid4().hex[:8],
+                    name=name,
+                    enabled=found.enabled,
+                    modes=mode_names(caps),
+                    source=hub.service,
+                    source_id=source_id,
+                )
+                taken.add(name.casefold())
+                self.secrets.update({Settings.indexer_secret(entry.id): key})
+                self.settings.indexers.append(entry)
+                added.append(entry.name)
+            self.save()
+            return {"ok": True, "added": added, "failed": failed}
+
+    def sync_hub(self) -> dict[str, Any]:
+        """Re-sync: renamed ones follow, vanished ones are flagged (kept), new ones listed."""
+        with self.lock:
+            hub = self.settings.indexer_hub
+            key = self.secrets.get(HUB_SECRET)
+            listing = {h.source_id: h for h in self._hub_listing()}
+            imported = [i for i in self.settings.indexers if i.source == hub.service]
+            renamed, removed = [], []
+            for entry in imported:
+                found = listing.get(entry.source_id)
+                entry.missing = found is None
+                if found is None:
+                    removed.append(entry.name)
+                    continue
+                others = {i.name.casefold() for i in self.settings.indexers if i is not entry}
+                name = self._hub_name(found.name, others)
+                if name != entry.name:
+                    renamed.append(name)
+                    entry.name = name
+                if found.url != entry.url:
+                    entry.url = found.url
+                if self.secrets.get(Settings.indexer_secret(entry.id)) != key:
+                    self.secrets.update({Settings.indexer_secret(entry.id): key})
+            self._torznab.clear()
+            hub.last_sync = time.time()
+            self.save()
+            known = {i.source_id for i in imported}
+            new = [h.name for sid, h in listing.items() if sid not in known]
+            return {"ok": True, "renamed": renamed, "removed": removed, "new": new}
 
     def suggest_mappings(self) -> dict[str, Any]:
         from torrentlinker.paths import detect_mappings
@@ -499,6 +890,7 @@ class Setup:
             net.configure(url, body.torrent_client)
             self._client = None
             self._indexer = None
+            self._torznab.clear()
             return {"ok": True}
 
     def set_adult_content(self, enabled: bool) -> None:

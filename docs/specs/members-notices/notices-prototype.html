@@ -1,0 +1,422 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway (ADR-0022, issue #127). Paramètres → Notifications, for the Owner and as a Member
+     sees it. Built from approved components: the shared palette (panel/base.css) and the Settings page's
+     stylesheet (settings/view.css), embedded below. Three layouts, ?variant=A|B|C. Fictional data. -->
+<html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notifications · aperçu #127</title>
+<style>
+/* Embedded copy of src/torrentlinker/web/static/panel/base.css (approved), so the prototype opens anywhere. */
+/* Shared palette for Qt, the Web shell and bundled panels.
+   Keep these two token blocks literal: gui/theme.py reads their declarations.
+   Approved panel-specific light overrides remain in each panel's view.css. */
+:root {
+  color-scheme: dark;
+  --bg: #161d23;
+  --panel: #202932;
+  --raised: #26323c;
+  --line: #33404b;
+  --text: #e2e9ed;
+  --muted: #98aab7;
+  --accent: #80bdb6;
+  --accent-text: #102a2b;
+  --tint: #263e43;
+  --hover: #263e43;
+  --danger: #ff9c9c;
+  --warning: #edbf73;
+  --success: #4ad394;
+  --link: #64c9c0;
+  --shadow: none;
+  --ink: var(--text);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f6fa;
+  --panel: #ffffff;
+  --raised: #f7f9fc;
+  --line: #d5dfe9;
+  --text: #203047;
+  --muted: #5c6c80;
+  --accent: #087f76;
+  --accent-text: #ffffff;
+  --tint: #d8eeeb;
+  --hover: #e8f3f2;
+  --danger: #b42332;
+  --warning: #8a5800;
+  --success: #1f9d63;
+  --link: #087f76;
+  --shadow: 0 16px 60px #172b3e12;
+}
+
+</style>
+<style>
+/* Embedded copy of src/torrentlinker/web/static/settings/view.css (approved), so the prototype opens anywhere. */
+.settings-layout {
+  align-items: start;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 24px;
+}
+#settings-navigation {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+#settings-navigation button {
+  text-align: left;
+  justify-content: flex-start;
+}
+#settings-navigation [aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--tint);
+}
+main,
+.settings-layout > * {
+  min-width: 0;
+}
+.settings-form {
+  align-content: start;
+  display: grid;
+  gap: 16px;
+}
+.settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.settings-field {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+.settings-field input,
+.settings-field select,
+.settings-field textarea {
+  width: 100%;
+}
+.settings-field input[type="checkbox"] {
+  width: auto;
+}
+.settings-form fieldset {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+}
+.settings-form legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.client-card {
+  border: 1px solid var(--line);
+  padding: 18px;
+  border-radius: 10px;
+  background: var(--panel);
+}
+.client-card h3 {
+  margin: 0;
+}
+#settings-error {
+  color: var(--danger);
+  white-space: pre-wrap;
+}
+#settings-error:empty,
+#settings-status:empty {
+  display: none;
+}
+@media (max-width: 720px) {
+  .settings-layout,
+  .settings-fields {
+    grid-template-columns: 1fr;
+  }
+  #settings-navigation {
+    display: flex;
+    overflow: auto;
+    padding: 3px 0 8px;
+  }
+  #settings-navigation button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  padding: 20px;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+h1 {
+  font-size: 26px;
+  margin: 0 0 22px;
+}
+h2 {
+  font-size: 20px;
+  margin: 0;
+}
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  min-width: 0;
+}
+button {
+  cursor: pointer;
+}
+button:hover {
+  background: var(--raised);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+small,
+.muted {
+  color: var(--muted);
+}
+
+.settings-form h3 {
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+.settings-form .card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  margin: 16px 0;
+  background: var(--panel);
+}
+.assistant-dialog {
+  width: min(720px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 22px;
+}
+.assistant-dialog form,
+.assistant-dialog label {
+  display: grid;
+  gap: 8px;
+}
+.assistant-dialog form {
+  gap: 16px;
+}
+.assistant-dialog input[type="checkbox"] {
+  justify-self: start;
+}
+.assistant-dialog::backdrop {
+  background: #0008;
+}
+.settings-form .toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.settings-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  background: var(--panel);
+}
+.settings-card h3 {
+  margin: 0 0 16px;
+}
+.settings-fields > button {
+  align-self: end;
+}
+.settings-check {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.settings-check input[type="checkbox"] {
+  width: auto;
+  flex: 0 0 auto;
+}
+.settings-check textarea {
+  flex-basis: 100%;
+}
+.settings-form > .settings-actions:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.file-access-status {
+  color: var(--accent);
+  font-weight: 600;
+}
+.file-access-address {
+  overflow-wrap: anywhere;
+}
+.file-access-capabilities {
+  width: 100%;
+  border-collapse: collapse;
+}
+.file-access-capabilities th,
+.file-access-capabilities td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.file-access-capabilities th {
+  width: 35%;
+  font-weight: 500;
+}
+.file-access-capabilities td {
+  padding-left: 20px;
+}
+.file-access-note {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  padding: 12px;
+}
+.settings-error {
+  color: var(--danger);
+}
+.file-access-confirm {
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  width: min(560px, 90vw);
+  padding: 24px;
+}
+
+</style>
+<style>
+/* Only what the Settings page has no equivalent for yet. */
+.matrix input[type=checkbox]{width:auto}.matrix th,.matrix td{padding:8px 10px!important;vertical-align:middle!important}.matrix td{text-align:center;padding-left:10px!important}
+.matrix tr.group th{padding-top:18px!important;color:var(--accent);font-weight:600}.matrix thead th{text-align:center}.matrix thead th:first-child,.matrix td:first-child{text-align:left}
+.ok{color:var(--success)}.warn{color:var(--warning)}.steps-nav{display:flex;gap:8px;flex-wrap:wrap}.steps-nav button[aria-current=step]{border-color:var(--accent);background:var(--tint)}
+.settings-check input[type=number]{width:80px}
+#switcher{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:#0d1216;color:#fff;border:1px solid #ffffff40;border-radius:999px;padding:6px 8px;box-shadow:0 10px 40px #0008;z-index:50;font-size:13px}
+#switcher button,#switcher select{background:#ffffff14;border-color:#ffffff30;color:#fff;border-radius:999px;padding:4px 12px}#switcher b{min-width:150px;text-align:center}
+</style>
+<h1>Paramètres</h1>
+<div class="settings-layout">
+ <nav id="settings-navigation" aria-label="Sections des paramètres"></nav>
+ <main><p id="settings-status" role="status"></p><div id="settings-body"></div></main>
+</div>
+<dialog class="assistant-dialog" id="mail"></dialog>
+<div id="switcher"><button id="prev" aria-label="Variante précédente">←</button><b id="label"></b><button id="next" aria-label="Variante suivante">→</button>
+ <select id="who" aria-label="Vu par"><option value="owner">Vu par Vincent (propriétaire)</option><option value="member">Vu par Léa (membre)</option></select><button id="theme">Thème</button></div>
+<script>
+const CHANNELS=[["app","Dans l'app"],["browser","Navigateur"],["email","E-mail"]];
+/* Events, who receives them, and their default channels. */
+const EVENTS=[
+ ["Pour qui accepte les demandes",[["request","Nouvelle demande",{app:1,browser:1,email:0}],["wish","Nouveau vœu",{app:1,browser:1,email:0}],["cancelled","Demande annulée",{app:1,browser:0,email:0}]],"approver"],
+ ["Pour les membres",[["accepted","Ma demande est acceptée",{app:1,browser:1,email:0}],["refused","Ma demande est refusée (avec la note)",{app:1,browser:1,email:1}],["arrived","Mon film est arrivé dans Médias",{app:1,browser:1,email:1}],["wishfound","Mon vœu a trouvé sa release",{app:1,browser:0,email:0}]],"member"],
+ ["Pour vous",[["margin","Marge de téléchargement sous le seuil",{app:1,browser:1,email:1}],["joined","Invitation acceptée",{app:1,browser:0,email:1}],["screen","Nouvel écran partagé",{app:1,browser:0,email:1}],["locked","Compte bloqué après trop d'essais",{app:1,browser:1,email:1}]],"owner"],
+];
+let mail={provider:"off",host:"",port:"",security:"SSL/TLS",user:"",from:"TorrentLinker <vincent@maison.fr>"},browserOn=true,threshold=200,prefs={};
+for(const [,items] of EVENTS)for(const [k,,d] of items)prefs[k]={...d};
+const variants=[["A","Sections"],["B","Tableau"],["C","Étapes"]];
+let variant=new URLSearchParams(location.search).get("variant")||"A",who="owner",step=0;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const status=t=>{document.getElementById("settings-status").textContent=t};
+const channelOn=c=>c==="app"||(c==="email"&&mail.provider!=="off")||(c==="browser"&&browserOn);
+const visibleGroups=()=>who==="owner"?EVENTS:EVENTS.filter(g=>g[2]==="member");
+const nav=()=>(who==="owner"?["Connexions","Clients","Général","ReleaseScore","Utilisateurs","Notifications"]:["Mon compte","Notifications"]).map(s=>`<button ${s==="Notifications"?'aria-current="page"':""}>${s}</button>`).join("");
+
+/* The mail server: SMTP, or OVHcloud's MX Plan with its settings pre-filled. */
+function mailFields(){const mx=mail.provider==="mxplan";
+ return `<div class="settings-fields"><label class="settings-field">Envoi des e-mails<select data-provider><option value="off" ${mail.provider==="off"?"selected":""}>Désactivé</option><option value="smtp" ${mail.provider==="smtp"?"selected":""}>Serveur SMTP</option><option value="mxplan" ${mx?"selected":""}>OVHcloud MX Plan</option></select></label>
+ ${mail.provider==="off"?`<p class="muted" style="align-self:end;margin:0">Sans e-mail : invitations par lien seulement, notifications dans l'app et le navigateur.</p>`:`
+ <label class="settings-field">Serveur<input value="${esc(mail.host)}" ${mx?"readonly":""} data-mail="host"></label>
+ <label class="settings-field">Port<input value="${esc(mail.port)}" ${mx?"readonly":""} data-mail="port"></label>
+ <label class="settings-field">Sécurité<select ${mx?"disabled":""}><option>SSL/TLS</option><option>STARTTLS</option></select></label>
+ <label class="settings-field">${mx?"Adresse e-mail complète (identifiant MX Plan)":"Identifiant"}<input value="${esc(mail.user)}" placeholder="${mx?"vincent@maison.fr":""}" data-mail="user"></label>
+ <label class="settings-field">Mot de passe<input type="password" placeholder="Enregistré ; laisser vide pour le garder"></label>
+ <label class="settings-field">Expéditeur<input value="${esc(mail.from)}" data-mail="from"></label>`}</div>
+ ${mail.provider==="mxplan"?`<p class="muted" style="margin:10px 0 0">Préréglage MX Plan : ssl0.ovh.net, port 465, SSL/TLS. Votre identifiant est l'adresse e-mail complète du compte MX Plan.</p>`:""}
+ ${mail.provider!=="off"?`<div class="settings-actions" style="margin-top:12px"><button data-test-mail>Envoyer un e-mail de test</button></div>`:""}`}
+function browserCard(){return `<p class="muted" style="margin:0 0 10px">Fonctionne quand la Web UI est servie en HTTPS. Chacun l'autorise ensuite dans son navigateur.</p>
+ <label class="settings-check"><input type="checkbox" data-browser ${browserOn?"checked":""}> Proposer les notifications du navigateur</label>
+ <p class="${location.protocol==="https:"?"ok":"ok"}" style="margin:8px 0 0">Ce serveur est servi en HTTPS.</p>
+ <div class="settings-actions" style="margin-top:10px"><button data-allow>Autoriser sur ce navigateur</button></div>`}
+/* The events, each with its channels: defaults for the Owner, one's own choice for a Member. */
+function eventList(){return visibleGroups().map(([title,items,aud])=>`<fieldset><legend>${who==="owner"?title:"Mes demandes"}</legend>
+ ${items.map(([k,label])=>`<div class="settings-check" style="justify-content:space-between;border-bottom:1px solid var(--line);padding:6px 0"><span>${label}${k==="margin"?` <small>· seuil <input type="number" value="${threshold}" data-threshold> Go</small>`:""}</span><span>${CHANNELS.map(([c,l])=>`<label class="settings-check" style="display:inline-flex;margin-left:14px"><input type="checkbox" data-pref="${k}" data-channel="${c}" ${prefs[k][c]?"checked":""} ${c==="app"||!channelOn(c)?"disabled":""}> ${l}</label>`).join("")}</span></div>`).join("")}
+ ${aud==="approver"&&who==="owner"?`<p class="muted" style="margin:8px 0 0">Chaque approbateur est prévenu ; le premier qui répond l'emporte, les autres voient qui a répondu.</p>`:""}</fieldset>`).join("")}
+const ownerIntro=`<p class="muted">Vous choisissez les canaux disponibles et leurs valeurs par défaut ; chacun règle ensuite les siens dans son compte. Les e-mails disent seulement le titre et l'état, avec un lien vers l'app.</p>`;
+const memberIntro=`<p class="muted">Choisissez comment être prévenue. Les canaux grisés ne sont pas activés sur ce serveur.</p>`;
+const actions=`<div class="settings-actions"><button class="primary" data-save>Enregistrer</button><button data-discard>Annuler les modifications</button></div>`;
+
+/* A · Sections: one card per channel, then the events by audience. */
+function A(){return `<div class="settings-form"><h2>Notifications</h2>${who==="owner"?ownerIntro+`<section class="settings-card"><h3>E-mail</h3>${mailFields()}</section><section class="settings-card"><h3>Navigateur</h3>${browserCard()}</section>`:memberIntro}${eventList()}${actions}</div>`}
+
+/* B · Tableau: events × channels in one table; the mail server in a dialog. */
+function B(){const groups=visibleGroups();
+ return `<div class="settings-form"><h2>Notifications</h2>${who==="owner"?ownerIntro:memberIntro}
+ ${who==="owner"?`<section class="settings-card"><div class="settings-actions" style="align-items:center"><span>E-mail : <strong>${mail.provider==="off"?"désactivé":mail.provider==="mxplan"?"OVHcloud MX Plan":"SMTP"}</strong></span><button data-mail-dialog>Configurer l'e-mail</button><span style="margin-left:18px">Navigateur : <strong>${browserOn?"proposé":"désactivé"}</strong></span><button data-toggle-browser>${browserOn?"Désactiver":"Activer"}</button></div></section>`:""}
+ <section class="settings-card" style="overflow:auto"><table class="file-access-capabilities matrix"><thead><tr><th>Événement</th>${CHANNELS.map(([c,l])=>`<th style="white-space:nowrap">${l}${channelOn(c)?"":"<br><small>non activé</small>"}</th>`).join("")}</tr></thead><tbody>
+ ${groups.map(([title,items])=>`<tr class="group"><th colspan="4">${who==="owner"?title:"Mes demandes"}</th></tr>${items.map(([k,label])=>`<tr><th>${label}${k==="margin"?` <small style="white-space:nowrap">· seuil <input type="number" value="${threshold}" data-threshold style="width:70px;padding:2px 6px"> Go</small>`:""}</th>${CHANNELS.map(([c])=>`<td><input type="checkbox" aria-label="${label} · ${c}" data-pref="${k}" data-channel="${c}" ${prefs[k][c]?"checked":""} ${c==="app"||!channelOn(c)?"disabled":""}></td>`).join("")}</tr>`).join("")}`).join("")}
+ </tbody></table></section>${actions}</div>`}
+
+/* C · Étapes: email, then browser, then events, one at a time. */
+function C(){if(who!=="owner")return A();const names=["E-mail","Navigateur","Événements"];
+ return `<div class="settings-form"><h2>Notifications</h2>${ownerIntro}<div class="steps-nav">${names.map((n,i)=>`<button data-step="${i}" ${i===step?'aria-current="step"':""}>${i+1}. ${n}</button>`).join("")}</div>
+ ${step===0?`<section class="settings-card"><h3>E-mail</h3>${mailFields()}</section>`:step===1?`<section class="settings-card"><h3>Navigateur</h3>${browserCard()}</section>`:eventList()}
+ <div class="settings-actions">${step?`<button data-step="${step-1}">Retour</button>`:""}${step<2?`<button class="primary" data-step="${step+1}">Continuer</button>`:`<button class="primary" data-save>Enregistrer</button>`}</div></div>`}
+
+function render(){document.getElementById("settings-navigation").innerHTML=nav();document.getElementById("settings-body").innerHTML=({A,B,C})[variant]();document.getElementById("label").textContent=`${variant} — ${variants.find(v=>v[0]===variant)[1]}`}
+function mailDialog(){const d=document.getElementById("mail");d.innerHTML=`<form method="dialog"><h2>E-mail</h2>${mailFields()}<div class="settings-actions"><button class="primary" value="ok">Terminé</button></div></form>`;if(!d.open)d.showModal()}
+document.addEventListener("change",e=>{const t=e.target,d=t.dataset;
+ if("provider" in d){mail.provider=t.value;if(t.value==="mxplan")Object.assign(mail,{host:"ssl0.ovh.net",port:"465",security:"SSL/TLS"});if(t.value==="smtp")Object.assign(mail,{host:"",port:"587"})}
+ else if(d.mail){mail[d.mail]=t.value}
+ else if("browser" in d){browserOn=t.checked}
+ else if(d.pref){prefs[d.pref][d.channel]=t.checked?1:0}
+ else if("threshold" in d){threshold=+t.value}
+ status("Modifications non enregistrées");render();if(document.getElementById("mail").open)mailDialog()});
+document.addEventListener("click",e=>{const t=e.target.closest("button");if(!t||t.closest("#switcher"))return;const d=t.dataset;
+ if("save" in d)status("Notifications enregistrées");else if("discard" in d)status("Modifications annulées");
+ else if("testMail" in d)status(`E-mail de test envoyé à ${mail.user||"vincent@maison.fr"}`);
+ else if("allow" in d)status("Notifications autorisées sur ce navigateur");
+ else if("mailDialog" in d)mailDialog();else if("toggleBrowser" in d){browserOn=!browserOn;render()}
+ else if(d.step!==undefined){step=+d.step;render()}});
+function go(n){const i=variants.findIndex(v=>v[0]===variant);variant=variants[(i+n+variants.length)%variants.length][0];step=0;const u=new URL(location);u.searchParams.set("variant",variant);history.replaceState(null,"",u);render()}
+document.getElementById("prev").onclick=()=>go(-1);document.getElementById("next").onclick=()=>go(1);
+document.getElementById("who").onchange=e=>{who=e.target.value;render()};
+document.getElementById("theme").onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="light"?"dark":"light"};
+document.addEventListener("keydown",e=>{if(e.target.closest("input,textarea,select,dialog"))return;if(e.key==="ArrowLeft")go(-1);if(e.key==="ArrowRight")go(1)});
+if(!variants.some(v=>v[0]===variant))variant="A";render();
+</script>

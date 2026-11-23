@@ -37,7 +37,8 @@ pytestmark = pytest.mark.skipif(not HOST, reason="set TL_QBIT_DOCKER and TL_QBIT
 
 
 @pytest.mark.parametrize("normalization", ["NFC", "NFD"])
-def test_link_workspace_verifies_mapped_accented_sources(qbit, normalization):
+@pytest.mark.parametrize("layout", ["auto", "links"])
+def test_reseed_workspace_verifies_mapped_accented_sources(qbit, normalization, layout):
     import tempfile
     import unicodedata
 
@@ -47,6 +48,7 @@ def test_link_workspace_verifies_mapped_accented_sources(qbit, normalization):
     filename = unicodedata.normalize(normalization, "Été - mon film.mkv")
     board, _, original, links, meta = workspace(root, qbit, filename)
     board.setup.settings.path_mappings = [PathMapping(str(DATA), "/data")]
+    board.setup.settings.profile().reseed_layout = layout
     before = original.read_bytes(), original.stat().st_ino, original.name
     result = run(board, original, links)
     assert not result["errors"], result
@@ -56,7 +58,11 @@ def test_link_workspace_verifies_mapped_accented_sources(qbit, normalization):
     assert torrent.save_path == Path("/data") / Path(result["rows"][0]["destination"]).relative_to(
         DATA
     )
-    assert torrent.files == {"Release.mkv": original.stat().st_size}
+    assert torrent.files == {
+        "Release.mkv" if layout == "links" else original.name: original.stat().st_size
+    }
+    if layout == "auto":
+        assert not list(links.iterdir())
     assert (original.read_bytes(), original.stat().st_ino, original.name) == before
     assert not list(original.parent.glob("Release*"))
 

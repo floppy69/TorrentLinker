@@ -42,7 +42,7 @@ def test_sorted_candidates_keep_their_identity_for_replacement_and_rejection(qtb
     assert panel.candidates.item(0, 0).text() == large.candidate.title
 
 
-def test_library_search_combines_with_state_and_folder_filters(qtbot, tmp_path):
+def test_search_shortcut_returns_to_shared_library(qtbot, tmp_path):
     window = MainWindow(Settings(), tmp_path / "settings.json", Store(tmp_path / "s.db"))
     qtbot.addWidget(window)
     folder = LibraryFolder(tmp_path)
@@ -52,44 +52,10 @@ def test_library_search_combines_with_state_and_folder_filters(qtbot, tmp_path):
         LibraryEntry(folder, LocalItem(tmp_path / "Other.mkv"), ItemState.ORPHAN),
     ]
     window.library_model.set_entries(entries)
-    window.state_filter.setCurrentIndex(window.state_filter.findData(ItemState.ORPHAN))
-    window.library_search.setText(" AMELIE ")
-    assert window.library_proxy.rowCount() == 1
-    assert window.library_proxy.index(0, 0).data() == "Amelie.mkv"
-    window.library_search.clear()
-    assert window.library_proxy.rowCount() == 2
     window.tabs.setCurrentIndex(2)
-    assert window.navigation.currentRow() == 2
+    assert window.tabs.currentIndex() == 2
     window._focus_search()
-    assert window.navigation.currentRow() == 1
-
-
-def test_upload_sort_refresh_and_programmatic_selection_keep_the_right_item(qtbot, tmp_path):
-    from tests.test_upload_view import model, tab
-
-    view, _, _ = tab(qtbot, tmp_path)
-    large, small = model(tmp_path, "A large.3mf"), model(tmp_path, "Z small.3mf")
-    # Distinct byte sizes must sort numerically despite their formatted units.
-    large = LibraryEntry(large.folder, LocalItem(large.item.path, {"a": 1024**3}), large.state)
-    small = LibraryEntry(small.folder, LocalItem(small.item.path, {"b": 9 * 1024**2}), small.state)
-    view.set_entries([large, small])
-    view.show_all.setChecked(True)
-    view.items.sortItems(2, Qt.SortOrder.AscendingOrder)
-    view.items.selectRow(0)
-    assert view.entry is small
-    view._fill()
-    assert view.entry is small
-    assert view.items.item(0, 0).text() == small.item.path.name
-    view.select(large.item.path)
-    assert view.entry is large
-    assert view.items.currentRow() == 1
-    view._show_drafts([{"name": "Z last"}, {"name": "A first"}])
-    view.drafts.sortItems(0, Qt.SortOrder.AscendingOrder)
-    view._show_drafts(
-        [{"name": "Z last", "category": "Models"}, {"name": "A first", "category": "Books"}]
-    )
-    assert view.drafts.item(0, 0).text() == "A first"
-    assert view.drafts.item(0, 1).text() == "Books"
+    assert window.tabs.currentIndex() == 1
 
 
 def test_seeding_filter_and_numeric_order_survive_refresh(qtbot):
@@ -106,11 +72,22 @@ def test_seeding_filter_and_numeric_order_survive_refresh(qtbot):
     ]
     seeding = Seeding(rows, ZenDay([0.1, 0.2]), [])
     view.show_seeding(seeding)
-    view.table.sortItems(1, Qt.SortOrder.AscendingOrder)
-    view.search.setText(" LARGE ")
+    from tests.test_community_interfaces import js, wait_js
+
+    view.show()
+    wait_js(qtbot, view, "document.querySelectorAll('#seeding-result tbody tr').length===2")
+    js(
+        qtbot,
+        view,
+        "document.querySelector('[data-sort=size]').click();"
+        "document.querySelector('#seeding-query').value=' LARGE ';"
+        "document.querySelector('#seeding-query').dispatchEvent(new Event('input',{bubbles:true}))",
+    )
+    wait_js(qtbot, view, "document.querySelectorAll('#seeding-result tbody tr').length===1")
     view.show_seeding(seeding)
-    assert view.table.topLevelItem(0).child(0).text(0) == "Small film"
-    assert view.table.torrents["a"].isHidden()
-    assert not view.table.torrents["b"].isHidden()
-    view.search.clear()
-    assert not view.table.torrents["a"].isHidden()
+    wait_js(qtbot, view, "document.querySelectorAll('#seeding-result tbody tr').length===1")
+    assert js(
+        qtbot,
+        view,
+        "document.querySelector('#seeding-result tbody').textContent.includes('Large film')",
+    )

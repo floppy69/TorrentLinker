@@ -11,9 +11,12 @@ import httpx
 
 from torrentlinker.catalogue import crawl_categories, plan_categories
 from torrentlinker.catalogue_sync import (
+    LISTED_ROOTS,
     SNAPSHOT_NAME,
     TORZNAB_ONLY_CATEGORIES,
     fetch_all,
+    fetch_root,
+    root_categories,
     sync_catalogue,
 )
 from torrentlinker.domain import LibraryFolder
@@ -21,7 +24,6 @@ from torrentlinker.indexer import KeyRefused, RateLimited
 from torrentlinker.plan import (
     Plan,
     PlanOptions,
-    ReseedSource,
     catalogue_candidates,
     disk_of,
     disk_space,
@@ -30,7 +32,7 @@ from torrentlinker.plan import (
     on_disk,
     reseed_candidates,
 )
-from torrentlinker.plan_diagnostics import PlanIssue, issue_text
+from torrentlinker.plan_diagnostics import PlanIssue
 from torrentlinker.scan import scan
 from torrentlinker.seeding import seeding
 from torrentlinker.web.library import Library
@@ -40,7 +42,10 @@ from torrentlinker.web.setup import Setup
 def catalogue_status(setup: Setup) -> dict:
     store = setup.store
     snapshot = store.feed_state(SNAPSHOT_NAME)
+    from torrentlinker.catalogue_workspace import catalogue_cards
+
     return {
+        "cards": [asdict(c) for c in catalogue_cards(store, adult=setup.settings.adult_content)],
         "count": store.catalogue_size(),
         "updated_at": store.catalogue_updated_at(),
         "limited_categories": sorted(store.limited_categories()),
@@ -74,9 +79,14 @@ def catalogue(
     *,
     full: bool = True,
     chosen: list[int] | None = None,
+    root: int | None = None,
 ) -> dict:
+    if root is not None and root not in LISTED_ROOTS:
+        raise ValueError("Unknown or cache-only category.")
     wanted = (
-        crawl_categories(setup.settings.indexer_categories)
+        root_categories(root)
+        if root is not None
+        else crawl_categories(setup.settings.indexer_categories)
         if full
         else plan_categories(
             chosen, setup.settings.download_folders, setup.settings.indexer_categories
@@ -84,11 +94,34 @@ def catalogue(
     )
     indexer = setup.indexer()
     stopped = lambda: fetch_stopped(stop)  # noqa: E731
-    report = lambda p: progress({"phase": "fetching", **asdict(p)})  # noqa: E731
+    position = {"done": 1, "total": 1}
+    listed_roots = full and indexer.is_c411 and root is None
+
+    def report(p):
+        # Native roots share Torznab IDs (4/9 and 5/6), so a reverse lookup loses
+        # identity. The full c411 fetch already provides its native-root position.
+        current = root or (LISTED_ROOTS[position["done"] - 1] if listed_roots else None)
+        progress(
+            {
+                "phase": "fetching",
+                **asdict(p),
+                "catalogue_root": current,
+                "single_root": root,
+                "position": dict(position),
+            }
+        )
+
+    def moved(done, total):
+        position.update(done=done, total=total)
+
+    if root is not None and indexer.is_c411:
+        fetch_root(indexer, setup.store, root, stop=stopped, progress=report)
+        return catalogue_status(setup)
     if full and indexer.is_c411:
         # Category by category, each to parity with the site; XXX only through Torznab.
-        if not fetch_all(indexer, setup.store, stop=stopped, progress=report):
+        if not fetch_all(indexer, setup.store, stop=stopped, progress=report, position=moved):
             return catalogue_status(setup)
+        listed_roots = False
         wanted = [c for c in wanted if c in TORZNAB_ONLY_CATEGORIES]
     sync_catalogue(
         indexer,
@@ -192,55 +225,14 @@ def plan(
 
 
 def plan_result(setup: Setup, proposed: Plan) -> dict:
-    """The desktop Plan's summary and rows, without serializing private torrent data."""
+    from torrentlinker.plan_workspace import plan_data
+
     return {
-        "issues": [{**asdict(issue), "message": issue_text(issue)} for issue in proposed.issues],
-        "provisional": True,
-        "catalogue": catalogue_status(setup),
-        "rows": [
-            {
-                "hash": i.candidate.infohash,
-                "title": i.candidate.title,
-                "size": i.candidate.size,
-                "download_size": i.candidate.download_size,
-                "reseed": i.candidate.reseed,
-                "path": (
-                    str(i.candidate.source.entry.item.path)
-                    if isinstance(i.candidate.source, ReseedSource)
-                    else ""
-                ),
-                "seeders": i.candidate.seeders,
-                "zen": i.zen,
-                "note": i.note,
-                "folder": str(i.candidate.folder) if i.candidate.folder else "",
-                "client_id": i.candidate.client_id or setup.settings.active_client_id,
-            }
-            for i in proposed.items
-        ],
-        "zen": proposed.zen_added,
-        "size": proposed.download_size,
-        "excluded": len(proposed.on_disk),
-        "on_disk": [asdict(row) | {"path": str(row.path)} for row in proposed.on_disk],
-        "average_note": proposed.average_note,
-        "payback_days": proposed.payback_days,
-        "sending_seconds": proposed.sending_seconds(max(1, setup.indexer_key_count())),
-        "download_seconds": (
-            proposed.download_seconds(setup.settings.download_speed)
-            if setup.settings.download_speed
-            else None
+        **plan_data(
+            proposed,
+            client_id=setup.settings.active_client_id,
+            download_speed=setup.settings.download_speed,
+            indexer_keys=setup.indexer_key_count(),
         ),
-        "storage": plan_storage(proposed),
+        "catalogue": catalogue_status(setup),
     }
-
-
-def plan_storage(proposed: Plan) -> list[dict]:
-    return [
-        {
-            "folder": str(space.folder),
-            "free": space.free,
-            "reserved": space.reserved,
-            "download": space.download,
-            "after_plan": space.after_plan,
-        }
-        for space in proposed.disk_spaces
-    ]

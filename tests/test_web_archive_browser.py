@@ -8,20 +8,27 @@ from pathlib import Path
 
 import pytest
 
+from tests.shell_support import shell_navigate
 from tests.test_web_archives import archive_app
 
 pytestmark = pytest.mark.skipif(os.getenv("TL_WEB_BROWSER") != "1", reason="opt-in browser test")
 
 
-@pytest.mark.parametrize("language", ["en", "fr"])
-def test_archive_review_cancel_then_confirm(tmp_path, language):
+@pytest.mark.parametrize("language,partial", [("en", False), ("fr", False), ("fr", True)])
+def test_archive_review_cancel_then_confirm(tmp_path, language, partial):
     def label(en, fr):
         return fr if language == "fr" else en
 
     import uvicorn
     from playwright.sync_api import expect, sync_playwright
 
-    with archive_app(tmp_path) as (api, archive, _, candidate, client, _):
+    with archive_app(tmp_path) as (api, archive, source, candidate, client, setup):
+        if partial:
+            import zipfile
+
+            with zipfile.ZipFile(archive, "w") as packed:
+                for name in ("head.stl", "body.stl"):
+                    packed.write(source / "STL" / name, f"Kaneda/STL/{name}")
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             port = listener.getsockname()[1]
@@ -47,25 +54,30 @@ def test_archive_review_cancel_then_confirm(tmp_path, language):
                 page.goto(f"http://127.0.0.1:{port}/")
                 page.locator("#login-password").fill("test-password-long")
                 page.locator("#login-form button").click()
-                page.locator("#language").select_option(language)
-                page.locator("[data-view=library]").first.click()
-                page.locator("#library-table").get_by_role(
-                    "button", name="Kaneda.zip", exact=True
-                ).click()
-                action = page.locator("#candidate-actions").get_by_role(
-                    "button", name=label("Unpack and reseed…", "Extraire et seeder…"), exact=True
+                page.frame_locator("#shell-navigation-frame").locator("#language").select_option(
+                    language
+                )
+                shell_navigate(page, "library")
+                frame = page.frame_locator("#reseed-frame")
+                frame.locator(".torrent").filter(has_text="Kaneda.zip").first.click()
+                action = frame.get_by_role(
+                    "button",
+                    name=label("Unpack and reseed…", "Extraire et remettre en seed…"),
+                    exact=True,
                 )
                 expect(action).to_be_enabled()
                 action.click()
-                dialog = page.locator("#dialog")
+                dialog = frame.locator("#recovery-dialog")
                 expect(dialog).to_contain_text(
                     label(
-                        "Extraction happens on the TorrentLinker server",
-                        "L’extraction a lieu sur le serveur TorrentLinker",
+                        "Extraction on the TorrentLinker server",
+                        "Extraction sur le serveur TorrentLinker",
                     )
                 )
                 expect(dialog).to_contain_text(str(archive.parent / "Kaneda"))
-                expect(dialog).to_contain_text(label("3 files", "3 fichiers"))
+                expect(dialog).to_contain_text(
+                    label("2 files", "2 fichiers") if partial else label("3 files", "3 fichiers")
+                )
                 if destination := os.getenv("TL_WEB_SCREENSHOTS"):
                     Path(destination).mkdir(parents=True, exist_ok=True)
                     page.screenshot(
@@ -78,7 +90,9 @@ def test_archive_review_cancel_then_confirm(tmp_path, language):
                 assert not client.by_hash
                 action.click()
                 dialog.get_by_role(
-                    "button", name=label("Unpack and reseed", "Extraire et seeder"), exact=True
+                    "button",
+                    name=label("Unpack and reseed", "Extraire et remettre en seed"),
+                    exact=True,
                 ).click()
                 expect(dialog).to_contain_text(
                     label("Verification started", "Vérification lancée"), timeout=15000
@@ -86,6 +100,27 @@ def test_archive_review_cancel_then_confirm(tmp_path, language):
                 assert archive.is_file()
                 assert client.rechecked == [candidate.infohash]
                 assert not client.started
+                from dataclasses import replace
+
+                from torrentlinker.reseed import check_verifications
+
+                client.by_hash[candidate.infohash] = replace(
+                    client.by_hash[candidate.infohash], state="stoppedUP", progress=1
+                )
+                if partial:
+                    client.pieces[candidate.infohash] = [2] * 100
+                check_verifications(client, setup.store)
+                expect(dialog).to_contain_text(
+                    (
+                        label(
+                            "Available content verified · partial sharing",
+                            "Contenu disponible vérifié · partage partiel",
+                        )
+                        if partial
+                        else label("Content verified · sharing", "Contenu vérifié · en partage")
+                    ),
+                    timeout=10000,
+                )
                 assert not errors
                 browser.close()
         finally:

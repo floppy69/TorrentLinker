@@ -38,6 +38,10 @@ def routes(app, assistant):
     def setup():
         return assistant.setup()
 
+    @app.post("/api/setup/assistant/acknowledge-execute")
+    def acknowledge_execute():
+        return assistant.acknowledge_execute()
+
     @app.post("/api/setup/assistant/providers")
     def create(body: Provider):
         return assistant.save_provider(body)

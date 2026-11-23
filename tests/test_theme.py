@@ -83,46 +83,58 @@ def test_frozen_theme_probe_and_monitor_use_host_libraries(qapp, monkeypatch, or
 
 
 def test_theme_setting_is_saved_and_old_settings_default_to_auto(tmp_path, qtbot):
-    from torrentlinker.gui.settings_dialog import SettingsDialog
+    from tests.settings_support import edit_field, save_group, settings_page
+    from tests.test_community_interfaces import js
 
     path = tmp_path / "settings.json"
     path.write_text("{}")
     settings = Settings.load(path)
     assert settings.theme == "auto"
-    dialog = SettingsDialog(settings)
-    qtbot.addWidget(dialog)
-    dialog.theme.setCurrentIndex(dialog.theme.findData("dark"))
-    dialog._save()
-    assert settings.theme == "dark"
-    settings.save(path)
+    dialog = settings_page(qtbot, tmp_path, settings, section="general")
+    assert js(qtbot, dialog.view, 'document.querySelector("[aria-label=Theme]").value') == "auto"
+    edit_field(qtbot, dialog.view, "Theme", "dark")
+    save_group(qtbot, dialog)
     assert Settings.load(path).theme == "dark"
 
 
 def test_media_interface_choice_survives_settings_reopen_and_cancel(tmp_path, qtbot):
-    from PySide6.QtWidgets import QDialogButtonBox
-
-    from torrentlinker.gui.settings_dialog import SettingsDialog
+    from tests.settings_support import edit_field, save_group, settings_page
+    from tests.test_community_interfaces import js
 
     path = tmp_path / "settings.json"
     path.write_text("{}")
-    settings = Settings.load(path)
-    assert settings.media_layout == "cinematic"
-    for choice in ("focus", "collection", "cinematic"):
-        dialog = SettingsDialog(settings)
-        qtbot.addWidget(dialog)
-        dialog.media_layout.setCurrentIndex(dialog.media_layout.findData(choice))
-        dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Save).click()
-        settings.save(path)
+    assert Settings.load(path).media_layout == "cinematic"
+    for choice in ("focus", "horizon", "cinematic"):
+        dialog = settings_page(qtbot, tmp_path, Settings.load(path), section="general")
+        edit_field(qtbot, dialog.view, "Media interface", choice)
+        save_group(qtbot, dialog)
+        dialog.close()
         settings = Settings.load(path)
-        reopened = SettingsDialog(settings)
-        qtbot.addWidget(reopened)
-        assert reopened.media_layout.currentData() == choice
-        reopened.media_layout.setCurrentIndex((reopened.media_layout.currentIndex() + 1) % 3)
-        reopened.reject()
-        assert settings.media_layout == choice
-
+        reopened = settings_page(qtbot, tmp_path, settings, section="general")
+        assert (
+            js(
+                qtbot,
+                reopened.view,
+                "document.querySelector('[aria-label=\"Media interface\"]').value",
+            )
+            == choice
+        )
+        edit_field(
+            qtbot,
+            reopened.view,
+            "Media interface",
+            "horizon" if choice != "horizon" else "focus",
+        )
+        reopened.close()  # leave without saving
+        assert Settings.load(path).media_layout == choice
     path.write_text('{"media_layout": "removed-experimental-layout"}')
     assert Settings.load(path).media_layout == "cinematic"
+    # Horizon replaced Collection: its users keep a dense grid, Horizon's Wall.
+    path.write_text('{"media_layout": "collection"}')
+    migrated = Settings.load(path)
+    assert (migrated.media_layout, migrated.media_horizon) == ("horizon", "wall")
+    path.write_text('{"media_layout": "horizon", "media_horizon": "unknown"}')
+    assert Settings.load(path).media_horizon == "home"
 
 
 @pytest.mark.parametrize(

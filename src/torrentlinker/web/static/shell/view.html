@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>TorrentLinker</title>
+    <link rel="stylesheet" href="../panel/base.css" /><link rel="stylesheet" href="../panel/toast.css" />
+    <link rel="stylesheet" href="view.css" />
+    <script defer src="../panel/i18n.js"></script><script defer src="../panel/toast.js"></script>
+    <script defer src="../panel/transport.js"></script>
+    <script defer src="view.js"></script>
+  </head>
+  <body>
+    <aside id="navigation" hidden>
+      <div class="brand">
+        <img
+          id="brand-logo"
+          src="../favicon.svg"
+          alt=""
+          width="28"
+          height="28"
+        /><strong class="app-wordmark">Torrent<span>Linker</span></strong>
+      </div>
+      <label id="compact-navigation" hidden aria-hidden="true"
+        ><span id="navigation-label"></span
+        ><select id="page-select"></select
+      ></label>
+      <nav id="pages" aria-label="Navigation"></nav>
+      <div class="preferences">
+        <label
+          ><span id="theme-label"></span
+          ><select id="theme"></select></label
+        ><label
+          ><span id="language-label"></span
+          ><select id="language">
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+          </select></label
+        >
+      </div>
+      <button id="shortcuts" type="button"></button
+      ><button id="switch-profile" type="button" hidden></button
+      ><button id="logout" type="button" hidden></button>
+    </aside>
+    <header id="header" hidden>
+      <div class="heading">
+        <div>
+          <h1 id="page-title"></h1>
+          <p id="page-description"></p>
+        </div>
+        <label id="client-label"
+          ><span id="client-title"></span
+          ><select id="target-client"></select
+        ></label>
+      </div>
+      <p id="setup-notice" class="notice" hidden>
+        <span id="setup-message"></span>
+        <button id="open-settings" type="button"></button>
+      </p>
+      <p id="profile-notice" class="notice" hidden></p>
+    </header>
+    <section id="update" class="notice" hidden>
+      <span id="update-message"></span
+      ><button id="release" type="button"></button
+      ><button id="dismiss" type="button"></button>
+    </section>
+    <footer id="band" hidden>
+      <span id="balance"></span><span id="seeding"></span><span id="plan"></span
+      ><span id="catalogue"></span
+      ><button id="refresh-profile" type="button">⟳</button>
+    </footer>
+    <section id="help" hidden>
+      <h2 id="help-title"></h2>
+      <p id="help-text"></p>
+      <dl id="help-keys"></dl>
+      <button id="help-close" type="button"></button>
+    </section>
+    <p id="error" role="alert" hidden></p>
+  </body>
+</html>

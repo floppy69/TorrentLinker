@@ -62,6 +62,7 @@ def test_extension_bundle_is_installable_and_contains_only_packaged_assets():
                 "background.js",
                 "collect.js",
                 "descriptor.js",
+                "read.js",
                 "community.js",
                 "companion.js",
                 "companion.html",
@@ -76,3 +77,62 @@ def test_extension_bundle_is_installable_and_contains_only_packaged_assets():
         assert json.loads(bundle.read("torrentlinker-companion/receiver.json")) == {
             "webTarget": "https://nas.example/torrentlinker"
         }
+
+
+def test_creation_capability_checks_pair_account_and_allowed_operations(tmp_path, monkeypatch):
+    import pytest
+
+    _, setup = prepared(tmp_path, monkeypatch)
+    workspace = setup.profile_workspace()
+    workspace.refresh(setup.settings.indexer.url, "fake-key")
+    paired = workspace.receive(
+        "/api/companion/pair", ORIGIN, "", {"code": workspace.pairing()["code"], "accountId": "42"}
+    )
+    calls = []
+    workspace.creation_handler = lambda action, value: (
+        calls.append((action, value)) or {"review": "local-review"}
+    )
+    auth = "Bearer " + paired["token"]
+    body = {
+        "accountId": "42",
+        "operation": "prepare",
+        "value": {"kind": "prompt", "data": {"prompt": "Find a family film"}},
+    }
+    assert workspace.receive("/api/companion/creation", ORIGIN, auth, body) == {
+        "review": "local-review"
+    }
+    assert calls[0][0] == "items-prepare"
+    with pytest.raises(PermissionError):
+        workspace.receive("/api/companion/creation", ORIGIN, "Bearer wrong", body)
+    with pytest.raises(PermissionError):
+        workspace.receive("/api/companion/creation", ORIGIN, auth, {**body, "accountId": "other"})
+    with pytest.raises(ValueError):
+        workspace.receive(
+            "/api/companion/creation", ORIGIN, auth, {**body, "value": {"kind": "studio"}}
+        )
+    assert len(calls) == 1
+
+
+def test_extension_behind_an_https_proxy_allows_the_public_https_address(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from torrentlinker.web.app import create_app
+
+    app = create_app(tmp_path, password="test-password-long", secure_cookie=True)
+    with TestClient(app, base_url="http://tl.example") as client:
+        login = client.post(
+            "/api/login",
+            json={"password": "test-password-long"},
+            headers={"X-TorrentLinker": "1"},
+        )
+        # The proxy speaks HTTPS to the browser; the test client sends the Secure cookie itself.
+        cookie = login.headers["set-cookie"].split(";")[0]
+        answer = client.get(
+            "/api/zen/profile/extension", headers={"X-TorrentLinker": "1", "Cookie": cookie}
+        )
+        assert answer.status_code == 200, answer.text
+    with zipfile.ZipFile(io.BytesIO(answer.content)) as bundle:
+        receiver = json.loads(bundle.read("torrentlinker-companion/receiver.json"))
+        manifest = json.loads(bundle.read("torrentlinker-companion/manifest.json"))
+    assert receiver == {"webTarget": "https://tl.example"}
+    assert "https://tl.example/*" in manifest["host_permissions"]

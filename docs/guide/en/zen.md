@@ -2,13 +2,7 @@
 
 [Documentation](../../README.md) · [Français](../fr/zen.md)
 
-In **Zen → Seeding**, expand categories to compare torrents. Category notes average all available torrent notes, including descendants. Use **Plan** to prepare new downloads.
-
-Categories start collapsed. Your expanded and collapsed branches are remembered across refreshes and app restarts, including **Expand all** and **Collapse all**. Filtering temporarily opens matching branches; clearing the filter restores your saved layout.
-
-Screenshots use the English interface, dark theme and example data.
-
-![Seeding torrents and category notes](../images/en/zen.png)
+Use **Seeding** to inspect torrents already in your clients. Use **Plan** to propose what to add next. Building a Plan does not start it.
 
 ## Profile and browser companion
 
@@ -46,28 +40,40 @@ The Zen tab brings together c411's reported balance and TorrentLinker's earnings
 
 Without profile permission, you can enter the Zen Profile by hand and use estimates and planning. The displayed balance comes from c411; projected earnings and payback are local estimates. The client's seed age is a lower bound when a torrent has been removed and added again.
 
-### Browse seeding torrents by category
+### Find torrents in a large seeding list
 
-**Zen → Seeding** groups torrents under their Catalogue category and subcategory. Expand a branch to see its torrents, size, estimated Zen/day and **≈ Note**. Categories show the arithmetic mean of the notes of all their torrents, including subcategories; unavailable notes are excluded. Search matches both torrent names and category names. Sorting, resized columns, selection and collapsed branches survive refreshes. Torrents without a known category appear under **Unknown category**; broad snapshot categories stay at the parent level until confirmed.
+Start with the torrent-name filter, then narrow the results by category, tracker or tag. The shared torrent rows keep names and metrics aligned. Click a sortable column heading to change order; use the page controls to browse a large collection. Filters limit the displayed rows, while the overall totals describe the collection.
 
-On desktop, each Seeding refresh also synchronizes category tags in qBittorrent and labels in Transmission, for example `torrentlinker:category:Books / Comics`. It adds missing tags and replaces only older tags in that namespace, preserving personal tags, Verification tags, download folders and the client's native category. Unknown category names are left untagged. Deluge's single label is preserved because it carries Verification state; its torrents still appear in the category tree. The Seeding view reports tag updates and failures.
+Expand **Category totals** when you want category summaries rather than individual rows. Unknown or broad Catalogue categories remain visible as such. They do not establish an exact subcategory match.
 
-The web interface also has **Zen → Seeding**, separate from **Plan**, with category groups, filtering, sorting, seed age, Zen/day, Note and Class comparison. Expand categories to load their torrents, in pages of 100. Filtering changes the displayed groups without changing the overall Zen totals. **All clients** counts each hash once and prefers a seeding copy; unreachable clients are flagged and their last observations may be incomplete. The web refresh reads the torrent clients without changing category tags or calling c411 per torrent. Class comparison uses the configured upload count.
+For multiple clients, check the selected client before comparing values. **All clients** counts each torrent hash once. An unreachable client can leave an incomplete observation; refresh it before treating the totals as current.
 
 ## Make a Zen Plan
 
-![Prepare a Zen Plan](../images/en/plan.png)
+1. Choose the target client and configure its Download Folders first.
+2. Expand the Plan control card. Under **Plan destinations**, check the client cards to use. Leave only one selected for a first trial.
+3. Choose categories, a download budget, minimum torrent count and minimum seeders. Start with a small budget you are willing to download.
+4. Choose **Build plan**. Review the proposed torrents, client, Download Folder and disk space remaining.
+5. Adjust the controls and create a new Plan if the proposal is unsuitable. Changing an input does not retroactively approve an old result.
+6. Select the rows you want and use the queue or send action. Read the confirmation before sending.
 
-Choose categories, then configure the Plan:
+![Current Plan controls with client cards and minimum counts](../images/en/plan-controls.png)
 
-| Control | Effect |
-| --- | --- |
-| Optimize for **Zen/day** | Tries several greedy orderings and keeps the Plan with the largest estimated Zen gain. |
-| Optimize for **Note** | Selects the highest individual initial scores for your Class, without a seed-age bonus or size weighting. Equal scores prefer smaller downloads. |
-| Download limit | Maximum total download size in decimal GB. Zero means no additional size limit. |
-| Limit torrents | Optional maximum number of torrents added by this Plan. |
-| Low seeders only | Optional maximum current seeder count, initially 10, before you join the swarm. |
-| Torrent size from … to | Optional minimum and maximum size of each torrent, in decimal GB. Zero leaves that side open. Applies to downloads and Reseeds. |
+Collapse the control card to give the results more room. Use the **ⓘ** beside the Plan heading for explanations without leaving the page.
+
+| Control | What it means | Example |
+| --- | --- | --- |
+| Download budget | Total size of new downloads; zero adds no extra limit | Enter 20 with a GB label to budget 20 GB |
+| Minimum torrent count | Desired number of torrents in the built Plan | 10 asks for at least 10; it is not a file-size limit |
+| Minimum seeders | Lowest seeder count allowed for each candidate | 2 excludes candidates with 0 or 1 known seeders |
+| Maximum torrents | Optional upper count; enable its checkbox first | 50 limits the Plan to 50 torrents |
+| Maximum seeders | Optional upper seeder count | Use it only when you want less populated swarms |
+| Minimum / maximum torrent size | Bounds for each torrent, not the whole Plan | Read the unit beside each field; zero maximum adds no cap |
+| Optimize for Note | Favors the initial Note for your Class; ties prefer smaller downloads | Use when individual torrent Note matters most |
+| Optimize for Zen/day | Favors estimated total earnings | Compare the proposal's size and estimated gain |
+| Use cached catalogue | Builds without refreshing catalogue data first | Useful for a quick trial; counts may be older |
+
+The minimum count does not override disk space, categories or other limits. If the Plan cannot reach it, read the shortfall message, loosen a constraint or add suitable catalogue entries, then build again. The minimum-seeder count and minimum-torrent count answer different questions.
 
 New settings default to **Note**. Saved choices are preserved. Each candidate is scored using the current seeder count including your arrival, with zero cumulative seed days. Its score can rise as you keep seeding. The displayed size-weighted average is a summary, not the selection objective. This applies to single-client and distributed Plans.
 
@@ -107,7 +113,7 @@ See [CONTEXT.md](../../../CONTEXT.md) for the vocabulary and [docs/adr](../../ad
 
 ### Web planner controls
 
-The web interface has separate **Seeding**, **Plan** and **Catalogue** tabs. Plan uses the desktop selection and sending engines. Select multiple categories or subcategories, optimize for Zen/day or Note, set optional torrent and seeder limits, and distribute downloads across clients with separate budgets. Web size inputs are labelled GiB; desktop inputs use decimal GB. Zero adds no budget or maximum-size limit. Categories and planning limits survive restart.
+The web interface has separate **Seeding**, **Plan** and **Catalogue** tabs. Plan uses the desktop selection and sending engines. Select multiple categories or subcategories, optimize for Zen/day or Note, set optional torrent and seeder limits, and distribute downloads across clients with separate budgets. Read the displayed units: GB and GiB are different, and the per-torrent size unit can be changed. Zero adds no budget or maximum-size limit. Categories and planning limits survive restart.
 
 For a single destination with no per-client budget, checked Library Full Matches join the Plan as zero-download Reseeds. As on desktop, distributed Plans contain downloads only. Size, seeder and torrent limits apply to both downloads and Reseeds. Files already in the Library or Download Folders are excluded and listed for review.
 

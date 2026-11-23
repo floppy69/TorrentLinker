@@ -436,3 +436,25 @@ def test_a_client_inventory_is_observed_in_one_transaction_without_rewriting_kno
     assert statements.count("COMMIT") == 1
     payloads = {row["infohash"]: row["title"] for row in service.releases()}
     assert payloads == {"a" * 40: "Known first", "b" * 40: "Release", "c" * 40: "Release"}
+
+
+def test_category_scoped_rules_preserve_legacy_and_do_not_reject_other_categories(tmp_path):
+    from torrentlinker.feeds import Preferences, evaluate
+
+    prefs = Preferences(
+        required={"quality": ["1080p"], "format": ["EPUB"]},
+        category_scopes={"quality": [2030], "format": [7020]},
+    )
+    book = release(categories=(7020,), metadata={"format": "EPUB"})
+    film = release(categories=(2030,), metadata={"quality": "1080p"})
+    assert evaluate(book, prefs)["eligible"]
+    assert evaluate(film, prefs)["eligible"]
+    assert not evaluate(release(categories=(7020,)), prefs)["eligible"]
+    assert not evaluate(release(), prefs)["eligible"]
+    assert not evaluate(book, Preferences(required={"quality": ["1080p"]}))["eligible"]
+    source = Source()
+    service = FeedService(tmp_path / "scoped.sqlite", lambda: source)
+    saved = service.save(Subscription(name="Mixed", preferences=prefs))
+    assert (
+        FeedService(tmp_path / "scoped.sqlite", lambda: source).get(saved.id).preferences == prefs
+    )

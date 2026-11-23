@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.test_plan_interfaces import plan_messages
 from torrentlinker.downloads import DownloadFolders, IndexerCategory
 from torrentlinker.gui.zen_view import PlanView
 from torrentlinker.plan import (
@@ -28,9 +29,9 @@ def test_empty_plan_reports_total_torrent_cap(qtbot):
 
     view.show_plan(plan)
 
-    assert "torrent cap" in view.summary.text().lower()
-    assert "fetch the Catalogue" not in view.summary.text()
-    assert "free some space" not in view.summary.text()
+    assert "torrent cap" in plan_messages(view).lower()
+    assert "fetch the Catalogue" not in plan_messages(view)
+    assert "free some space" not in plan_messages(view)
 
 
 def test_default_download_folder_refreshes_all_known_categories():
@@ -69,9 +70,9 @@ def test_refresh_failure_still_plans_from_usable_cached_rows(qtbot, tmp_path, mo
     qtbot.waitUntil(lambda: not window.zen_tab.plan_view._busy, timeout=5000)
     view = window.zen_tab.plan_view
     assert view.plan is not None and len(view.plan.items) == 1
-    assert "cached" in view.catalogue_notice.text().lower()
-    assert "refresh failed" in view.catalogue_notice.text().lower()
-    assert "Catalogue" not in view.summary.text()
+    assert "cached" in view.notice.lower()
+    assert "refresh failed" in view.notice.lower()
+    assert "Catalogue" not in plan_messages(view)
 
 
 @pytest.mark.parametrize(
@@ -146,11 +147,11 @@ def test_successful_plan_clears_previous_diagnostics_and_coverage(qtbot):
     qtbot.addWidget(view)
     candidate = PlanCandidate("a", "Film", GB, 10, 2030, Path("/films"), "disk")
     view.show_plan(make_plan(ZenProfile(), [candidate], {"disk": 0}))
-    view.catalogue_notice.setText("old coverage warning")
+    view.set_notice("old coverage warning")
     view.show_plan(make_plan(ZenProfile(), [candidate], {"disk": GB}))
-    assert "disk space" not in view.summary.text()
+    assert "disk space" not in plan_messages(view)
     assert not view.plan.issues
-    assert view.catalogue_notice.text() == ""
+    assert view.notice == ""
 
 
 def test_french_plan_diagnostic_is_available(qtbot, qapp):

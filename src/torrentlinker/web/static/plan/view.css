@@ -1,0 +1,329 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+h1 {
+  margin: 0 0 10px;
+  font-size: 26px;
+}
+h2,
+h3 {
+  font-size: 18px;
+}
+p {
+  margin: 10px 0;
+}
+.muted {
+  color: var(--muted);
+}
+details {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 14px;
+  margin: 14px 0;
+}
+summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 14px;
+  margin: 14px 0;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+label:has(> input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
+}
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--raised);
+  padding: 9px;
+  min-width: 0;
+}
+input:not([type="checkbox"]),
+select,
+textarea {
+  max-width: 100%;
+}
+select[multiple] {
+  min-height: 105px;
+}
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 17px;
+  height: 17px;
+  vertical-align: middle;
+  flex: none;
+}
+button {
+  cursor: pointer;
+  padding: 9px 13px;
+  white-space: normal;
+}
+button:hover {
+  background: var(--hover);
+}
+button.primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 650;
+}
+button:disabled,
+input:disabled,
+select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.toolbar,
+.pager {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.toolbar label {
+  flex: 1;
+  min-width: 140px;
+}
+.table-wrap {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 12px 0;
+}
+.table-wrap > p {
+  padding: 12px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: var(--panel);
+}
+th,
+td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+th {
+  color: var(--muted);
+  white-space: nowrap;
+}
+td {
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+tbody tr:hover {
+  background: var(--hover);
+}
+#plan-result table {
+  min-width: 850px;
+}
+#plan-storage table {
+  min-width: 640px;
+}
+#plan-progress,
+#plan-error {
+  white-space: pre-wrap;
+}
+#plan-error {
+  color: var(--danger);
+}
+#plan-summary {
+  font-weight: 650;
+}
+dialog {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  width: min(720px, calc(100% - 24px));
+  max-height: 90vh;
+  overflow: auto;
+  padding: 22px;
+}
+dialog::backdrop {
+  background: #0008;
+}
+dialog .close {
+  float: right;
+}
+#dialog-content {
+  clear: both;
+}
+#dialog-content > button {
+  margin: 8px 8px 0 0;
+}
+#dialog-content input,
+#dialog-content select {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+}
+#dialog-content p {
+  overflow-wrap: anywhere;
+}
+[hidden] {
+  display: none !important;
+}
+@media (max-width: 600px) {
+  body {
+    padding: 16px;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .toolbar > button {
+    flex: 1;
+  }
+  .toolbar label {
+    min-width: 100%;
+  }
+  details {
+    padding: 12px;
+  }
+  dialog {
+    padding: 16px;
+  }
+}
+
+progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+
+.profile-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 18px;
+  border-radius: 12px;
+  margin-bottom: 18px;
+}
+.profile-card h2,
+.profile-card p {
+  margin: 0 0 5px;
+}
+.profile-card p {
+  color: var(--muted);
+}
+
+.plan-limits {
+  margin: 16px 0;
+}
+.plan-limits > label > input {
+  width: 100%;
+}
+#plan-filters {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+#plan-filters input {
+  flex: 2;
+}
+#plan-filters select {
+  flex: 1;
+}
+
+.plan-client-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+.plan-client-card:has(input[type="checkbox"]:checked) {
+  border-color: var(--accent);
+}
+.plan-client-card .plan-client-heading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+.plan-client-card input[type="checkbox"] {
+  width: 17px;
+  margin: 0;
+}
+.plan-client-card label {
+  margin: 0;
+}
+.plan-limits input[type="checkbox"] {
+  width: 17px;
+  margin: 0;
+}
+.plan-limits label > span:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.plan-heading h1 {
+  margin: 0;
+}
+.plan-heading .icon-button {
+  padding: 5px 9px;
+  color: var(--accent);
+}
+.info-box {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 12px 0 18px;
+  color: var(--muted);
+}
+.info-box p:first-child {
+  margin-top: 0;
+}
+.info-box p:last-child {
+  margin-bottom: 0;
+}

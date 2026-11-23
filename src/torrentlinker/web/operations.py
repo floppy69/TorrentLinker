@@ -13,6 +13,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from torrentlinker.catalogue_selection import CatalogueCriteria, select_catalogue_rows
+from torrentlinker.details_workspace import DetailsWorkspace
 from torrentlinker.domain import Torrent
 from torrentlinker.download_queue import enqueue, entries, run_queue
 from torrentlinker.indexer import Candidate, SearchQuery
@@ -54,6 +55,8 @@ class JobRequest(BaseModel):
     client_budgets: dict[str, int] = Field(default_factory=dict, max_length=32)
     kind: Literal[
         "manage",
+        "tracker-preview",
+        "tracker-update",
         "feed-action",
         "refresh",
         "select-torrents",
@@ -67,6 +70,7 @@ class JobRequest(BaseModel):
         "send-queue",
         "scan",
         "check",
+        "candidate-inspector",
         "library-review",
         "library-evidence",
         "find-compatible",
@@ -82,6 +86,7 @@ class JobRequest(BaseModel):
         "reseed",
         "reseed-workspace",
         "preview-unpack",
+        "refresh-unpack",
         "unpack-reseed",
         "check-all",
         "reseed-all",
@@ -109,8 +114,14 @@ class JobRequest(BaseModel):
     feed_id: str = ""
     feed_selection_id: str = ""
     feed_mark: Literal["read", "unread", "save", "unsave", "dismiss", "restore"] = "read"
+    tracker_action: Literal["replace-host", "add-backup", "update-passkey"] = "add-backup"
+    tracker_source_host: str = Field(default="", max_length=253)
+    tracker_target_host: str = Field(default="tk.c411.tw", max_length=253)
+    tracker_groups: list[str] = Field(default_factory=list, max_length=1000)
+    tracker_preview_id: str = Field(default="", max_length=64)
     action: Literal["pause", "resume", "recheck", "remove", "delete"] = "pause"
     hashes: list[str] = Field(default_factory=list, max_length=1000)
+    selection_name: str = Field(default="", max_length=200)
     confirmation: str = ""
     experimental: bool = False
     upload: UploadForm = Field(default_factory=UploadForm)
@@ -120,6 +131,8 @@ class JobRequest(BaseModel):
     revision: int = Field(default=0, ge=0)
     maximum_bytes: int = Field(default=0, ge=0)
     maximum_torrents: int = Field(default=20, ge=1, le=1_000_000)
+    minimum_torrents: int = Field(default=0, ge=0, le=1_000_000)
+    min_seeders: int = Field(default=0, ge=0)
     limit_torrents: bool = True
     plan_goal: PlanGoal = PlanGoal.NOTE
     max_seeders: int | None = Field(default=None, ge=0)
@@ -141,6 +154,17 @@ class JobRequest(BaseModel):
     path: str = Field(default="", max_length=4096)
     repair_id: str = Field(default="", max_length=64)
     torrent_data: str = Field(default="", max_length=12_000_000)
+    inspector_action: Literal[
+        "review",
+        "check",
+        "reject",
+        "search",
+        "provenance",
+        "evidence",
+        "import",
+        "details",
+        "repairs",
+    ] = "review"
     candidate_key: str = Field(default="", max_length=4096)
     paths: list[str] = Field(default_factory=list, max_length=10000)
     reseed_action: Literal["all", "find", "compare", "prepare", "verify", "seed", "refresh"] = "all"
@@ -149,11 +173,28 @@ class JobRequest(BaseModel):
     query: str = Field(default="", max_length=500)
     page: int = Field(default=1, ge=1, le=10000)
     category: int | None = None
+    catalogue_root: Literal[1, 2, 3, 4, 5, 6, 7, 9, 10] | None = None
     categories: list[int] | None = Field(default=None, max_length=1000)
     filters: dict[str, str] = Field(default_factory=dict, max_length=30)
     indexer_search: bool = False
     search_exclude_seeded: bool = False
     search_listing: bool = False  # also return the listing's display fields, for the Search page
+
+    @field_validator("tracker_source_host", "tracker_target_host")
+    @classmethod
+    def valid_tracker_host(cls, value):
+        from torrentlinker.tracker_updates import host_name
+
+        return host_name(value) if value else ""
+
+    @field_validator("tracker_groups")
+    @classmethod
+    def valid_tracker_groups(cls, groups):
+        if any(
+            len(group) != 16 or any(c not in "0123456789abcdef" for c in group) for group in groups
+        ):
+            raise ValueError("Choose passkey fingerprints from the preview.")
+        return list(dict.fromkeys(groups))
 
     @field_validator("hashes", "plan_selection")
     @classmethod
@@ -168,6 +209,11 @@ class JobRequest(BaseModel):
             raise ValueError("Select at most 1000 paths for this operation.")
         if self.kind == "plan" and self.max_size and self.min_size > self.max_size:
             raise ValueError("Minimum torrent size must not exceed maximum torrent size.")
+        if self.kind == "plan":
+            if self.limit_torrents and self.minimum_torrents > self.maximum_torrents:
+                raise ValueError("Minimum torrent count must not exceed maximum torrent count.")
+            if self.max_seeders is not None and self.min_seeders > self.max_seeders:
+                raise ValueError("Minimum seeders must not exceed maximum seeders.")
         return self
 
     def planning_options(self) -> PlanOptions:
@@ -176,6 +222,8 @@ class JobRequest(BaseModel):
             max_download_bytes=self.maximum_bytes,
             max_torrents=self.maximum_torrents if self.limit_torrents else None,
             max_seeders=self.max_seeders,
+            min_seeders=self.min_seeders,
+            min_torrents=self.minimum_torrents,
             min_size=self.min_size,
             max_size=self.max_size,
         )
@@ -199,6 +247,8 @@ class Operations:
         self.archives = ArchiveReseeds(self.library)
         self.uploads = Uploads(setup, self.library)
         self.candidates: dict[str, Candidate] = {}
+        self.score_listings: dict[str, dict] = {}
+        self.detail_workspace: DetailsWorkspace | None = None
         self.rows: list[dict[str, Any]] = []
         self.observed: list[Torrent] = []
         self.feed_observed_at: float = 0
@@ -482,7 +532,55 @@ class Operations:
     def run(
         self, request: JobRequest, stop: threading.Event, progress: Callable[[Any], None]
     ) -> Any:
+        from contextlib import nullcontext
+
+        from torrentlinker.job_lanes import BACKGROUND, job_lane
+
         self.validate(request)
+        interactive = job_lane(request.kind, request.model_dump()) == "interactive"
+        access = (
+            self.setup.indexer().background(stop)
+            if request.kind in BACKGROUND
+            and not interactive
+            and not (request.kind == "plan" and request.cached_only)
+            else nullcontext()
+        )
+        if interactive and (
+            request.kind not in {"library-evidence", "candidate-inspector"}
+            or request.kind == "candidate-inspector"
+            and request.inspector_action in {"review", "check", "search", "details"}
+        ):
+            access = self.setup.indexer().foreground(stop)
+        with access:
+            return self._run(request, stop, progress, interactive=interactive)
+
+    def _run(self, request, stop, progress, *, interactive=False):
+        library = self.library.snapshot() if interactive else self.library
+        if request.kind in {"tracker-preview", "tracker-update"}:
+            from torrentlinker.tracker_updates import tracker_updates
+
+            service = tracker_updates(self.setup)
+            clients = request.client_ids or [self.setup.settings.active_client_id]
+            if request.kind == "tracker-preview":
+                return service.preview(
+                    clients,
+                    request.tracker_action,
+                    request.tracker_source_host,
+                    request.tracker_target_host,
+                    request.tracker_groups,
+                    stop,
+                    progress,
+                )
+            return service.apply(
+                request.tracker_preview_id,
+                clients,
+                request.tracker_action,
+                stop,
+                progress,
+                request.tracker_source_host,
+                request.tracker_target_host,
+                request.tracker_groups,
+            )
         if request.kind == "reseed-workspace":
             return self.reseed_workspace.run(
                 request.paths,
@@ -572,7 +670,7 @@ class Operations:
         if request.kind == "verify":
             from torrentlinker.reseed import check_verifications
 
-            outcomes = check_verifications(self.library.client(), self.setup.store)
+            outcomes = check_verifications(library.client(), self.setup.store)
             return [
                 {
                     "hash": o.hash,
@@ -585,7 +683,7 @@ class Operations:
         if request.kind == "catalogue":
             from torrentlinker.web.planning import catalogue as update_catalogue
 
-            return update_catalogue(self.setup, stop, progress)
+            return update_catalogue(self.setup, stop, progress, root=request.catalogue_root)
         if request.kind == "plan":
             root = self.setup._root or self.setup
             for settings in (root.settings, self.setup.settings):
@@ -657,7 +755,7 @@ class Operations:
                 }
             planned_result = plan(
                 self.setup,
-                self.library,
+                library,
                 request.maximum_bytes,
                 request.maximum_torrents,
                 stop,
@@ -686,23 +784,41 @@ class Operations:
 
             if len(request.hashes) != 1:
                 raise ValueError("Select one torrent.")
-            detail = parse_details(self.setup.indexer().torrent_json(request.hashes[0]))
+            raw_detail = self.setup.indexer().torrent_json(request.hashes[0])
+            detail = parse_details(raw_detail)
             markup, images = preview_html(detail.description, detail.poster)
             facts = asdict(detail)
             for key in ("description", "nfo", "files", "has_nfo"):
                 facts.pop(key)
-            return {
+            document = {
+                "title": str(raw_detail.get("name") or ""),
+                "size": raw_detail.get("size") if isinstance(raw_detail.get("size"), int) else 0,
                 "description": markup,
                 "images": images,
                 "nfo": detail.nfo,
                 "files": detail.files,
                 "info": facts,
             }
+            from torrentlinker.release_score.service import details_score
+
+            candidate = self.candidates.get(request.hashes[0])
+            document["release_score"] = details_score(
+                document,
+                self.setup.settings.release_score,
+                title=candidate.title if candidate else "",
+                size=candidate.size if candidate else 0,
+                listing=self.score_listings.get(request.hashes[0]),
+            )
+            return document
         if request.kind == "search-options":
             return self.search_options(request.category)
         if request.kind == "scan":
-            return self.library.scan(stop, progress, request.paths or None)
+            return library.scan(stop, progress, request.paths or None)
         if request.kind == "diagnose-repair":
+            from torrentlinker.domain import TorrentClient
+
+            if self.setup.settings.client != TorrentClient.QBITTORRENT:
+                raise ValueError("Experimental repair currently requires qBittorrent.")
             from torrentlinker.review import candidate_key, remembered_candidates
 
             indexer = self.setup.indexer()
@@ -710,26 +826,33 @@ class Operations:
             candidate = next((c for c in found if candidate_key(c) == request.candidate_key), None)
             if candidate is None:
                 raise ValueError("Select a current Candidate first.")
-            return self.library.diagnose(
-                request.path, candidate, indexer.fetch_torrent(candidate), stop
-            )
+            return library.diagnose(request.path, candidate, indexer.fetch_torrent(candidate), stop)
         if request.kind == "prepare-repair":
-            return self.library.prepare_repair(
+            return library.prepare_repair(
                 request.repair_id, request.client_path, stop, experimental=request.experimental
             )
         if request.kind == "refresh-repair":
-            return self.library.refresh_repair(request.repair_id)
+            return library.refresh_repair(request.repair_id)
         if request.kind == "start-repair":
-            return self.library.start_repair(request.repair_id, request.confirmation)
+            return library.start_repair(request.repair_id, request.confirmation)
         if request.kind == "combine-library":
-            return self.library.combine(request.paths, stop)
+            return library.combine(request.paths, stop, request.selection_name)
         if request.kind == "find-compatible":
-            return self.library.compatible(request.path, stop, progress)
+            return library.compatible(request.path, stop, progress)
+        if request.kind == "candidate-inspector":
+            return library.inspector(
+                request.path,
+                request.inspector_action,
+                stop,
+                key=request.candidate_key,
+                torrent_data=request.torrent_data,
+                progress=progress,
+            )
         if request.kind == "library-evidence":
             return {
-                **self.library.evidence(request.path, stop),
-                "provenance": self.library.provenance(request.path),
-                "repairs": self.library.repairs().rows(),
+                **library.evidence(request.path, stop),
+                "provenance": library.provenance(request.path),
+                "repairs": library.repairs().rows(),
             }
         if request.kind == "import-provenance":
             import base64
@@ -738,11 +861,11 @@ class Operations:
                 data = base64.b64decode(request.torrent_data, validate=True)
             except ValueError as error:
                 raise ValueError("Invalid torrent upload.") from error
-            return self.library.import_provenance(request.path, data, stop)
+            return library.import_provenance(request.path, data, stop)
         if request.kind == "check":
-            return self.library.check(request.path, stop, progress)
+            return library.check(request.path, stop, progress)
         if request.kind in {"library-review", "library-reject", "check-candidate"}:
-            return self.library.review(
+            return library.review(
                 request.path,
                 stop,
                 key=request.candidate_key,
@@ -753,7 +876,11 @@ class Operations:
                 }[request.kind],
             )
         if request.kind == "search-library":
-            return self.library.search_items(request.paths, stop, progress)
+            return library.search_items(request.paths, stop, progress)
+        if request.kind == "refresh-unpack":
+            if len(request.hashes) != 1:
+                raise ValueError("Select one archive torrent.")
+            return self.archives.status(request.hashes[0])
         if request.kind == "preview-unpack":
             return self.archives.preview(request.path, request.candidate_key, stop)
         if request.kind == "unpack-reseed":
@@ -761,11 +888,11 @@ class Operations:
                 request.path, request.candidate_key, request.confirmation, stop, progress
             )
         if request.kind == "reseed":
-            return self.library.reseed(request.path, request.hashes[0], stop)
+            return library.reseed(request.path, request.hashes[0], stop)
         if request.kind == "check-all":
-            return self.library.check_all(stop, progress)
+            return library.check_all(stop, progress)
         if request.kind == "reseed-all":
-            return self.library.reseed_all(stop, progress)
+            return library.reseed_all(stop, progress)
         if request.kind == "search":
             indexer = self.setup.indexer()
             seeded = set()
@@ -891,6 +1018,24 @@ class Operations:
                         time.time(),
                     )
                 )
+            from torrentlinker.release_score.estimate import estimate as release_estimate
+            from torrentlinker.release_score.service import mark_best, score
+
+            for row in result:
+                listing = (
+                    asdict(page.details[row["hash"]])
+                    if indexer.is_c411 and row["hash"] in page.details
+                    else {}
+                )
+                self.score_listings[row["hash"]] = listing
+                row["release_score"] = score(
+                    release_estimate(row["title"], row["size"], listing),
+                    self.setup.settings.release_score,
+                )
+            # Only retain bounded listing facts for local re-scoring of recent pages.
+            while len(self.score_listings) > 2000:
+                self.score_listings.pop(next(iter(self.score_listings)))
+            mark_best(result)
             self.setup.store.save_catalogue(catalogue)
             from torrentlinker.queue_selection import snapshot
 

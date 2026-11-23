@@ -93,10 +93,40 @@ def is_video(data: bytes) -> bool:
 class MappedQbit:
     """The Qbit port seen through Path Mappings: callers only ever handle local paths."""
 
-    def __init__(self, inner: Qbit, mapper: PathMapper, *, sequential_video: bool = False) -> None:
+    def __init__(
+        self, inner: Qbit, mapper: PathMapper, *, sequential_video: bool = False, reseed_policy=None
+    ) -> None:
         self._inner = inner
+        self.reseed_policy = reseed_policy
         self._mapper = mapper
         self.sequential_video = sequential_video  # films and episodes download in order
+
+    def tracker_updates_supported(self) -> bool:
+        if not all(
+            hasattr(self._inner, name)
+            for name in ("announce_entries", "apply_announces", "reannounce")
+        ):
+            return False
+        check = getattr(self._inner, "tracker_updates_supported", None)
+        return check() if check else True
+
+    def announce_entries(self, hash: str):
+        read = getattr(self._inner, "announce_entries", None)
+        if read is None:
+            raise ValueError("Tracker updates are unsupported by this client.")
+        return read(hash)
+
+    def apply_announces(self, hash: str, before, after) -> None:
+        apply = getattr(self._inner, "apply_announces", None)
+        if apply is None:
+            raise ValueError("Tracker updates are unsupported by this client.")
+        apply(hash, before, after)
+
+    def reannounce(self, hash: str) -> None:
+        announce = getattr(self._inner, "reannounce", None)
+        if announce is None:
+            raise ValueError("Tracker updates are unsupported by this client.")
+        announce(hash)
 
     @property
     def supports_category_tags(self) -> bool:
@@ -131,6 +161,12 @@ class MappedQbit:
     def torrent(self, hash: str, with_files: bool = True) -> Torrent | None:
         t = self._inner.torrent(hash) if with_files else self._inner.torrent(hash, with_files=False)
         return self._local(t) if t else None
+
+    def export_torrent(self, hash: str) -> bytes:
+        export = getattr(self._inner, "export_torrent", None)
+        if export is None:
+            raise ValueError("This client cannot export torrent metadata")
+        return export(hash)
 
     def files(self, hash: str) -> dict[str, int]:
         return self._inner.files(hash)
@@ -179,6 +215,14 @@ class MappedQbit:
 
     def add_tags(self, hash: str, tags: list[str]) -> None:
         self._inner.add_tags(hash, tags)
+
+    def set_category(self, hash: str, category: str) -> bool:
+        """Give the torrent a category; False when the client cannot."""
+        manage = getattr(self._inner, "manage_control", None)
+        if manage is None or "category" not in getattr(self._inner, "management_controls", ()):
+            return False
+        manage(hash, "category", {"category": category, "tags": []})
+        return True
 
     def add_tags_many(self, hashes: list[str], tags: list[str]) -> None:
         self._inner.add_tags_many(hashes, tags)

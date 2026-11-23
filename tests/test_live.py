@@ -26,7 +26,7 @@ pytestmark = pytest.mark.skipif(not os.environ.get("TL_LIVE"), reason="set TL_LI
 def indexer_key() -> str:
     """TL_INDEXER_KEY, else the key saved from the app's Settings (system keyring)."""
     from torrentlinker.credentials import get_secret
-    from torrentlinker.gui.settings_dialog import INDEXER_API_KEY
+    from torrentlinker.gui.settings_common import INDEXER_API_KEY
 
     key = os.environ.get("TL_INDEXER_KEY") or get_secret(INDEXER_API_KEY)
     if not key:

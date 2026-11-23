@@ -12,6 +12,7 @@ from typing import Any
 
 from torrentlinker.archives import ArchiveError
 from torrentlinker.client_limits import disk_renames_elsewhere
+from torrentlinker.reseed_layout import needs_disk_rename_review
 from torrentlinker.review import (
     CheckedCandidate,
     candidate_key,
@@ -67,7 +68,7 @@ class ArchiveReseeds:
                 f"{free} bytes are available."
             )
         client = self.library.client()
-        if client.requires_disk_renames and match.renames:
+        if needs_disk_rename_review(client) and match.renames:
             raise ValueError(disk_renames_elsewhere(client))
         if client.torrent(meta.infohash) is not None:
             raise ValueError("This torrent already exists in the Torrent Client.")
@@ -110,6 +111,25 @@ class ArchiveReseeds:
         token = secrets.token_urlsafe(32)
         self.pending[token] = (now + 300, identity)
         return {**preview, "token": token}
+
+    def status(self, infohash: str) -> dict:
+        """Observe verification owned by the existing monitor; never start or retry here."""
+        from torrentlinker.reseed import CHECKING_STATES, PARTIAL, TAG, VERIFYING
+
+        torrent = self.library.client().torrent(infohash)
+        if torrent is None:
+            return {"hash": infohash, "status": "needs-review"}
+        pending = self.setup.store.verification(infohash)
+        verified = TAG in torrent.tags and (torrent.progress >= 1 or PARTIAL in torrent.tags)
+        if pending or VERIFYING in torrent.tags or torrent.state in CHECKING_STATES:
+            state = "verifying"
+        elif verified and torrent.state in {"uploading", "stalledUP", "forcedUP", "queuedUP"}:
+            state = "seeding"
+        elif verified:
+            state = "verified-stopped"
+        else:
+            state = "needs-review"
+        return {"hash": infohash, "status": state, "partial": PARTIAL in torrent.tags}
 
     def start(
         self,

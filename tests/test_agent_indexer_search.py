@@ -303,3 +303,42 @@ def test_native_search_reports_explicit_revival_fallback_metadata(catalogue_app)
     assert page["palliative_fallback"] is True and page["palliative_matches"] == 0
     assert page["rows"][0]["revival"] is True
     assert page["rows"][0]["native_category_label"] == "Films & Vidéos / Film"
+
+
+def test_interactive_agent_read_cannot_clear_a_running_download_guard(catalogue_app, monkeypatch):
+    import threading
+
+    from torrentlinker.agent.service import AgentRequest
+
+    app, browser, token = catalogue_app
+    service = app.state.agent_service
+    actor = service.access.authenticate(token)
+    target = service.for_client("default")
+    entered, release = threading.Event(), threading.Event()
+
+    def guard(data, folder):
+        return None
+
+    def sending(stop, progress):
+        target.setup.download_guard = guard
+        entered.set()
+        assert release.wait(5)
+        assert target.setup.download_guard is guard
+        target.setup.download_guard = None
+        return {}
+
+    monkeypatch.setattr(target, "run", lambda *_: {"read": True})
+    send_id = service.jobs.submit("send-queue", sending)
+    try:
+        assert entered.wait(2)
+        read = service.request(
+            actor,
+            "concurrent-read",
+            AgentRequest(kind="details", client_id="default", hashes=["a" * 40]),
+        )
+        assert finished(browser, read["job_id"])["status"] == "completed"
+        assert target.setup.download_guard is guard
+        assert service.jobs.get(send_id)["status"] == "running"
+    finally:
+        release.set()
+    assert finished(browser, send_id)["status"] == "completed"

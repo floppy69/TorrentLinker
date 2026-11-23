@@ -1,5 +1,23 @@
 # RSS subscriptions
 
+## Create your first subscription
+
+1. Open **RSS → New subscription** and give the subscription a name you will recognize.
+2. Enter a title or search phrase and choose categories. Start with a narrow query so the preview is easy to inspect.
+3. Set any required size, seeder or quality criteria under **What you accept**.
+4. Choose **Notify me** for the first run. This lets you inspect matches before authorizing downloads.
+5. Read the preview count and titles, then click **Save**.
+6. Open the subscription's inbox and inspect a matching release. Once the rule behaves as intended, edit it to use the queue or automatic downloads if needed.
+
+| Mode | What happens after a match | Your next step |
+| --- | --- | --- |
+| Notify me | The release appears for review | Inspect it and decide what to queue |
+| Add to queue | The release enters TorrentLinker's queue | Review the destination and start the queue |
+| Download automatically | The rule may start permitted downloads | Configure the client, folder, limits and allowed hours first |
+
+The editor shows hours in your local time. A new rule normally starts with future discoveries; **Include currently available releases** also considers the releases available at activation. Review that checkbox before saving.
+
+
 Open **RSS** under Search to follow named c411 release feeds. Search also has a **Subscribe to RSS** button. The editor previews the feed itself. The same definition must have a successful preview within 15 minutes when creating a subscription or changing its source filters, and saving runs it for you. The configured c411 API key is reused; do not paste a private RSS URL or key into a subscription.
 
 Each subscription follows words in the title and one or more categories, chosen by name from the indexer's category list. Categories use Torznab IDs, which differ from native Search IDs. Some native subcategories share a Torznab ID, so RSS cannot distinguish 3D objects, characters and packs through the category filter. Native Search filters such as uploader, year and category options are not copied into RSS. An ID the app has no name for stays on the subscription and shows as `#ID`.
@@ -19,11 +37,13 @@ The sidebar lists each subscription with its mode and unread count, and marks pa
 
 Feeds refresh every 30 minutes by default, without an LLM. You can refresh, pause, edit or delete them. Updates read up to three overlapping pages of 100 rows and stop on repeated page fingerprints. Coverage always remains limited. A short or repeated page does not prove complete tracker history or a gap-free update. Last success, errors and the coverage reason remain visible. An activation baselines all rows currently accessible. Rules act only on subsequently discovered rows unless you explicitly select **Include currently available releases**.
 
+![RSS subscription editor with category filters and its Save action](../images/en/rss-editor.png)
+
 ## Rule modes
 
 - **Review only** discovers releases for you to inspect.
 - **App queue only** persists matching releases in TorrentLinker. It never contacts a Torrent Client or downloads a `.torrent` file. Compare clients explicitly first so the rule has a recent cached inventory. An unavailable or stale inventory blocks decisions. The queue can exceed available disk space or daily download limits.
-- **Automatic downloads** uses the same queue and dispatches through the existing download permission, daily-byte, daily-torrent and disk-reserve checks. Choose the target Torrent Client and one of its configured Download Folders. A rule changes no global folder. Set allowed UTC hours and explicitly authorize automatic downloads in the editor. An assistant request always needs owner approval to enable or edit this mode. The queue waits when limits or the schedule prevent a start. Failed or uncertain sends require review; the scheduler does not retry uncertain downloads.
+- **Automatic downloads** uses the same queue and dispatches through the existing download permission, daily-byte, daily-torrent and disk-reserve checks. Choose the target Torrent Client and one of its configured Download Folders. A rule changes no global folder. Choose allowed hours in your local time and explicitly authorize automatic downloads in the editor. An assistant request always needs owner approval to enable or edit this mode. The queue waits when limits or the schedule prevent a start. Failed or uncertain sends require review; the scheduler does not retry uncertain downloads.
 
 Pending entries retain their subscription, mode, work identity and selection reason in their origin. Rule decisions explain baselines, missing metadata, duplicates, waiting, alternatives and queue outcomes. Budget checks occur when a download starts, not when a wish is added to the queue.
 

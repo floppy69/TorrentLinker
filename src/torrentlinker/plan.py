@@ -46,10 +46,22 @@ class PlanOptions:
     min_size: int = 0  # bytes per torrent; 0 = no minimum
     max_size: int = 0  # bytes per torrent; 0 = no maximum
 
+    min_torrents: int = 0
+    min_seeders: int = 0
+
+    def __post_init__(self) -> None:
+        if self.min_torrents < 0 or self.min_seeders < 0:
+            raise ValueError("Minimum torrent and seeder counts cannot be negative.")
+        if self.max_torrents is not None and self.min_torrents > self.max_torrents:
+            raise ValueError("Minimum torrent count must not exceed maximum torrent count.")
+        if self.max_seeders is not None and self.min_seeders > self.max_seeders:
+            raise ValueError("Minimum seeders must not exceed maximum seeders.")
+
     def admits(self, size: int, seeders: int) -> bool:
         """Whether a torrent of this size and current swarm may enter the Plan."""
         return (
             (self.max_seeders is None or seeders <= self.max_seeders)
+            and seeders >= self.min_seeders
             and size >= self.min_size
             and (self.max_size <= 0 or size <= self.max_size)
         )
@@ -158,9 +170,13 @@ class Plan:
 def explain_inputs(plan: Plan, issues: Sequence[PlanIssue], existing: Sequence[OnDisk]) -> Plan:
     """Use upstream exclusions when no candidate reached the optimizer."""
     reasons = plan.issues
-    if not plan.items and reasons == (PlanIssue("no_candidates"),):
+    if not plan.items and PlanIssue("no_candidates") in reasons:
         reasons = tuple(issues) + ((PlanIssue("on_disk", len(existing)),) if existing else ())
-        reasons = reasons or plan.issues
+        reasons = (
+            (reasons + tuple(i for i in plan.issues if i.code != "no_candidates"))
+            if reasons
+            else plan.issues
+        )
     return replace(plan, issues=reasons, on_disk=tuple(existing))
 
 
@@ -351,6 +367,10 @@ def make_plan(
             sorted(downloads, key=lambda cv, r=rank: -r(cv[0], cv[1]))  # type: ignore[misc]
             for rank in ORDERINGS.values()
         ]
+    if options.min_torrents:
+        # A high-value large torrent may consume the budget needed to meet the
+        # minimum. Try a count-first fill without weakening any other limit.
+        orderings.append(sorted(downloads, key=lambda cv: (cv[0].download_size, cv[0].infohash)))
     for ordered in orderings:
         chosen = first + _fill(
             ordered, dict(budgets), room - len(first), options.max_download_bytes
@@ -375,7 +395,21 @@ def make_plan(
                 for s in disk_spaces
             ),
         )
-        if options.goal is PlanGoal.NOTE or plan.zen_added > best.zen_added:
+        if options.min_torrents:
+            enough = len(plan.items) >= options.min_torrents
+            best_enough = len(best.items) >= options.min_torrents
+            if (
+                enough
+                and not best_enough
+                or not best_enough
+                and len(plan.items) > len(best.items)
+                or enough
+                and best_enough
+                and options.goal is PlanGoal.ZEN
+                and plan.zen_added > best.zen_added
+            ):
+                best = plan
+        elif options.goal is PlanGoal.NOTE or plan.zen_added > best.zen_added:
             best = plan
     if not best.items:
         if not issues and valued:
@@ -390,6 +424,10 @@ def make_plan(
         if not issues:
             issues.append(PlanIssue("no_gain" if candidates else "no_candidates"))
         best = Plan(goal=options.goal, disk_spaces=tuple(disk_spaces), issues=tuple(issues))
+    if len(best.items) < options.min_torrents:
+        best = replace(
+            best, issues=(*best.issues, PlanIssue("minimum_torrents", options.min_torrents))
+        )
     return best
 
 

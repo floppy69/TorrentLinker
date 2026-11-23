@@ -1,22 +1,17 @@
+"""Category hierarchy and owner expansion through the shared Seeding interface."""
+
+from dataclasses import replace
 from pathlib import Path
 
-import pytest
-from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QHeaderView
+from PySide6.QtCore import QSettings
 
+from tests.test_community_interfaces import js, wait_js
 from torrentlinker.domain import Torrent
 from torrentlinker.downloads import IndexerCategory
-from torrentlinker.gui.seeding_tree import SeedingTree
+from torrentlinker.gui.seeding_view import SeedingView
 from torrentlinker.seeding import Seeding, SeedingRow
-from torrentlinker.zen import ZenDay
-
-
-@pytest.fixture(autouse=True)
-def isolated_preferences(monkeypatch, tmp_path):
-    monkeypatch.setattr(
-        "torrentlinker.gui.seeding_tree.QSettings",
-        lambda: QSettings(str(tmp_path / "view.ini"), QSettings.Format.IniFormat),
-    )
+from torrentlinker.web.seeding import seeding_page
+from torrentlinker.zen import ZenDay, ZenProfile
 
 
 def sample():
@@ -34,145 +29,121 @@ def sample():
     )
 
 
-def test_tree_groups_actual_categories_and_totals_without_inventing_subcategories(qtbot):
-    tree = SeedingTree()
-    qtbot.addWidget(tree)
-    tree.show_seeding(sample())
-    assert tree.topLevelItemCount() == 2
-    books, comics = tree.groups[(7000,)], tree.groups[(7000, 7010)]
-    assert comics.parent() is books
-    assert tree.torrents["a"].parent() is comics
-    assert tree.torrents["c"].parent() is books
-    assert tree.torrents["d"].parent() is tree.groups[()]
-    assert books.text(0) == "Books (3)"
-    assert books.text(4) == "≈ 0.60"
-    assert "snapshot" in tree.torrents["c"].toolTip(0)
-    tree.sortItems(1, Qt.SortOrder.AscendingOrder)
-    assert comics.child(0).text(0) == "Small"
-    assert comics.child(1).text(0) == "Large"
+def opened(qtbot, tmp_path, data=None):
+    view = SeedingView(
+        lambda: lambda: sample(),
+        preferences=QSettings(str(tmp_path / "owner.ini"), QSettings.Format.IniFormat),
+    )
+    qtbot.addWidget(view)
+    view.show_seeding(data or sample())
+    view.show()
+    wait_js(qtbot, view, "document.querySelectorAll('.seeding-category').length===3")
+    return view
 
 
-def test_refresh_keeps_selection_expansion_filter_sort_and_manual_widths(qtbot):
-    tree = SeedingTree()
-    qtbot.addWidget(tree)
-    tree.show_seeding(sample())
-    tree.setCurrentItem(tree.torrents["b"], 2)
-    tree.groups[(7000,)].setExpanded(False)
-    tree.torrents["a"].setSelected(True)
-    tree.torrents["b"].setSelected(True)
-    tree.header().resizeSection(0, 510)
-    tree.sortItems(1, Qt.SortOrder.AscendingOrder)
-    tree.show_seeding(sample())
-    assert not tree.groups[(7000,)].isExpanded()
-    assert tree.torrents["a"].isSelected()
-    assert tree.torrents["b"].isSelected()
-    assert tree.currentItem() is tree.torrents["b"]
-    assert tree.currentColumn() == 2
-    assert tree.header().sectionSize(0) == 510
-    assert tree.header().sectionResizeMode(0) == QHeaderView.ResizeMode.Interactive
-    tree.filter("COMICS")
-    assert tree.groups[(7000,)].isExpanded()
-    assert not tree.torrents["a"].isHidden()
-    assert tree.torrents["c"].isHidden()
-    assert tree.groups[()].isHidden()
-    tree.show_seeding(sample())
-    assert tree.torrents["c"].isHidden()
-    tree.filter("")
-    assert not tree.groups[(7000,)].isExpanded()
-    assert not tree.torrents["c"].isHidden()
-
-
-def test_notes_sort_numerically_and_categories_average_torrents_not_subcategories(qtbot):
-    from dataclasses import replace
-
-    import pytest
-
-    tree = SeedingTree()
-    qtbot.addWidget(tree)
-    view = sample()
-    view = replace(
+def test_tree_groups_categories_and_numeric_rows(qtbot, tmp_path):
+    view = opened(qtbot, tmp_path)
+    assert js(
+        qtbot,
         view,
+        'document.querySelector(\'[data-group="7000"] [data-group="7000/7010"]\')!==null',
+    )
+    js(qtbot, view, "document.querySelector('#seeding-expand').click()")
+    wait_js(qtbot, view, "document.querySelectorAll('tbody tr').length===4")
+    assert js(
+        qtbot,
+        view,
+        "document.querySelector('#seeding-result tbody').textContent.includes('Unknown')",
+    )
+    js(
+        qtbot,
+        view,
+        "document.querySelector('[data-category=\"7000/7010\"]').click()",
+    )
+    wait_js(qtbot, view, "document.querySelectorAll('tbody tr').length===2")
+    js(
+        qtbot,
+        view,
+        "document.querySelector('[data-sort=\"size\"]').click()",
+    )
+    wait_js(
+        qtbot,
+        view,
+        "document.querySelector('#seeding-result tbody tr')?.textContent.includes('Small')",
+    )
+
+
+def test_owner_expansion_uses_category_identity_after_rename(qtbot, tmp_path):
+    view = opened(qtbot, tmp_path)
+    js(qtbot, view, "document.querySelector('#seeding-expand').click()")
+    wait_js(qtbot, view, "document.querySelectorAll('tbody tr').length===4")
+    js(qtbot, view, "document.querySelector('[data-group=\"7000\"]').open=false")
+    qtbot.waitUntil(
+        lambda: "7000" not in view.preferences.value(view.preference_key(), [], type=list)
+    )
+    view.close()
+    renamed = replace(
+        sample(),
+        categories={7000: IndexerCategory("Livres"), 7010: IndexerCategory("Comics", 7000)},
+    )
+    reopened = opened(qtbot, tmp_path, renamed)
+    assert js(qtbot, reopened, "!document.querySelector('[data-group=\"7000\"]').open")
+    assert js(qtbot, reopened, "document.querySelector('[data-group=\"7000/7010\"]').open")
+
+
+def test_filter_does_not_persist_automatic_expansion(qtbot, tmp_path):
+    view = opened(qtbot, tmp_path)
+    js(qtbot, view, "document.querySelector('[data-group=\"7000\"]').open=true")
+    wait_js(qtbot, view, "document.querySelectorAll('tbody tr').length===4")
+    js(
+        qtbot,
+        view,
+        "document.querySelector('#seeding-query').value='small';document.q"
+        "uerySelector('#seeding-query').dispatchEvent(new Event('input'))",
+    )
+    wait_js(
+        qtbot,
+        view,
+        "document.querySelectorAll('tbody tr').length===1&&document.queryS"
+        "elector('tbody').textContent.includes('Small')",
+    )
+    view.show_seeding(sample())
+    view.close()
+    reopened = opened(qtbot, tmp_path)
+    assert js(qtbot, reopened, "document.querySelector('[data-group=\"7000\"]').open")
+    assert js(qtbot, reopened, "!document.querySelector('[data-group=\"7000/7010\"]').open")
+    js(qtbot, reopened, "document.querySelector('#seeding-collapse').click()")
+    qtbot.waitUntil(
+        lambda: not reopened.preferences.value(reopened.preference_key(), [], type=list)
+    )
+    reopened.close()
+    final = opened(qtbot, tmp_path)
+    assert js(qtbot, final, "document.querySelectorAll('.seeding-category[open]').length===0")
+
+
+def test_note_aggregates_weight_torrents_and_unknowns_sort_last():
+    data = sample()
+    data = replace(
+        data,
         rows=[
             replace(row, note=value)
-            for row, value in zip(view.rows, [2.0, 10.0, 0.0, None], strict=True)
+            for row, value in zip(data.rows, [2.0, 10.0, 0.0, None], strict=True)
         ],
     )
-    tree.show_seeding(view)
-    assert tree.torrents["a"].text(5) == "≈ 2.00"
-    assert tree.groups[(7000, 7010)].text(5) == "≈ 6.00"
-    assert tree.groups[(7000,)].data(5, Qt.ItemDataRole.UserRole) == pytest.approx(4.0)
-    assert tree.groups[()].text(5) == "–"
-    tree.sortItems(5, Qt.SortOrder.AscendingOrder)
-    assert tree.groups[(7000, 7010)].child(0) is tree.torrents["a"]
-    tree.filter("Small")
-    assert tree.groups[(7000,)].text(5) == "≈ 4.00"
-    tree.show_seeding(
-        replace(
-            view,
-            rows=[replace(row, note=None) if row.torrent.hash == "b" else row for row in view.rows],
-        )
-    )
-    assert tree.groups[(7000,)].text(5) == "≈ 1.00"
+    page = seeding_page(data, ZenProfile(), 0, group="7000/7010", sort="note", descending=False)
+    assert [row["name"] for row in page["rows"]] == ["Small", "Large"]
+    assert next(group for group in page["groups"] if group["id"] == "7000")["note"] == 4.0
+    assert next(group for group in page["groups"] if group["id"] == "7000/7010")["note"] == 6.0
+    assert next(group for group in page["groups"] if group["id"] == "unknown")["note"] is None
 
 
-def test_categories_start_collapsed_and_user_layout_survives_restart(qtbot):
-    from dataclasses import replace
-
-    tree = SeedingTree()
-    qtbot.addWidget(tree)
-    tree.show_seeding(sample())
-    assert all(not item.isExpanded() for item in tree.groups.values())
-    tree.groups[(7000,)].setExpanded(True)
-    tree.groups[(7000, 7010)].setExpanded(True)
-    tree.groups[(7000,)].setExpanded(False)
-
-    reopened = SeedingTree()
-    qtbot.addWidget(reopened)
-    view = sample()
-    view = replace(view, categories={**view.categories, 7000: IndexerCategory("Livres")})
-    reopened.show_seeding(view)
-    assert not reopened.groups[(7000,)].isExpanded()
-    assert reopened.groups[(7000, 7010)].isExpanded()
-    reopened.groups[(7000,)].setExpanded(True)
-    reopened.show_seeding(view)
-    assert reopened.groups[(7000,)].isExpanded()
-    assert reopened.groups[(7000, 7010)].isExpanded()
-    assert not reopened.groups[()].isExpanded()
-
-
-def test_filter_and_refresh_do_not_persist_automatic_expansion(qtbot):
-    tree = SeedingTree()
-    qtbot.addWidget(tree)
-    tree.show_seeding(sample())
-    tree.groups[(7000,)].setExpanded(True)
-    tree.filter("small")
-    assert tree.groups[(7000, 7010)].isExpanded()
-    tree.show_seeding(sample())
-    assert tree.groups[(7000, 7010)].isExpanded()
-    reopened = SeedingTree()
-    qtbot.addWidget(reopened)
-    reopened.show_seeding(sample())
-    assert reopened.groups[(7000,)].isExpanded()
-    assert not reopened.groups[(7000, 7010)].isExpanded()
-    tree.filter("")
-    assert tree.groups[(7000,)].isExpanded()
-    assert not tree.groups[(7000, 7010)].isExpanded()
-
-
-def test_expand_and_collapse_all_are_remembered_after_restart(qtbot):
-    tree = SeedingTree()
-    qtbot.addWidget(tree)
-    tree.show_seeding(sample())
-    tree.expandAll()
-    reopened = SeedingTree()
-    qtbot.addWidget(reopened)
-    reopened.show_seeding(sample())
-    assert all(item.isExpanded() for item in reopened.groups.values())
-    reopened.filter("small")
-    reopened.collapseAll()
-    reopened.filter("")
-    assert all(not item.isExpanded() for item in reopened.groups.values())
-    restarted = SeedingTree()
-    qtbot.addWidget(restarted)
-    restarted.show_seeding(sample())
-    assert all(not item.isExpanded() for item in restarted.groups.values())
+def test_previous_native_expansion_migrates_once(qtbot, tmp_path):
+    preferences = QSettings(str(tmp_path / "owner.ini"), QSettings.Format.IniFormat)
+    preferences.setValue("zen/expanded_categories", ["category:7000", "category:7000/7010"])
+    view = opened(qtbot, tmp_path)
+    wait_js(qtbot, view, "document.querySelectorAll('.seeding-category[open]').length===2")
+    js(qtbot, view, "document.querySelector('#seeding-collapse').click()")
+    qtbot.waitUntil(lambda: not preferences.value(view.preference_key(), [], type=list))
+    view.close()
+    reopened = opened(qtbot, tmp_path)
+    assert js(qtbot, reopened, "document.querySelectorAll('.seeding-category[open]').length===0")

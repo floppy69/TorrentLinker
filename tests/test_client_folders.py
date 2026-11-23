@@ -9,7 +9,6 @@ from torrentlinker.deluge import DelugeApi
 from torrentlinker.domain import PathMapping
 from torrentlinker.downloads import DownloadFolders, IndexerCategory
 from torrentlinker.gui.folder_import import FolderImportDialog
-from torrentlinker.gui.settings_dialog import SettingsDialog
 from torrentlinker.qbit import QbitApi
 from torrentlinker.transmission import TransmissionApi
 
@@ -210,54 +209,109 @@ def test_windows_mapping_roundtrip_ignores_drive_case(qtbot):
     assert dialog.result_folders.default == "/books"
 
 
-def test_settings_import_requires_save_and_uses_unsaved_mappings(qtbot, monkeypatch):
-    from torrentlinker.gui import settings_dialog as module
+def test_settings_import_requires_save_and_uses_saved_mappings(qtbot, tmp_path):
+    from tests.settings_support import settings_page
+    from tests.test_community_interfaces import js, wait_js
 
-    settings = Settings()
-    dialog = SettingsDialog(settings)
-    qtbot.addWidget(dialog)
-    monkeypatch.setattr(dialog, "_read_mappings", lambda: [PathMapping("/local", "/remote")])
-    monkeypatch.setattr(
-        dialog,
-        "_form_qbit",
-        lambda: SimpleNamespace(
-            folder_settings=lambda: [ClientFolder("", "/remote/books", "default")]
-        ),
+    local = tmp_path / "local"
+    (local / "books").mkdir(parents=True)
+    settings = Settings(language="en", path_mappings=[PathMapping(str(local), "/remote")])
+    dialog = settings_page(qtbot, tmp_path, settings, section="downloads")
+    dialog.setup.connector = lambda *a, **kw: SimpleNamespace(
+        folder_settings=lambda: [ClientFolder("", "/remote/books", "default")]
     )
-    monkeypatch.setattr(module, "run_in_background", lambda work, done, failed: done(work()))
-    monkeypatch.setattr(FolderImportDialog, "exec", lambda self: (self._apply(), self.result())[1])
-    dialog._import_client_folders()
-    assert dialog.default_download.text() == "/local/books"
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent"
+        "==='Read folders from client').click()",
+    )
+    wait_js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].some(b=>b.textContent"
+        "==='Default · /remote/books')",
+    )
+    js(
+        qtbot,
+        dialog.view,
+        "[...document.querySelectorAll('button')].find(b=>b.textContent"
+        "==='Default · /remote/books').click()",
+    )
+    assert js(
+        qtbot,
+        dialog.view,
+        "document.querySelector('[aria-label=\"Folder on the TorrentLinker host\"]').value",
+    ) == str(local / "books")
+    assert dialog.setup.settings.download_folders.default == ""
+    assert not dialog.setup.path.exists()
+    dialog.close()  # leave without saving
     assert settings.download_folders.default == ""
-    assert dialog.import_folders.isEnabled()
-    dialog._save()
-    assert settings.download_folders.default == "/local/books"
 
 
-@pytest.mark.parametrize("finish", ["closed", "changed", "error"])
-def test_settings_import_ignores_stale_results_and_recovers_from_errors(qtbot, monkeypatch, finish):
-    from torrentlinker.gui import settings_dialog as module
+@pytest.mark.parametrize("finish", ["changed", "error"])
+def test_settings_import_ignores_stale_results_and_recovers_from_errors(qtbot, tmp_path, finish):
+    import threading
 
-    dialog = SettingsDialog(Settings())
-    qtbot.addWidget(dialog)
-    callbacks = []
-    monkeypatch.setattr(module, "run_in_background", lambda *args: callbacks.extend(args))
-    dialog._import_client_folders()
-    assert not dialog.import_folders.isEnabled()
-    if finish == "closed":
-        dialog.reject()
-    elif finish == "changed":
-        dialog.qbit_host.setText("http://another-host:8080")
-    else:
-        callbacks[2](RuntimeError("Connection failed"))
-        assert "Connection failed" in dialog.import_status.text()
-        assert dialog.import_folders.isEnabled()
-        return
-    callbacks[1]([ClientFolder("", "/download", "default")])
-    assert dialog.default_download.text() == ""
-    if finish == "changed":
-        assert dialog.import_folders.isEnabled()
-        assert "connection changed" in dialog.import_status.text()
+    from tests.settings_support import settings_page
+    from tests.test_community_interfaces import js, wait_js
+
+    started, release = threading.Event(), threading.Event()
+
+    def folders():
+        started.set()
+        assert release.wait(5)
+        if finish == "error":
+            raise RuntimeError("Connection failed")
+        return [ClientFolder("", "/download", "default")]
+
+    dialog = settings_page(qtbot, tmp_path, section="downloads")
+    dialog.setup.connector = lambda *a, **kw: SimpleNamespace(folder_settings=folders)
+    try:
+        js(
+            qtbot,
+            dialog.view,
+            "[...document.querySelectorAll('button')].find(b=>b.textCon"
+            "tent==='Read folders from client').click()",
+        )
+        qtbot.waitUntil(started.is_set)
+        if finish == "changed":
+            js(
+                qtbot,
+                dialog.view,
+                "[...document.querySelectorAll('nav button')].find(b=>b"
+                ".textContent==='General').click()",
+            )
+        release.set()
+        qtbot.waitUntil(lambda: dialog.view.pending == 0)
+        if finish == "error":
+            wait_js(
+                qtbot,
+                dialog.view,
+                "document.querySelector('#settings-error').textContent."
+                "includes('Connection failed')",
+            )
+            assert (
+                js(
+                    qtbot,
+                    dialog.view,
+                    "[...document.querySelectorAll('button')].find(b=>b"
+                    ".textContent==='Read folders from client').disable"
+                    "d",
+                )
+                is False
+            )
+        else:
+            assert (
+                js(qtbot, dialog.view, "document.querySelector('.settings-form h2').textContent")
+                == "General"
+            )
+            assert not js(
+                qtbot, dialog.view, "document.body.textContent.includes('Default · /download')"
+            )
+        assert dialog.setup.settings.download_folders.default == ""
+    finally:
+        release.set()
 
 
 def test_implicit_paths_with_version_dependent_sanitization_are_not_guessed():

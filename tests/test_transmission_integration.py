@@ -223,3 +223,9 @@ def test_uploads_seed_from_the_local_files_under_their_own_names(
 
     check_uploads_seed_from_the_local_files(transmission, shared)
     assert not no_part_files(shared)
+
+
+def test_tracker_updates_keep_tiers_and_private_keys(transmission, shared):
+    from tests.tracker_support import check_tracker_updates
+
+    check_tracker_updates(transmission, shared)

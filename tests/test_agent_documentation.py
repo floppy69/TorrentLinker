@@ -133,10 +133,13 @@ def test_documentation_citations_render_and_native_helper_is_nonmodal(catalogue_
     dialog = show_guide(parent, "guide/en/agents.md", "inspect-and-edit-the-download-queue")
     qtbot.addWidget(dialog)
     assert dialog.isModal() is False
-    assert (
-        dialog.findChild(DocumentationTab).browser.source().fragment()
-        == "inspect-and-edit-the-download-queue"
-    )
+    from tests.test_community_interfaces import js, wait_js
+
     reader = dialog.findChild(DocumentationTab)
-    assert reader.browser.textCursor().block().text() == "Inspect and edit the download queue"
-    qtbot.waitUntil(lambda: reader.browser.verticalScrollBar().value() > 0)
+    wait_js(qtbot, reader, "!!document.getElementById('inspect-and-edit-the-download-queue')")
+    wait_js(qtbot, reader, "window.scrollY>0")
+    assert js(
+        qtbot,
+        reader,
+        "document.getElementById('inspect-and-edit-the-download-queue').getBoundingClientRect().top<40",
+    )

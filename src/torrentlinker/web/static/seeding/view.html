@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Seeding</title>
+    <link rel="stylesheet" href="../panel/base.css" /><link rel="stylesheet" href="../panel/toast.css" />
+    <link rel="stylesheet" href="view.css" />
+    <link rel="stylesheet" href="../panel/torrent-list.css" />
+    <script defer src="../panel/i18n.js"></script><script defer src="../panel/toast.js"></script>
+    <script defer src="../panel/transport.js"></script>
+    <script defer src="../panel/torrent-filters.js"></script>
+    <script defer src="common.js"></script>
+    <script defer src="transport.js"></script>
+    <script defer src="view.js"></script>
+  </head>
+  <body>
+    <h1 data-en="Seeding" data-fr="En partage">Seeding</h1>
+    <div class="toolbar">
+      <button id="seeding-refresh" class="quiet" data-i18n="refresh">
+        Refresh
+      </button>
+    </div>
+    <p id="seeding-status" role="status"></p>
+    <p id="seeding-total"></p>
+    <div class="seeding-workspace">
+      <section class="torrent-panel">
+        <div id="seeding-filters"></div>
+        <div id="seeding-result" class="torrent-list-scroll"></div>
+        <div class="seeding-pager">
+          <span id="seeding-page"></span>
+          <div class="toolbar">
+            <button id="seeding-first" data-en="First" data-fr="Début">
+              First
+            </button>
+            <button id="seeding-prev" data-en="Previous" data-fr="Précédent">
+              Previous
+            </button>
+            <label
+              ><span data-en="Page" data-fr="Page">Page</span
+              ><input id="seeding-jump" type="number" min="1" value="1"
+            /></label>
+            <button id="seeding-next" data-en="Next" data-fr="Suivant">
+              Next
+            </button>
+            <button id="seeding-last" data-en="Last" data-fr="Fin">Last</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <details id="seeding-category-totals" class="category-panel">
+      <summary data-en="Category totals" data-fr="Totaux par catégorie">
+        Category totals
+      </summary>
+      <h2 data-en="Categories" data-fr="Catégories">Categories</h2>
+      <div class="toolbar">
+        <button id="seeding-expand" data-i18n="expandAll">
+          Expand categories
+        </button>
+        <button id="seeding-collapse" data-i18n="collapseAll">
+          Collapse categories
+        </button>
+      </div>
+      <nav id="seeding-groups" aria-label="Categories"></nav>
+    </details>
+    <section class="card">
+      <h2 data-i18n="classComparison">Class comparison</h2>
+      <div id="seeding-classes" class="toolbar"></div>
+      <label
+        ><span data-i18n="yourUploads">Your uploads</span
+        ><input id="seeding-uploads" type="number" min="0" max="1000000"
+      /></label>
+      <button id="seeding-save-uploads" data-i18n="saveComparison">
+        Save comparison input
+      </button>
+    </section>
+    <p id="seeding-tags"></p>
+    <p id="seeding-error" role="alert" data-toast="bad"></p>
+  </body>
+</html>

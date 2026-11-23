@@ -1,4 +1,23 @@
-# Documentation TorrentLinker
+# TorrentLinker documentation
+
+## Start here
+
+Follow [Install and configure](guide/en/getting-started.md) for a first connection, a folder and a small trial. Its settings table explains where each option belongs and what to check after saving.
+
+| Your next task | Guide |
+| --- | --- |
+| Choose a compatible client, NAS or seedbox | [Client feature table and paths](guide/en/clients.md#client-compatibility) |
+| Reuse files you already have | [Library and reseeding](guide/en/library.md) |
+| Find a release and review it before downloading | [Search and queue](guide/en/search.md) |
+| Create pre-rolls, edit Studio projects and share creations | [Pre-rolls and Studio](specs/prerolls/USER-GUIDE.md) |
+| Set video preferences for your equipment | [ReleaseScore](guide/en/release-score.md) |
+| Plan new downloads with count, seeder and disk limits | [Zen and Plans](guide/en/zen.md) |
+| Watch for new releases | [RSS subscriptions](guide/en/rss.md) |
+| Play files or remove a resume card | [Media](guide/en/media.md) |
+| Prepare and review a tracker submission | [Uploads](guide/en/upload.md) |
+
+The refreshed English guides use captures of the current application with example data. Settings and Plan controls are shared by desktop and web; filesystem paths in the web version belong to the server. The screenshot procedure and capture scope are recorded in [Screenshot maintenance](testing/guide-screenshots-2026-11-20.md).
+
 
 [Présentation et téléchargement](../README.md) · [English introduction](../README.en.md)
 

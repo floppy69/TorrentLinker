@@ -1,5 +1,24 @@
 # Prepare a c411 upload
 
+## First Upload: save, review, then send
+
+1. Select the Torrent Client that will seed the files. Confirm the files are accessible from TorrentLinker and that client.
+2. Choose a Library source or add a file/folder in **Upload**. Check for an existing matching torrent before preparing a new Upload.
+3. Open the draft and complete its category, name, description, NFO and required category options. Follow the visible category checks.
+4. Add a hosted image URL where required. A preview image in the editor alone does not mean it has been uploaded to an image host.
+5. Click **Save draft** or **Save locally**. Open the saved preview and read the findings. Correct missing information and save again.
+6. Choose **Send to c411…** only after reviewing that saved revision. Final publication is completed on c411.
+
+| Action | Where the work goes |
+| --- | --- |
+| Save locally / Save draft | TorrentLinker's local storage; no c411 publication |
+| Preview saved draft | Displays the saved revision for review |
+| Send to c411 | Contacts the tracker and creates the remote draft |
+| Publish on c411 | Makes the tracker submission public through c411's own workflow |
+
+If a send times out with an unknown outcome, inspect your c411 drafts before retrying. If the source files changed, save and review a new revision first.
+
+
 Upload uses the same list and inspection layout on desktop and Web, with **Sources**, **Drafts** and **Tracking**. Sources suggest Library items with no Candidates or rejected Candidates; these are leads to review, not proof that a release is absent. You can also choose a file or folder manually. Web pickers browse the server's storage roots.
 
 The guided steps are **Sources → Check existing → Prepare → Presentation → Review → Send and track**. Save the draft, review the saved revision and confirm each send to c411. Editing invalidates that review. Final publication remains on c411. An uncertain send must be checked on the site before retrying.

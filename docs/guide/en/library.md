@@ -90,6 +90,16 @@ The missing-byte estimate describes useful content, not total network traffic. R
 
 Before preparing a copy, explicitly enable experimental repair. Representative real-library trials are still pending; diagnosis remains available without enabling downloads.
 
+## Cross-seed and Indexers
+
+A Cross-seed adds a torrent you already have to another Indexer, with the same files and no download. TorrentLinker finds it, checks it and adds it for you. It is the Owner's feature.
+
+**Indexers.** Open **Settings → Indexers**. c411 is built in. Add others with **Add a Torznab Indexer** (name, URL, API key; **Test** also reads what it can search by), or import them from a Prowlarr or Jackett instance (address and API key, tick the ones you want, **Import selection**; **Resync** picks up changes). Each card shows its state, the searches it supports and its pace. TorrentLinker obeys each Indexer's rate limits. Removing an Indexer leaves its Cross-seeds in your client.
+
+**Automatic Cross-seed.** Every complete torrent in your client and every Library Item is searched on the other Indexers, by IMDb or TMDb id where the Indexer allows it, by name otherwise. A Full Match, or a Partial Match covering at least 95 % (the threshold is a setting), is added without review. It goes in stopped, is verified at 100 % by the client, then started. Missing files are skipped and never downloaded. The torrent keeps the original's category and folder and carries the tags `cross-seed` and the Indexer's name. **Suspend Cross-seed** in Settings pauses it.
+
+**Cross-seed tab.** In **Library → Reseed**, the **Cross-seed** tab lists what was found. Filter by To review, Added, Waiting, Failed or Data gone. A Partial Match under the threshold, or one inside an archive, waits for you: add it without the missing files, unpack and reseed, or dismiss it. A failed Verification can be retried. If a Cross-seed's data disappears, it is flagged as orphaned; **Remove from client (keep data)** removes it. Notifications report added, waiting and failed Cross-seeds.
+
 ## WebUI examples
 
 ![Library in the browser](../images/web/library-web.png)

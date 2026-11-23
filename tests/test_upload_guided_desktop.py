@@ -53,6 +53,32 @@ def test_desktop_manual_source_and_shared_rendering(qtbot, tmp_path, monkeypatch
     assert window.store.local_drafts()[0]["path"] == str(source)
     assert js(qtbot, view, "getComputedStyle(document.body).backgroundColor") == "rgb(22, 29, 35)"
     assert window.palette().window().color().name() == "#161d23"
+    js(qtbot, view, "document.querySelector('[data-step=\"2\"]').click()")
+    wait_js(qtbot, view, "!!document.querySelector('[data-action=advanced]')")
+    js(qtbot, view, "document.querySelector('[data-action=advanced]').click()")
+    wait_js(
+        qtbot,
+        view,
+        "document.querySelector('#preparation').open && "
+        "!document.querySelector('[data-prep=save]').disabled",
+    )
+    js(
+        qtbot,
+        view,
+        "document.querySelector('#prep-source').value='Desktop source';"
+        "document.querySelector('#prep-source').dispatchEvent(new Event('input',{bubbles:true}));"
+        "document.querySelector('[data-prep=save]').click()",
+    )
+    wait_js(
+        qtbot,
+        view,
+        "document.querySelector('#prep-status').textContent==='Saved' || "
+        "document.querySelector('#prep-status').textContent==='Enregistré'",
+    )
+    assert window.store.local_drafts()[0]["form"]["source"] == "Desktop source"
+    qtbot.wait(250)
+    window.grab().save("/tmp/upload-preparation-desktop.png")
+    js(qtbot, view, "document.querySelector('[data-prep=close]').click()")
     js(qtbot, view, "document.querySelector('[data-action=draft-list]').click()")
     qtbot.wait(300)
     assert window.workspace_scroll.verticalScrollBar().maximum() == 0

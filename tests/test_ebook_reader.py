@@ -18,22 +18,22 @@ def test_gate_hides_room_below_threshold_and_closes_it_when_seeding_drops(qtbot,
     window = MainWindow(Settings(), tmp_path / "settings.json", Store(tmp_path / "state.db"))
     qtbot.addWidget(window)
     window.show()
-    assert window.reader_button.isHidden()
+    assert not window._reader_unlocked
     assert window.reading_room is None
     ordinary_tabs = window.tabs.count()
     window._open_reading_room()
     assert window.tabs.count() == ordinary_tabs
     window._update_reading_room(ebook_view(9999, tmp_path))
-    assert window.reader_button.isHidden()
+    assert not window._reader_unlocked
     window._update_reading_room(ebook_view(10000, tmp_path))
-    assert not window.reader_button.isHidden()
-    qtbot.mouseClick(window.reader_button, Qt.MouseButton.LeftButton)
+    assert window._reader_unlocked
+    window.shell_host.command("navigate", {"view": "reading"})
     qtbot.waitUntil(lambda: window.reading_room._scanned)
     assert window.tabs.currentWidget() is window.reading_room
-    assert not window.navigation.selectedItems()
-    assert window.reader_button.isChecked()
+    assert window.shell_host.page() == "reading"
+    assert window.shell_host.page() == "reading"
     window._update_reading_room(ebook_view(9999, tmp_path))
-    assert window.reader_button.isHidden()
+    assert not window._reader_unlocked
     assert window.tabs.count() == ordinary_tabs
     assert window.tabs.currentIndex() == 0
     window._open_reading_room()
@@ -43,7 +43,7 @@ def test_gate_hides_room_below_threshold_and_closes_it_when_seeding_drops(qtbot,
     qtbot.waitUntil(lambda: window.reading_room._scanned)
     assert window.tabs.count() == ordinary_tabs + 1
     window.zen_tab.seeding_view.unavailable.emit()
-    assert window.reader_button.isHidden()
+    assert not window._reader_unlocked
     assert window.tabs.count() == ordinary_tabs
 
 
@@ -209,10 +209,10 @@ def test_reading_room_fits_small_screen_and_returns_to_normal_navigation(qtbot, 
     assert window.size().width() == 800
     assert window.workspace_scroll.horizontalScrollBar().maximum() == 0
     assert not window.band.isVisible()
-    window.navigation.itemClicked.emit(window.navigation.item(0))
+    window.shell_host.command("navigate", {"view": "zen"})
     assert window.tabs.currentIndex() == 0
     assert window.band.isVisible()
-    assert not window.reader_button.isChecked()
+    assert not window.shell_host.page() == "reading"
 
 
 def test_page_turns_reach_every_chapter_and_return_to_previous_last_page(qtbot, tmp_path):

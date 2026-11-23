@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.shell_support import shell_navigate
 from tests.test_profile import PROFILE
 from tests.test_web_profile import prepared, snapshot
 
@@ -91,10 +92,12 @@ def test_connect_click_pairs_and_syncs_without_extension_confirmation(tmp_path, 
             page.goto(f"http://127.0.0.1:{port}/")
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
-            page.locator("[data-view=setup]").first.click()
-            page.locator("[data-settings-section=companion]").click()
+            page.frame_locator("#shell-navigation-frame").locator("#language").select_option("en")
+            shell_navigate(page, "setup")
+            settings = page.frame_locator("#settings-frame")
+            settings.get_by_role("button", name="Companion", exact=True).click()
             with context.expect_page() as handoff_opened:
-                page.locator("#profile-pair").click()
+                settings.get_by_role("button", name="Connect companion", exact=True).click()
             handoff = handoff_opened.value
             expect(handoff.locator("h1")).to_have_css("color", "rgb(101, 212, 202)")
             # This is the only user action after installing the companion.
@@ -108,9 +111,11 @@ def test_connect_click_pairs_and_syncs_without_extension_confirmation(tmp_path, 
             yesterday = workspace.history_days()[0]
             balance = workspace.state()["companion"]["profile"]["balance"]
             assert yesterday.ledger and yesterday.values["balance"] == balance - 23
-            expect(page.locator("#session-downloads")).to_be_enabled()
-            page.locator("#session-downloads").check()
-            expect(page.locator("#session-downloads")).to_be_checked()
+            page.bring_to_front()
+            expect(settings.get_by_role("checkbox")).to_be_enabled(timeout=10000)
+            settings.get_by_role("checkbox").check()
+            expect(settings.get_by_role("checkbox")).to_be_enabled()
+            expect(settings.get_by_role("checkbox")).to_be_checked()
             assert workspace.state()["downloads"]["enabled"]
             # Public owner API -> real extension -> fake tracker -> verified summary.
             worker = context.service_workers[0]
@@ -180,9 +185,10 @@ def test_connect_click_pairs_and_syncs_without_extension_confirmation(tmp_path, 
 
             page = context.new_page()
             page.goto(f"http://127.0.0.1:{port}/")
-            page.locator("[data-view=setup]").first.click()
-            page.locator("[data-settings-section=companion]").click()
-            page.locator("#profile-disconnect").click()
+            shell_navigate(page, "setup")
+            settings = page.frame_locator("#settings-frame")
+            settings.get_by_role("button", name="Companion", exact=True).click()
+            settings.get_by_role("button", name="Disconnect & clear", exact=True).click()
             for _ in range(50):
                 if not workspace.state()["paired"]:
                     break

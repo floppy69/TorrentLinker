@@ -47,6 +47,19 @@
         across browser restarts and reconnects. An uncertain send is never repeated
         automatically. No media uploads are performed.</p>
     </section>
+    <section>
+      <h2>Share a Community preset</h2>
+      <p>Choose an exported RSS, ReleaseScore or prompt JSON. The linked app removes private data and returns a preview. Only your confirmed preview is sent to torrentlinker.fr.</p>
+      <label>Preset JSON <input id="creation-file" type="file" accept=".json,application/json"></label>
+      <label>Public title <input id="creation-title" maxlength="120"></label>
+      <label>Description <textarea id="creation-description" maxlength="4000"></textarea></label>
+      <label>Licence <select id="creation-license"><option>CC-BY-4.0</option><option>CC-BY-SA-4.0</option><option>CC0-1.0</option><option>MIT</option><option>own-work</option></select></label>
+      <button id="creation-prepare">Prepare sanitized preview</button>
+      <pre id="creation-preview"></pre>
+      <label><input id="creation-rights" type="checkbox">I reviewed this preview and can share it under this licence.</label>
+      <button id="creation-publish" disabled>Publish reviewed preset</button>
+      <p id="creation-status" role="status"></p>
+    </section>
   </main>
   <script type="module" src="companion.js"></script>
 </html>

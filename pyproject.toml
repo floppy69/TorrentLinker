@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torrentlinker"
-version = "1.0.0-beta.43"
+version = "1.0.0-beta.48"
 description = "Reconcile local files with private-tracker torrents and reseed them in qBittorrent, Deluge or Transmission"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,6 +15,7 @@ dependencies = [
   "guessit>=3.8",
   "torf>=4.2",
   "keyring>=24",
+  "asyncssh>=2.24,<3",  # verified SFTP access for client transfers
   "pillow>=10",  # CPU model renders and private image validation on headless servers
   "numpy>=1.26",  # the 3D preview reads and decimates meshes
   "pymediainfo>=6.1",  # MediaInfo of videos, for the Films & Vidéos upload (ADR-0012)
@@ -25,7 +26,7 @@ dependencies = [
 
 [project.optional-dependencies]
 desktop = ["PySide6>=6.6", "torrentlinker[web]"]
-web = ["mcp>=2.3,<3", "fastapi>=0.115,<1", "uvicorn>=0.30,<1", "cryptography>=43", "markdown-it-py>=3,<5"]
+web = ["mcp>=2.3,<3", "fastapi>=0.115,<1", "uvicorn>=0.30,<1", "cryptography>=43", "markdown-it-py>=3,<5", "segno>=1.6,<2", "pywebpush>=2,<3"]
 dev = ["torrentlinker[desktop,web]", "pytest>=8", "pytest-qt>=4.4", "ruff>=0.5", "mypy>=1.10"]
 browser-test = ["playwright>=1.50"]
 package = ["torrentlinker[desktop]", "pyinstaller>=6.10", "pillow>=10"]  # pillow converts the icon on Windows and macOS
@@ -41,7 +42,7 @@ torrentlinker-web = "torrentlinker.web.server:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-torrentlinker = ["i18n/*.qm", "assets/*.png", "assets/*.svg", "assets/*.tlcat", "assets/*.json", "gui/*.qml", "web/static/*", "web/static/community/*", "web/static/reseed/*", "web/static/upload/*", "web/static/panel/*", "web/static/profile/*", "companion_extension/*"]
+torrentlinker = ["release_score/*.json", "release_score/LICENSE", "i18n/*.qm", "assets/*.png", "assets/*.svg", "assets/*.tlcat", "assets/*.json", "gui/*.qml", "web/static/*", "web/static/community/*", "web/static/reseed/*", "web/static/upload/*", "web/static/panel/*", "web/static/profile/*", "web/static/search/*", "web/static/feeds/*", "web/static/torrents/*", "web/static/assistant/*", "web/static/media/*", "web/static/documentation/*", "web/static/catalogue/*", "web/static/plan/*", "web/static/seeding/*", "web/static/settings/*", "web/static/player/*", "web/static/player-details/*", "web/static/shell/*", "companion_extension/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

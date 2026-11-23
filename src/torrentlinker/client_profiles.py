@@ -9,6 +9,7 @@ from torrentlinker.clients import connect
 from torrentlinker.config import CLIENT_FIELDS, Settings
 from torrentlinker.paths import MappedQbit, PathMapper
 from torrentlinker.qbit import ClientApi
+from torrentlinker.reseed_layout import ReseedLayout
 
 
 class Connections:
@@ -37,7 +38,10 @@ class Connections:
                 s.client, config.host, getattr(config, "username", ""), password, api_key
             )
         return MappedQbit(
-            self._clients[key], PathMapper(s.path_mappings), sequential_video=s.sequential_video
+            self._clients[key],
+            PathMapper(s.path_mappings),
+            sequential_video=s.sequential_video,
+            reseed_policy=ReseedLayout.for_settings(s),
         )
 
 
@@ -56,3 +60,13 @@ def pending_work(settings: Settings, store, identifier: str) -> bool:
         if saved and any((i.client_id or profile.id) == identifier for i in saved.pending):
             return True
     return False
+
+
+def require_no_file_access(setup, identifier: str) -> None:
+    """Keep saved file-access credentials reachable until explicitly removed."""
+    import json
+
+    root = setup._root or setup
+    path = root.path.parent / "transfer-access" / "access.json"
+    if path.exists() and identifier in json.loads(path.read_text()):
+        raise ValueError("Remove this client's remote file access in Connections first.")

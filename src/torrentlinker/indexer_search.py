@@ -127,6 +127,8 @@ class IndexerFilters(BaseModel):
                 )
             root = roots.pop()
             selected = -children[0] if len(children) == 1 else root
+        if root in tree.torznab_only and not set(params) <= {"sortBy", "sortOrder", "subcat"}:
+            raise ValueError("Connect the extension to use XXX filters.")
         if any(getattr(self, name) for name in VIDEO_FILTERS) or self.crew:
             if root != 1:
                 raise ValueError("Video filters/crew require the native Films & Videos root.")
@@ -193,6 +195,8 @@ def search_options(indexer, category=None, fallback_categories=None, *, adult=Tr
                 "Season/episode use option IDs, not numeric API fields."
             },
         },
+        # XXX without a session: Torznab text/category search only; the panel says why.
+        "adult_filters": "extension" if root in tree.torznab_only else "",
         "video_filters": VIDEO_FILTERS if root == 1 else {},
         "filter_schema": IndexerFilters.model_json_schema(),
         "note": "Read root/child IDs then their category options. Use exact returned value IDs. "

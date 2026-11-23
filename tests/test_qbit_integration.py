@@ -189,8 +189,7 @@ def test_same_size_but_different_data_fails_and_keeps_the_file(
 
 
 def test_an_api_key_authenticates_and_a_wrong_one_is_refused(qbit: QbitApi) -> None:
-    import qbittorrentapi
-
+    from torrentlinker.login_guard import LoginRefused
     from torrentlinker.qbit import is_api_key
 
     version = tuple(int(x) for x in qbit.check().lstrip("v").split(".")[:2])
@@ -202,7 +201,8 @@ def test_an_api_key_authenticates_and_a_wrong_one_is_refused(qbit: QbitApi) -> N
         assert QbitApi(HOST, "", "", api_key=key).check() == qbit.check()
         # The sandbox lets localhost in without login, but a key that is sent is checked.
         wrong = "qbt_" + ("A" if key[4] != "A" else "B") * 28
-        with pytest.raises(qbittorrentapi.exceptions.APIError):
+        # A refused key is remembered as a refused login, so nothing retries it on its own.
+        with pytest.raises(LoginRefused):
             QbitApi(HOST, "", "", api_key=wrong).check()
     finally:
         qbit.delete_api_key()
@@ -319,3 +319,9 @@ def test_uploads_seed_from_the_local_files_under_their_own_names(
     tmp_path: Path, qbit: QbitApi
 ) -> None:
     check_uploads_seed_from_the_local_files(qbit, tmp_path)
+
+
+def test_tracker_updates_keep_tiers_and_private_keys(qbit, tmp_path):
+    from tests.tracker_support import check_tracker_updates
+
+    check_tracker_updates(qbit, tmp_path)

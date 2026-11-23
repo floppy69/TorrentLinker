@@ -592,3 +592,20 @@ def test_existing_ebook_releases_are_looked_up_by_title_words(tmp_path: Path) ->
     query = EBOOK.existing_query(book(tmp_path, "Frank Herbert - Dune.epub"), IGNORE)
 
     assert query == ExistingQuery("Frank Herbert Dune")
+
+
+def test_backup_announces_preserve_infohash_and_configured_order(tmp_path):
+    item = dragon_pack(tmp_path)
+    files = upload_files(item, "Test.NOTAG.STL", IGNORE)
+    original = torf.Torrent.read_stream(io.BytesIO(make_torrent(item, files, ANNOUNCE)))
+    updated = torf.Torrent.read_stream(
+        io.BytesIO(
+            make_torrent(item, files, ANNOUNCE, announce_hosts=["next.c411.org", "tk.c411.tw"])
+        )
+    )
+    assert updated.infohash == original.infohash
+    assert updated.metainfo["announce"] == "https://next.c411.org/announce/secret"
+    assert updated.metainfo["announce-list"] == [
+        ["https://next.c411.org/announce/secret"],
+        ["https://tk.c411.tw/announce/secret"],
+    ]

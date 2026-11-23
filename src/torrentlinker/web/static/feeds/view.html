@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>RSS</title
+  ><link rel="stylesheet" href="../panel/base.css" /><link
+    rel="stylesheet"
+    href="view.css"
+  />
+  <link rel="stylesheet" href="../panel/community-items.css" />
+  <link rel="stylesheet" href="../panel/toast.css" />
+  <script src="../panel/i18n.js" defer></script>
+  <script src="../panel/toast.js" defer></script>
+  <script src="../panel/transport.js" defer></script>
+  <script src="transport.js" defer></script>
+  <script src="view.js" defer></script>
+  <body>
+    <div class="feed-layout">
+      <aside>
+        <div id="feeds-side-head" class="feed-side-head"></div>
+        <div id="feeds-sidebar"></div>
+        <div id="feeds-community" class="feed-community"></div>
+      </aside>
+      <div class="feed-main">
+        <div id="feeds-empty" class="feed-empty" hidden></div>
+        <div id="feeds-body">
+          <div id="feeds-header" class="feed-header"></div>
+          <div id="feeds-filters" class="feed-filters" role="tablist"></div>
+          <div id="feeds-actions" class="feed-selection" hidden></div>
+          <div id="feeds-results" class="table-wrap"></div>
+        </div>
+      </div>
+    </div>
+    <dialog id="dialog">
+      <button class="close" aria-label="Close">×</button>
+      <div id="dialog-content"></div>
+    </dialog>
+  <script src="../panel/community-items.js"></script></body>
+</html>

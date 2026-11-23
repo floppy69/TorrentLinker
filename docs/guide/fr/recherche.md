@@ -17,7 +17,7 @@ La page reprend la structure de la page torrents de c411, avec les couleurs et l
 
 - **En-tête.** Le choix **Compact / Confortable**, **Affiches** et le bouton **File de téléchargement (N)**. Vos choix sont mémorisés.
 - **Barre de recherche.** Un grand champ pour le titre, le titre original ou le nom de release. Dans Films & Vidéos, **Casting & équipe** cherche aussi parmi les acteurs, réalisateurs et scénaristes.
-- **Pastilles de catégorie.** *Tout* et une pastille par catégorie, avec les totaux de c411. Une pastille filtre aussitôt. Le menu **Catégorie** en dessous choisit une sous-catégorie.
+- **Pastilles de catégorie.** *Tout* et une pastille par catégorie, avec les totaux de c411. Une pastille filtre aussitôt. Le menu **Catégorie** en dessous choisit une sous-catégorie de la pastille choisie ; il est masqué sous *Tout*. Activer le contenu adulte affiche XXX sans recharger.
 - **Filtres.** Des boutons arrondis qui ouvrent une liste à cocher avec recherche (résolution, source, codec, HDR, audio, canaux, langue, profil, genre, saison, etc.), puis **Année**, **Team** et **Uploader**. Team accepte un nom ou un slug de team, comme sur c411. À partir de quatre valeurs choisies, elles apparaissent aussi en pastilles que l’on retire une à une. **Exclusivités** et le bouton cœur des **soins palliatifs** sont à côté du menu Catégorie. **S’abonner au RSS** reprend la requête dans un nouvel abonnement, et **Tout effacer** remet tout à zéro.
 - **Recherche automatique.** Les filtres, les boutons, les pastilles, les puces de tri et les liens de pages relancent la recherche. Pour les filtres, une pause d’environ une seconde regroupe plusieurs clics en une requête. Une année à moitié saisie ne lance rien. Le bouton Recherche et Entrée fonctionnent toujours.
 - **Carte des résultats.** Le nombre total de résultats et leur taille, une rangée de **puces de tri** (Âge, Seeders, Leechers, Taille, Complétés, Commentaires, Nom, Type, et Pertinence pendant une saisie ; cliquez sur la puce active pour inverser l’ordre), et des liens de pages numérotées au-dessus et en dessous.
@@ -77,3 +77,7 @@ Le compteur **File de téléchargement** correspond aux lignes restantes. Les é
 Lorsque c411 indique explicitement qu’un torrent n’est pas disponible au téléchargement, TorrentLinker le retire du Catalogue local et mémorise son hash. Les actualisations et imports du Catalogue ne le réintroduisent pas, même après redémarrage : les prochains Plans ne le proposent plus. Les erreurs d’authentification, les limites de requêtes et les erreurs du serveur ne retirent aucun torrent.
 
 [Documentation](../../README.md) · [English](../en/search.md)
+
+## Recherches XXX
+
+Avec **Afficher le contenu XXX** activé, les résultats XXX passent par votre session c411 connectée, via l’extension navigateur, et par Torznab sinon. Mettez l’extension à jour depuis **Paramètres → Extension** (rechargez-la dans votre navigateur). Gardez un onglet c411 ouvert. La première lecture peut prendre environ 30 secondes.

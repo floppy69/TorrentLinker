@@ -103,6 +103,15 @@ def never_reach_the_users_own_clients(monkeypatch):  # type: ignore[no-untyped-d
 
 
 @pytest.fixture(autouse=True)
+def forget_refused_logins():  # type: ignore[no-untyped-def]
+    """A refused login is remembered for the process; no test inherits another's."""
+    from torrentlinker import login_guard
+
+    login_guard._REFUSED.clear()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def no_bundled_catalogue(monkeypatch, tmp_path_factory):  # type: ignore[no-untyped-def]
     """A Catalogue bundled into a local checkout would be imported by every sync."""
     from torrentlinker import bundled_catalogue

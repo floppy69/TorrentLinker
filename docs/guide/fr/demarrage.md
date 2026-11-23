@@ -82,6 +82,10 @@ Cliquez sur l’en-tête d’une colonne pour trier, puis une seconde fois pour 
 
 [Documentation](../../README.md) · [English](../en/getting-started.md)
 
+## Ce que l’application vous dit
+
+Chaque action reçoit une réponse sous forme de notification, et un bouton indique qu’il travaille. Les erreurs connues du serveur s’affichent comme alertes dans votre langue. Une barre d’en-tête porte la navigation sur ordinateur, un tiroir sur téléphone. Les lignes de tracker de Médias disent pourquoi elles sont vides, et **Activité** décrit les tâches en mots simples.
+
 ## Consulter les guides dans l’application
 
 Cliquez sur **Documentation**, juste au-dessus des **Paramètres**. Recherchez un guide dans la liste de gauche, puis choisissez un chapitre. Les liens entre guides restent dans l’application ; **Précédent** et **Suivant** retrouvent vos lectures. Le sélecteur propose les guides français et anglais. **Ouvrir en ligne** ouvre la version du dépôt dans votre navigateur.

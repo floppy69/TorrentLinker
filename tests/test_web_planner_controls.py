@@ -175,7 +175,16 @@ def test_plan_includes_checked_reseeds_without_spending_download_budget(
     client.by_hash["f" * 40] = Torrent(
         "f" * 40, "Existing", root, files={"existing.epub": 4}, size=4
     )
-    setup = Setup(config, (root,), ServerSecrets(config), lambda *args: client)
+    links = tmp_path / "links"
+    links.mkdir()
+    setup = Setup(config, (root, links), ServerSecrets(config), lambda *args: client)
+    if disk_rename:
+        from torrentlinker.domain import TorrentClient
+
+        setup.settings.client = TorrentClient.UTORRENT
+        setup.settings.capture_client()
+        setup.settings.profile().reseed_link_root = str(links)
+    original = book.read_bytes(), book.stat().st_ino, book.name
     setup.configured = True
     setup.settings.zen = ZenProfile(ZenClass.SWARM_KEEPER)
     setup.settings.indexer_categories = {7000: IndexerCategory("Ebook")}
@@ -223,37 +232,19 @@ def test_plan_includes_checked_reseeds_without_spending_download_budget(
         assert result["payback_days"] == 0
         assert client.downloads == client.rechecked == []
         sending = {"kind": "send-plan", "plan_id": result["plan_id"]}
-        if disk_rename:
-            denied = browser.post("/api/jobs", json=sending)
-            assert denied.status_code == 400
-            assert book.exists() and not (root / "Example.epub").exists()
         preview = browser.post("/api/zen/plan/review", json=sending)
         assert preview.is_success, preview.text
-        if disk_rename:
-            assert preview.json()["renames"][0]["source"] == str(book)
-            assert preview.json()["renames"][0]["target"] == str(root / "Example.epub")
-            import os
-
-            previous = book.stat()
-            os.utime(book, ns=(previous.st_atime_ns, previous.st_mtime_ns + 1_000_000))
-            stale = browser.post(
-                "/api/jobs", json={**sending, "confirmation": preview.json()["token"]}
-            )
-            assert stale.status_code == 400
-            assert book.exists() and not (root / "Example.epub").exists()
-            preview = browser.post("/api/zen/plan/review", json=sending)
-            assert preview.is_success
-        else:
-            assert preview.json()["renames"] == []
+        assert preview.json()["renames"] == []
         sent = run({**sending, "confirmation": preview.json()["token"]})
         assert len(sent["reseeded"]) == 1, sent
         assert client.rechecked == [infohash]
         assert client.started == client.downloads == []
-        assert (root / "Example.epub").read_bytes() == b"book" * 100
+        assert (book.read_bytes(), book.stat().st_ino, book.name) == original
+        if disk_rename:
+            assert not (root / "Example.epub").exists()
+            assert (client.torrent(infohash).save_path / "Example.epub").is_symlink()
         assert browser.get("/api/zen/plan").json()["rows"] == []
         # Remove only the fake client state to exercise rejection independently.
         client.by_hash.pop(infohash)
-        if disk_rename:
-            (root / "Example.epub").rename(book)
         run({"kind": "library-reject", "path": str(book), "candidate_key": infohash})
         assert run(request)["rows"] == []

@@ -39,7 +39,7 @@ def test_make_plan_prompts_for_missing_category_and_cancel_does_not_start(
         lambda *args: str(tmp_path / "images") if path_chosen else "",
     )
     monkeypatch.setattr(window, "_build_plan", lambda then=None: builds.append(True))
-    window.zen_tab.plan_view.make_button.click()
+    window.zen_tab.plan_view.make_requested.emit()
     assert len(prompts) == 1 and "XXX / Images" in prompts[0]
     assert bool(builds) == (answer and path_chosen)
     folders = window.settings.download_folders
@@ -51,7 +51,7 @@ def test_make_plan_prompts_for_missing_category_and_cancel_does_not_start(
         assert saved.download_folders == folders
     else:
         assert 6060 not in folders.by_category
-        assert window.zen_tab.plan_view.make_button.isEnabled()
+        assert not window.zen_tab.plan_view.state()["busy"]
 
 
 def test_existing_parent_folder_does_not_prompt(window, tmp_path, monkeypatch):

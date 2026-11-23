@@ -1,6 +1,4 @@
 import pytest
-from PySide6.QtCore import QUrl
-from PySide6.QtGui import QTextDocument
 
 from torrentlinker import documentation as docs
 from torrentlinker.config import Settings
@@ -10,45 +8,79 @@ from torrentlinker.store import Store
 
 
 def test_offline_guides_links_history_language_and_images(qtbot):
+    from tests.test_community_interfaces import js, wait_js
+
     tab = DocumentationTab("en")
     qtbot.addWidget(tab)
-    tab.resize(900, 650)
+    tab.resize(1100, 750)
     tab.show()
-    assert "Install and configure" in tab.browser.toPlainText()
-    tab._follow(QUrl("torrents.md"))
-    assert "Manage torrents" in tab.browser.toPlainText()
-    image = tab.browser.document().resource(
-        QTextDocument.ResourceType.ImageResource,
-        QUrl.fromLocalFile(str(docs.document_path("guide/images/en/zen.png"))),
+    wait_js(
+        qtbot,
+        tab,
+        "document.querySelector('#guide-content')?.textContent.includes('Install and configure')",
     )
-    assert not image.isNull()
-    assert image.width() <= tab.browser.viewport().width()
-    tab.browser.backward()
-    assert "Install and configure" in tab.browser.toPlainText()
-    tab.language.setCurrentIndex(tab.language.findData("fr"))
-    assert "Installer" in tab.browser.toPlainText()
-    tab.filter.setText("torrents")
-    torrent_guide = next(
-        tab.chapters.item(i)
-        for i in range(tab.chapters.count())
-        if tab.chapters.item(i).text() == "Gérer les torrents"
+    js(qtbot, tab, "document.querySelector('[data-guide-path=\"guide/en/torrents.md\"]').click()")
+    wait_js(
+        qtbot, tab, "document.querySelector('#guide-content h1')?.textContent==='Manage torrents'"
     )
-    assert not torrent_guide.isHidden()
-    assert tab.chapters.item(0).isHidden()
+    wait_js(
+        qtbot,
+        tab,
+        "[...document.querySelectorAll('#guide-content img')]"
+        ".some(i=>i.complete&&i.naturalWidth>0)",
+    )
+    assert js(
+        qtbot,
+        tab,
+        "[...document.querySelectorAll('#guide-content img')].every(i=>i.width<=innerWidth)",
+    )
+    js(qtbot, tab, "document.querySelector('#guide-back').click()")
+    wait_js(
+        qtbot,
+        tab,
+        "document.querySelector('#guide-content h1')?.textContent==='Install and configure'",
+    )
+    js(qtbot, tab, "document.querySelector('#guide-forward').click()")
+    wait_js(
+        qtbot, tab, "document.querySelector('#guide-content h1')?.textContent==='Manage torrents'"
+    )
+    js(
+        qtbot,
+        tab,
+        "document.querySelector('#guide-language').value='fr';"
+        "document.querySelector('#guide-language').dispatchEvent(new Event('change'))",
+    )
+    wait_js(
+        qtbot,
+        tab,
+        "document.querySelector('#guide-content h1')?.textContent==='Gérer les torrents'",
+    )
+    js(
+        qtbot,
+        tab,
+        "document.querySelector('#guide-filter').value='torrents';"
+        "document.querySelector('#guide-filter').dispatchEvent(new Event('input'))",
+    )
+    assert js(
+        qtbot, tab, "document.querySelector('[data-guide-path=\"guide/fr/demarrage.md\"]').hidden"
+    )
+    assert js(
+        qtbot, tab, "!document.querySelector('[data-guide-path=\"guide/fr/torrents.md\"]').hidden"
+    )
 
 
 def test_documentation_navigation_without_connections(qtbot, tmp_path):
     window = MainWindow(Settings(), tmp_path / "settings.json", Store(tmp_path / "store.db"))
     qtbot.addWidget(window)
-    window.documentation_button.click()
+    window.shell_host.command("navigate", {"view": "documentation"})
     guide = window.documentation_tab
     assert window.tabs.currentWidget() is guide
-    assert window.documentation_button.isChecked()
-    assert not window.reader_button.isChecked()
+    assert window.shell_host.page() == "documentation"
+    assert window.shell_host.page() != "reading"
     assert window.reading_room is None
     window.tabs.setCurrentIndex(1)
-    assert not window.documentation_button.isChecked()
-    window.documentation_button.click()
+    assert window.shell_host.page() != "documentation"
+    window.shell_host.command("navigate", {"view": "documentation"})
     assert window.documentation_tab is guide
     window._lock_reading_room()
     assert window.tabs.currentWidget() is guide
@@ -69,34 +101,17 @@ def test_installed_documentation_lookup(monkeypatch, tmp_path):
     assert docs.document_path("guide/en/getting-started.md") == guide
 
 
-def test_idle_guide_does_not_reload_or_flash_wait_cursor_after_resizing(qtbot, monkeypatch):
-    from PySide6.QtWidgets import QApplication
+def test_guide_keeps_scroll_and_content_after_resizing(qtbot):
+    from tests.test_community_interfaces import js, wait_js
 
-    from torrentlinker.gui.documentation import GuideBrowser
-
-    loads = []
-    original = GuideBrowser.loadResource
-
-    def observe(self, kind, url):
-        if kind == QTextDocument.ResourceType.MarkdownResource:
-            cursor = QApplication.overrideCursor()
-            loads.append(cursor.shape() if cursor else None)
-        return original(self, kind, url)
-
-    monkeypatch.setattr(GuideBrowser, "loadResource", observe)
     tab = DocumentationTab("en")
     qtbot.addWidget(tab)
     tab.resize(1070, 735)
     tab.show()
     tab.open_guide("guide/en/web-docker.md")
-    qtbot.wait(700)
-    loads.clear()
-    qtbot.wait(800)
-    assert not loads, f"Idle guide reloads and wait cursors: {loads}"
-    tab.browser.verticalScrollBar().setValue(300)
+    wait_js(qtbot, tab, "document.querySelector('#guide-content')?.textContent.includes('Docker')")
+    js(qtbot, tab, "window.scrollTo(0,300)")
     tab.resize(760, 620)
     qtbot.wait(700)
-    loads.clear()
-    qtbot.wait(800)
-    assert not loads, f"Resized guide keeps reloading: {loads}"
-    assert tab.browser.verticalScrollBar().value() > 0
+    assert js(qtbot, tab, "window.scrollY>0")
+    assert js(qtbot, tab, "document.querySelector('#guide-content').textContent.includes('Docker')")

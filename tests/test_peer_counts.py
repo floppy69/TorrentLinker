@@ -1,5 +1,3 @@
-from dataclasses import replace
-
 import pytest
 
 from tests.test_deluge_unit import FakeWebUi, torrent
@@ -100,28 +98,3 @@ def test_utorrent_reads_both_swarm_columns():
 )
 def test_unknown_counts_are_not_zero(connected, total, text):
     assert peer_count_text(connected, total) == text
-
-
-def test_combined_view_displays_totals_and_sorts_numerically(qtbot, tmp_path):
-    from pathlib import Path
-
-    from PySide6.QtCore import Qt
-
-    from torrentlinker.config import Settings
-    from torrentlinker.domain import Torrent
-    from torrentlinker.gui.client_overview import ClientOverview
-    from torrentlinker.store import Store
-
-    store = Store(tmp_path / "state.db")
-    widget = ClientOverview(Settings(), store)
-    qtbot.addWidget(widget)
-    book = Torrent("a", "A", Path("/data"), swarm_seeders=42, swarm_peers=13)
-    widget.rows = [
-        ("default", "Home", book, None),
-        ("remote", "Remote", replace(book, name="B", swarm_seeders=100), None),
-    ]
-    widget.render()
-    widget.table.sortItems(4, Qt.SortOrder.DescendingOrder)
-    assert widget.table.item(0, 4).text() == "0 (100)"
-    assert widget.table.item(1, 4).text() == "0 (42)"
-    assert widget.table.item(0, 5).text() == "0 (13)"

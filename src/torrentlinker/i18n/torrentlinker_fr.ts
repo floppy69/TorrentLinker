@@ -4606,6 +4606,10 @@ La mettre à la corbeille ?</translation>
         <source>Reading client files: {0}/{1} · up to {2} requests/s</source>
         <translation>Lecture des fichiers du client : {0}/{1} · jusqu’à {2} requêtes/s</translation>
     </message>
+    <message>
+        <source>Wait for the current operation before changing settings.</source>
+        <translation>Attendez la fin de l’opération en cours avant de modifier les paramètres.</translation>
+    </message>
 </context>
 <context>
     <name>MediaHero</name>
@@ -7355,6 +7359,14 @@ Le torrent est ensuite ajouté à votre client torrent avec les fichiers décomp
 <context>
     <name>SearchTab</name>
     <message>
+        <source>Choose a folder</source>
+        <translation>Choisir un dossier</translation>
+    </message>
+    <message>
+        <source>The torrent will be queued using its configured category folder.</source>
+        <translation>Le torrent sera mis en file dans le dossier configuré pour sa catégorie.</translation>
+    </message>
+    <message>
         <location filename="../gui/search_view.py" line="200"/>
         <source>Subscribe to RSS</source>
         <translation>S&apos;abonner au RSS</translation>
@@ -9142,6 +9154,10 @@ Le torrent est ensuite ajouté à votre client torrent avec les fichiers décomp
     <message>
         <source>Browse…</source>
         <translation>Parcourir…</translation>
+    </message>
+    <message>
+        <source>Wait for the current Settings operation to finish.</source>
+        <translation>Attendez la fin de l’opération en cours dans les paramètres.</translation>
     </message>
 </context>
 <context>
@@ -12053,6 +12069,67 @@ c411 refuse un upload dont l’uploader ne partage pas : ne le publiez pas avant
     <message>
         <source>Upload preparation tools</source>
         <translation>Outils de préparation de l’upload</translation>
+    </message>
+</context>
+<context>
+    <name>SettingsView</name>
+    <message>
+        <source>Choose folder</source>
+        <translation>Choisir un dossier</translation>
+    </message>
+    <message>
+        <source>Save token</source>
+        <translation>Enregistrer le jeton</translation>
+    </message>
+</context>
+<context>
+    <name>CrashReport</name>
+    <message>
+        <location filename="../home/viet/git-perso/TorrentLinker/src/torrentlinker/gui/crash_reports.py" line="15" />
+        <location filename="../home/viet/git-perso/TorrentLinker/src/torrentlinker/app.py" line="190" />
+        <source>Report the problem</source>
+        <translation>Signaler le problème</translation>
+    </message>
+    <message>
+        <location filename="../home/viet/git-perso/TorrentLinker/src/torrentlinker/gui/crash_reports.py" line="20" />
+        <source>Review the sanitized draft. Nothing is sent automatically.</source>
+        <translation>Vérifiez le brouillon anonymisé. Rien n’est envoyé automatiquement.</translation>
+    </message>
+    <message>
+        <location filename="../home/viet/git-perso/TorrentLinker/src/torrentlinker/gui/crash_reports.py" line="30" />
+        <source>Open GitHub draft</source>
+        <translation>Ouvrir le brouillon GitHub</translation>
+    </message>
+</context>
+<context>
+    <name>MediaTab</name>
+    <message>
+        <location filename="../home/viet/git-perso/TorrentLinker/src/torrentlinker/gui/media.py" line="1161" />
+        <source>Save Studio export</source>
+        <translation>Enregistrer l’export Studio</translation>
+    </message>
+</context>
+<context>
+    <name>PrerollPlayer</name>
+    <message>
+        <location filename="../home/viet/git-perso/TorrentLinker/src/torrentlinker/gui/prerolls.py" line="18" />
+        <source>Before your film</source>
+        <translation>Avant votre film</translation>
+    </message>
+    <message>
+        <location filename="../home/viet/git-perso/TorrentLinker/src/torrentlinker/gui/prerolls.py" line="36" />
+        <source>Play</source>
+        <translation>Lire</translation>
+    </message>
+    <message>
+        <location filename="../home/viet/git-perso/TorrentLinker/src/torrentlinker/gui/prerolls.py" line="37" />
+        <source>Skip clip</source>
+        <translation>Passer ce clip</translation>
+    </message>
+    <message>
+        <location filename="../home/viet/git-perso/TorrentLinker/src/torrentlinker/gui/prerolls.py" line="38" />
+        <source>Skip all / start film</source>
+        <translation>Tout passer / lancer le film</translation>
     </message>
 </context>
 </TS>

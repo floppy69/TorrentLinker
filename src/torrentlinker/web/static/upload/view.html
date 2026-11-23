@@ -5,10 +5,14 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <link rel="stylesheet" href="../panel/base.css" />
     <link rel="stylesheet" href="view.css" />
+    <link rel="stylesheet" href="../panel/toast.css" />
     <script src="../panel/i18n.js" defer></script>
+    <script src="../panel/toast.js" defer></script>
     <script src="../panel/transport.js" defer></script>
     <script src="transport.js" defer></script>
+    <script src="rules.js" defer></script>
     <script src="view.js" defer></script>
+    <script src="preparation.js" defer></script>
   </head>
   <body>
     <main>
@@ -23,8 +27,6 @@
       </nav>
       <div id="content"></div>
     </main>
-    <p class="error" id="error" role="alert"></p>
     <dialog id="dialog"><div id="dialog-content"></div></dialog>
-    <div id="toast" class="toast" role="status" hidden></div>
   </body>
 </html>

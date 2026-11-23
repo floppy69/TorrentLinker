@@ -52,6 +52,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
+from functools import lru_cache
 from urllib.parse import urlsplit
 
 GB = 1_000_000_000  # c411 sizes are decimal: 1 Zen buys 1 Go of download credit
@@ -288,6 +289,9 @@ def is_indexer_torrent(tracker: str, indexer_url: str) -> bool:
     return bool(host and site) and (host == site or host.endswith("." + site))
 
 
+# Many torrents share an announce URL. Bound this in-memory parse cache; never
+# persist its private input URLs or expose them through diagnostics.
+@lru_cache(maxsize=1024)
 def _host(url: str) -> str:
     return (urlsplit(url if "//" in url else "//" + url).hostname or "").lower()
 

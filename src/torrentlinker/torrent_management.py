@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from urllib.parse import urlsplit
 
 from torrentlinker import reseed
@@ -20,12 +21,20 @@ def tracker_hosts(torrent: Torrent) -> tuple[str, ...]:
     hosts = set()
     for url in (*torrent.trackers, torrent.tracker):
         try:
-            parsed = urlsplit(url)
-            if parsed.scheme.lower() in {"http", "https", "udp", "ws", "wss"} and parsed.hostname:
-                hosts.add(parsed.hostname.lower().rstrip("."))
+            if host := _tracker_host(url):
+                hosts.add(host)
         except ValueError:
             continue
     return tuple(sorted(hosts)) or ("",)
+
+
+@lru_cache(maxsize=1024)
+def _tracker_host(url: str) -> str:
+    """Bounded in-memory parsing, shared by torrents using the same private URL."""
+    parsed = urlsplit(url)
+    if parsed.scheme.lower() in {"http", "https", "udp", "ws", "wss"} and parsed.hostname:
+        return parsed.hostname.lower().rstrip(".")
+    return ""
 
 
 def tracker_group(host: str) -> str:

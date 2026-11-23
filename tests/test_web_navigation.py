@@ -14,13 +14,9 @@ def test_fragment_navigation_and_subtabs():
     static = Path("src/torrentlinker/web/static")
     app = (static / "app.js").read_text()
     routing = app[app.index("async function settingsSection(") : app.index("async function job(")]
-    enter = app[app.index("async function enter()") : app.index('$("library-check-all")')]
+    enter = app[app.index("async function enter()") : app.index('$("login-form").onsubmit')]
     library = (static / "library.js").read_text()
-    library = library[
-        library.index("async function libraryTab(") : library.index(
-            "async function browseLibraryFolder("
-        )
-    ]
+    library = library[library.index("async function libraryTab(") :]
     zen = (static / "zen.js").read_text()
     zen = zen[zen.index("function zenTab(") : zen.index("for (const name of")]
     script = r"""
@@ -30,15 +26,29 @@ const $ = id => {
   if (!nodes.has(id)) nodes.set(id, {hidden:false, classList:{toggle(){}}, setAttribute(){}});
   return nodes.get(id);
 };
-const document = {querySelectorAll:()=>[],
+const document = {dispatchEvent(){}, querySelectorAll:()=>[],
   querySelector:selector=>selector===".library-nav"?$("library-nav"):null,
   body:{classList:{contains:()=>false,toggle(){}}}};
-const state = {view:'torrents', setup:{configured:true, indexer_configured:true}};
+const state = {selected:new Set(), queueSelected:new Set(), view:'torrents',
+  setup:{configured:true, indexer_configured:true, members_enabled:true}};
 const media = {kind:'video', view:'recent'};
 const loaded = []; const reseedUI = {tab:'reseed'};
 function clearAgentToken() {}
+function settingsEnvironment() {}
+function shellEnvironment() {}
+function shellRelease() {}
+function signedInMember() { return false; }
+const shellState = {};
+function shellEnsureBand() {}
+function shellSpecificClient() { return state.setup.default_client_id; }
+function resetLibraryReview() {}
 function step() {}
 async function refreshSetup() {}
+async function refreshNotices() {}
+async function loadNotifications() { loaded.push('notifications'); }
+async function loadRequests() { loaded.push('requests'); }
+async function loadMemberAssistant() { loaded.push('member-assistant'); }
+async function loadMemberWorkspace(view) { loaded.push(view); }
 async function loadAgents() { loaded.push('agents'); }
 async function loadAssistantConnections() {}
 async function loadZenProfile() {}
@@ -52,16 +62,15 @@ async function loadGuides() { loaded.push('documentation'); }
 async function loadTorrents() { loaded.push('torrents'); }
 async function loadQueue() { loaded.push('queue'); }
 async function loadFeeds() { loaded.push('feeds'); }
-async function loadUploadQueue() { loaded.push('upload/local'); }
-async function loadRemoteUploads() { loaded.push('upload/remote'); }
-async function loadUploadSources() { loaded.push('upload/sources'); }
-function showUploadView(tab) { rememberTab('upload', tab); }
+function uploadEnvironment(tab) { loaded.push('upload/'+tab); }
 async function loadLibrary() { loaded.push('library/items'); }
 async function loadReseed() { loaded.push('library/'+reseedUI.tab); }
 async function loadJobs() { loaded.push('jobs'); }
 async function loadZenSeeding() {}
 async function loadZenPlan() {}
-function showCatalogue() {}
+async function refreshCatalogue() {}
+async function loadCatalogue() {}
+function planEnvironment() {}
 async function loadSearchPage() { loaded.push('search'); }
 async function api() { return {}; }
 async function job() {}
@@ -101,7 +110,6 @@ eval(process.argv[1] + process.argv[2] + process.argv[3] + process.argv[4] + `
   for(const mode of ['password','proxy']){
     state.setup.web_auth=mode;const count=entries.length;
     await enter();await settle();assert.equal(entries.length,count);
-    assert.equal($('logout').hidden,mode==='proxy');
     assert.equal($('library-activity').hidden,false);
   }
   const count=entries.length;
@@ -120,9 +128,17 @@ eval(process.argv[1] + process.argv[2] + process.argv[3] + process.argv[4] + `
       const parts=[view,...(tab?[tab]:[])];
       location.hash=routeFragment(parts);await settle();
       await enter();await settle();
-      assert.equal(state.view,view);assert.equal(location.hash,routeFragment(parts));
+      assert.equal(state.view,view);
+      const canonical=view==='library' && ['items','review'].includes(tab)
+        ?['library','reseed']:view==='setup' && tab==='interface'?['setup','general']:parts;
+      assert.equal(location.hash,routeFragment(canonical));
     }
   }
+  state.setup.members_enabled=false;
+  for(const tab of ['users','account','notifications']){
+    assert.deepEqual(resolveRoute('#/setup/'+tab),['torrents']);
+  }
+  state.setup.members_enabled=true;
   for(const [kind,views] of Object.entries(mediaViewsByKind)){
     for(const view of views.filter(value=>value!=='adult')){
       await navigate('media',kind,view);await settle();

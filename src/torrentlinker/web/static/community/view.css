@@ -1680,18 +1680,6 @@ body {
 .activity-bars {
   overflow: hidden;
 }
-.community-toast {
-  position: fixed;
-  bottom: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 95%;
-  z-index: 80;
-  background: var(--panel);
-  border: 1px solid var(--accent);
-  padding: 12px 20px;
-  border-radius: 9px;
-}
 .drawer :focus-visible {
   outline-offset: 1px;
 }

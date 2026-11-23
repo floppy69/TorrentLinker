@@ -59,6 +59,7 @@ def workspace(tmp_path, client=None, filename="Été - mon film.mkv"):
     client = client or CheckingClient()
     setup = Setup(config, (library_root, links), ServerSecrets(config), lambda *args: client)
     setup.configured = True
+    setup.settings.profile().reseed_layout = "links"
     folder = LibraryFolder(library_root, 1, ContentKind.MOVIE)
     setup.settings.library_folders = [folder]
     setup.secrets.update({"indexer-api-key": "fixture-key"})
@@ -371,3 +372,198 @@ def test_selected_folder_scan_preserves_other_registered_folders_only(tmp_path):
     board.setup.settings.library_folders.remove(folder)
     board.library.scan(JobStop(), lambda p: None)
     assert file not in {e.item.path for e in board.library.entries}
+
+
+def test_default_client_layout_needs_no_link_folder_and_waits_for_explicit_seed(tmp_path):
+    from torrentlinker.reseed import check_verifications
+
+    board, client, original, links, meta = workspace(tmp_path)
+    board.setup.settings.profile().reseed_layout = "auto"
+    before = original.read_bytes(), original.stat().st_ino
+    for action in ["find", "compare", "prepare", "verify"]:
+        result = run(board, original, "", action=action)
+        assert not result["errors"], result
+    record = board.setup.store.reseed_records()[str(original)]
+    assert record["layout"] == "client"
+    assert record["destination"] == str(original.parent)
+    assert not list(links.iterdir())
+    assert client.torrent(meta.infohash).files == {original.name: original.stat().st_size}
+    assert not client.started
+    assert check_verifications(board.library.client(), board.setup.store) == []
+    assert not client.started
+    assert not run(board, original, "", action="seed")["errors"]
+    assert client.started == [meta.infohash]
+    assert (original.read_bytes(), original.stat().st_ino) == before
+
+
+@pytest.mark.parametrize("layout", ["auto", "links"])
+def test_local_items_and_board_follow_the_same_client_layout(tmp_path, layout):
+    from torrentlinker.reseed import check_verifications
+
+    board, client, original, links, meta = workspace(tmp_path)
+    profile = board.setup.settings.profile()
+    profile.reseed_layout = layout
+    profile.reseed_link_root = str(links)
+    before = original.read_bytes(), original.stat().st_ino
+    result = board.library.reseed(str(original), meta.infohash, JobStop())
+    assert result["status"] == "verifying"
+    for _ in range(5):
+        client.torrent(meta.infohash)
+    check_verifications(board.library.client(), board.setup.store)
+    torrent = client.torrent(meta.infohash)
+    assert client.started == [meta.infohash]
+    if layout == "links":
+        assert torrent.files == meta.files
+        assert (torrent.save_path / "Release.mkv").is_symlink()
+        assert board.setup.store.reseed_link_layout(meta.infohash)["status"] == "seeding"
+    else:
+        assert torrent.files == {original.name: original.stat().st_size}
+        assert not list(links.iterdir())
+    assert (original.read_bytes(), original.stat().st_ino) == before
+
+
+@pytest.mark.parametrize("kind", ["utorrent", "bittorrent", "rtorrent"])
+def test_disk_rename_clients_always_use_links_in_both_flows(tmp_path, kind):
+    from torrentlinker.domain import TorrentClient
+
+    client = CheckingClient()
+    client.requires_disk_renames = True
+    board, client, original, links, meta = workspace(tmp_path, client)
+    board.setup.settings.client = TorrentClient(kind)
+    board.setup.settings.capture_client()
+    profile = board.setup.settings.profile()
+    profile.reseed_layout = "client"  # Even an old or hand-edited preference cannot move originals.
+    profile.reseed_link_root = str(links)
+    before = original.read_bytes(), original.stat().st_ino
+    result = run(board, original, links)
+    assert not result["errors"], result
+    assert result["rows"][0]["layout"] == "links"
+    client.remove(meta.infohash)
+    result = board.library.reseed(str(original), meta.infohash, JobStop())
+    assert result["status"] == "verifying"
+    assert "torrentlinker:links" in client.torrent(meta.infohash).tags
+    assert not any("rename" in call for call in client.calls)
+    assert (original.read_bytes(), original.stat().st_ino) == before
+
+
+def test_prepared_legacy_links_survive_changing_the_default(tmp_path):
+    board, client, original, links, _ = workspace(tmp_path)
+    for action in ["find", "compare", "prepare"]:
+        assert not run(board, original, links, action=action)["errors"]
+    record = board.setup.store.reseed_records()[str(original)]
+    record.pop("layout")  # Existing installations wrote link manifests without a mode.
+    board.setup.store.save_reseed_record(str(original), record)
+    board.setup.settings.profile().reseed_layout = "auto"
+    result = run(ReseedWorkspace(board.library), original, "")
+    assert not result["errors"], result
+    assert (Path(record["destination"]) / "Release.mkv").is_symlink()
+    assert not any("rename" in call for call in client.calls)
+
+
+def test_client_layout_refuses_an_occupied_original_torrent_name(tmp_path):
+    board, client, original, _, _ = workspace(tmp_path)
+    board.setup.settings.profile().reseed_layout = "auto"
+    collision = original.parent / "Release.mkv"
+    collision.write_bytes(b"unrelated user file")
+    before = original.read_bytes(), original.stat().st_ino, collision.read_bytes()
+    result = run(board, original, "")
+    assert result["errors"]
+    assert "move an existing local path" in result["errors"][0]["message"]
+    assert not client.by_hash
+    assert (original.read_bytes(), original.stat().st_ino, collision.read_bytes()) == before
+
+
+def test_local_link_verification_refuses_changed_source_identity(tmp_path):
+    from torrentlinker.reseed import check_verifications
+
+    board, client, original, links, meta = workspace(tmp_path)
+    board.setup.settings.profile().reseed_link_root = str(links)
+    board.library.reseed(str(original), meta.infohash, JobStop())
+    for _ in range(5):
+        client.torrent(meta.infohash)
+    original.write_bytes(b"x" * original.stat().st_size)
+    outcomes = check_verifications(board.library.client(), board.setup.store)
+    assert len(outcomes) == 1 and not outcomes[0].verified
+    assert not client.started
+    assert client.torrent(meta.infohash) is None
+    assert original.exists()
+
+
+def test_local_links_respect_web_mounted_roots(tmp_path):
+    board, client, original, _, meta = workspace(tmp_path)
+    outside = tmp_path / "not-mounted"
+    outside.mkdir()
+    board.setup.settings.profile().reseed_link_root = str(outside)
+    with pytest.raises(ValueError, match="mounted|allowed|outside"):
+        board.library.reseed(str(original), meta.infohash, JobStop())
+    assert not list(outside.iterdir())
+    assert not client.by_hash
+
+
+def test_refresh_detects_changed_client_file_layout(tmp_path):
+    board, client, original, links, meta = workspace(tmp_path)
+    board.setup.settings.profile().reseed_layout = "auto"
+    assert run(board, original, "")["seeded"] == 1
+    client.by_hash[meta.infohash].files.clear()
+    client.by_hash[meta.infohash].files["other.mkv"] = original.stat().st_size
+    row = board.refresh_client()["rows"][0]
+    assert row["status"] == "prepared"
+    assert "file layout changed" in row["error"]
+
+
+def test_prepared_client_layout_accepts_only_proven_unicode_aliases(tmp_path, monkeypatch):
+    import unicodedata
+
+    from torrentlinker.reseed_layout import validate_client_files
+    from torrentlinker.reseed_links import source_identity
+
+    source = tmp_path / "Héros.mkv"
+    source.write_bytes(b"original")
+    alias = unicodedata.normalize("NFD", source.name)
+    record = {
+        "layout": "client",
+        "destination": str(tmp_path),
+        "files": [{"local": alias, "name": source.name, "identity": source_identity(source)}],
+    }
+    with pytest.raises(ValueError, match="file layout changed"):
+        validate_client_files(record, {source.name: 8})
+    original_stat, original_lstat = Path.stat, Path.lstat
+
+    def lookup(path):
+        return path.with_name(unicodedata.normalize("NFC", path.name))
+
+    monkeypatch.setattr(Path, "stat", lambda path, **kw: original_stat(lookup(path), **kw))
+    monkeypatch.setattr(Path, "lstat", lambda path: original_lstat(lookup(path)))
+    validate_client_files(record, {source.name: 8})
+    with pytest.raises(ValueError, match="file layout changed"):
+        validate_client_files(record, {source.name: 9})
+
+
+def test_multiple_local_link_matches_preserve_each_other_and_board_progress(tmp_path):
+    from torrentlinker.reseed import check_verifications, start_reseed
+
+    board, client, original, links, meta = workspace(tmp_path)
+    profile = board.setup.settings.profile()
+    profile.reseed_link_root = str(links)
+    for action in ("find", "compare", "prepare"):
+        assert not run(board, original, links, action)["errors"]
+    saved_board = board.setup.store.reseed_record(str(original))
+    second = tmp_path / "Another-release.mkv"
+    second.write_bytes(original.read_bytes())
+    alternate = read_torrent(make_torrent(second))
+    second.unlink()
+    mapped = board.library.client()
+    item = scan_item(original)
+    for candidate in (meta, alternate):
+        found = match(item, candidate.files)
+        assert found is not None
+        start_reseed(mapped, board.setup.store, item, candidate, found, candidate.infohash)
+    for candidate in (meta, alternate):
+        client.finish_check(candidate.infohash, 1.0)
+    outcomes = check_verifications(mapped, board.setup.store)
+    assert len(outcomes) == 2 and all(result.started for result in outcomes)
+    assert set(client.started) == {meta.infohash, alternate.infohash}
+    assert board.setup.store.reseed_record(str(original)) == saved_board
+    for candidate in (meta, alternate):
+        assert board.setup.store.reseed_link_layout(candidate.infohash)["status"] == "seeding"
+        assert not board.setup.store.for_client("other").reseed_link_layout(candidate.infohash)

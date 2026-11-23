@@ -188,6 +188,10 @@ class FeedControl:
                     self.feeds.db.execute("INSERT INTO actors VALUES(?,?)", (saved.id, bound["id"]))
         if saved.mode != "automatic_download" or saved.paused:
             self._revoke(saved.id)
+        if self.feeds.has_preview(saved):
+            from torrentlinker.achievements import record_completion
+
+            record_completion(self.service.setup.path.parent, "rss", saved.id)
         return saved.model_dump()
 
     def _revoke(self, identifier: str) -> None:

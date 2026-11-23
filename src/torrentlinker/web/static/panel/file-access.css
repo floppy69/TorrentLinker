@@ -1,0 +1,100 @@
+.file-access-dialog {
+  width: min(1040px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 24px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.file-access-dialog::backdrop {
+  background: #0008;
+}
+.file-access-dialog .transfer-heading,
+.file-access-dialog .transfer-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.file-access-dialog .transfer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.file-access-dialog .panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 18px;
+}
+.file-access-dialog .transfer-card label {
+  display: block;
+  margin: 14px 0;
+}
+.file-access-dialog input,
+.file-access-dialog select,
+.file-access-dialog textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+.file-access-dialog textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.file-access-dialog .transfer-path {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.file-access-dialog .transfer-path input {
+  min-width: 0;
+  flex: 1;
+}
+.file-access-dialog .transfer-footer {
+  padding-top: 20px;
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.file-access-dialog .remote-fields {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 12px;
+}
+.file-access-dialog .fingerprint {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  padding: 10px;
+  background: var(--bg);
+}
+.file-access-dialog .trust-key {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+}
+.file-access-dialog .trust-key input {
+  width: auto;
+  margin: 0;
+}
+.file-access-dialog .remote-access {
+  margin-top: 16px;
+}
+.file-access-dialog .needs-access {
+  border-left: 3px solid var(--warning);
+}
+.file-access-dialog .transfer-folders {
+  display: grid;
+  gap: 8px;
+}
+.file-access-dialog .muted {
+  color: var(--muted);
+}
+@media (max-width: 720px) {
+  .file-access-dialog .transfer-grid {
+    grid-template-columns: 1fr;
+  }
+}

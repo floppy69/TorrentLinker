@@ -43,8 +43,7 @@
   let drafts = {},
     chatDraft = {},
     editing = null,
-    restoreFocus = null,
-    toastTimer;
+    restoreFocus = null;
   const kinds = ["comment", "vote", "chat"],
     editable = ["draft", "queued", "paused", "refused", "cancelled"];
   const t = (fr, en) => window.TLPanel.t(fr, en);
@@ -119,11 +118,8 @@
   function cover(c) {
     return `<div class="cover" style="--c:${["#946344", "#557b8d", "#817b3f", "#657d72", "#967e51", "#765c85"][parseInt(c.hash.slice(-4), 16) % 6]}"><span>${e(c.title)}</span></div>`;
   }
-  function notify(message) {
-    $("toast").textContent = message;
-    $("toast").hidden = false;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => ($("toast").hidden = true), 5000);
+  function notify(message, kind = "ok") {
+    TLToast.show(message, kind);
   }
   async function request(path, body) {
     return (await window.communityTransport)(path, body);
@@ -1033,6 +1029,8 @@
     const cmd = b.dataset.command;
     capture();
     b.disabled = true;
+    const quick = ["tab", "select", "filter", "action", "template", "suggestion", "channel", "queue-display", "scale", "agenda", "calendar-today", "calendar-prev", "calendar-next", "period", "history-day", "history-prev", "history-next", "inspect", "settings", "automation", "close"];
+    const release = quick.includes(cmd) ? () => {} : TLToast.working(b);
     try {
       if (cmd === "tab") {
         tab = b.dataset.tab;
@@ -1144,9 +1142,10 @@
         await saveSettings(cmd === "automation-save");
       else if (cmd === "close") closeDrawer();
     } catch (error) {
-      if ($("drawer").open) $("drawer-error").textContent = error.message;
-      else notify(error.message);
+      if ($("drawer").open) $("drawer-error").textContent = TLToast.translate(error.message);
+      else notify(error.message, "bad");
     } finally {
+      release();
       b.disabled = false;
     }
   });
@@ -1169,8 +1168,8 @@
           `<p class="loading" role="status">${t("Actualisez d’abord votre profil c411.", "Refresh your c411 profile first.")}</p>`;
       } else if (!data) {
         $("community-app").innerHTML =
-          `<p class="loading" role="alert">${e(error.message)}</p>`;
-      } else notify(error.message);
+          `<p class="loading" role="alert">${e(TLToast.translate(error.message))}</p>`;
+      } else notify(error.message, "bad");
     } finally {
       busy = false;
     }

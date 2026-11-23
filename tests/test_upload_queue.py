@@ -150,6 +150,25 @@ def test_local_draft_survives_restart_and_only_explicit_send_contacts_site(tmp_p
         assert len(posts) == 1
         assert browser.get("/api/upload/queue").json()[0]["status"] == "sent"
 
+    # The shared editor can resume seeding from the durable sent Draft after restart.
+    with TestClient(app()) as browser:
+        login(browser)
+        submitted = browser.post(
+            "/api/upload/workspace/tool-start",
+            json={
+                "tool": "seed-upload",
+                "path": str(path),
+                "id": edited["id"],
+                "revision": edited["revision"],
+            },
+        )
+        assert submitted.is_success, submitted.text
+        seeded = finished(browser, submitted.json()["id"])
+        assert seeded["status"] == "completed", seeded
+        assert seeded["result"]["hash"] == sent["hash"]
+        assert seeded["result"]["status"] == "verifying"
+        assert seeded["progress"]["cancellable"] is False
+
 
 def test_mcp_automations_queue_locally_and_sending_needs_current_revision_approval(
     tmp_path, monkeypatch

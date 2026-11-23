@@ -1,6 +1,6 @@
 # RSS redesign: a page and an editor made for humans
 
-Status: decisions settled 2026-10-27 (all four recommendations, with size in MiB or GiB). Nothing built yet.
+Status: original design implemented; shared desktop/Web port and approved category-aware extension implemented under #102 on 2026-11-18. See [implementation and limits](rss-guided/implementation.md).
 
 The RSS page and its subscription editor are the last big screens still on the raw-model layout. This plan brings them onto the same basis as the Media Center and the Assistant ([media-center-redesign](media-center-redesign.md), [assistant-chat-redesign](assistant-chat-redesign.md)): button roles from `gui/controls.py`, few controls per row, plain words, no raw units.
 

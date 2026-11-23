@@ -90,3 +90,36 @@ les opérations manuelles. Modifier les messages ou canaux retire les anciens
 créneaux du chat ; changer le modèle actualise les commentaires automatiques non
 envoyés. Une annulation explicite reste respectée. Le mode et les textes choisis
 sont conservés après redémarrage.
+
+## Où se trouvent les commandes de la communauté
+
+Dans Assistant et ReleaseScore, **Partager** et **Parcourir** sont réunis dans un menu **Communauté**. Dans Flux, **Règles communautaires** se trouve sous la liste des règles. Parcourir dit ce qu’il liste, montre les états de chargement, de liste vide et d’indisponibilité, et renvoie vers les Paramètres si l’application n’est pas liée.
+
+## Succès de l’application sur torrentlinker.fr
+
+Ouvrez **Paramètres → Rejoindre la communauté** pour voir les succès locaux et la date
+de début du suivi. Une remise en partage compte après une vérification complète puis
+une observation ultérieure du partage. **Vérifier l’historique conservé** retrouve les
+preuves disponibles et reconnaît séparément les torrents actuellement complets en
+partage, sans estimer votre activité passée.
+
+Autorisez le partage des succès sur le site, puis choisissez **Partager les prochains
+succès** dans l’application. **Partager aussi les succès obtenus** reste un choix séparé.
+**Suspendre sur cette installation** vide sa file. Sur le site, **Consentement et
+visibilité des succès** permet d’arrêter le partage du compte entier et de conserver
+ou masquer les succès publiés. Seuls les identifiants des succès sont envoyés, jamais
+les noms, hash de torrents ou autres preuves d’origine.
+
+Dans **Mes installations**, activez l’appairage sur les deux installations du même
+compte. Indiquez leur adresse HTTPS privée sur le réseau local ou VPN et leur port,
+échangez les invitations, vérifiez l’identité et l’empreinte, puis confirmez des deux
+côtés. Les invitations expirent après cinq minutes. Les registres privés fusionnent
+par TLS mutuel lorsque les installations sont joignables, sans ouverture de port sur
+le routeur. Retirer un appairage arrête les prochains échanges et conserve les preuves
+déjà fusionnées.
+
+**Sauvegarde et remise à zéro** conserve les preuves privées. Restaurer une sauvegarde
+vérifiée exige le même compte et arrête le partage et les appairages. Les identifiants
+de connexion et consentements ne sont jamais restaurés. Changer de compte sépare les
+historiques. Les succès de l’application n’accordent ni crédit de contribution à la
+communauté ni droit de modération.

@@ -1,59 +1,58 @@
-from tests import test_catalogue_selection
-from tests.test_feeds import Source, release
-from torrentlinker.feeds import Subscription
-from torrentlinker.gui.feeds import FEED_NAME, FEED_UNREAD, FeedsTab
+"""RSS operations through the real bundled desktop view."""
 
-catalogue_app = test_catalogue_selection.catalogue_app
+import os
+import subprocess
+import sys
 
 
-def test_desktop_feed_sidebar_selection_and_read_state(catalogue_app, qtbot, monkeypatch):
-    app, browser, token = catalogue_app
+def test_desktop_rss_shared_editor_and_saved_selection(qtbot, tmp_path, monkeypatch, request):
+    if not os.getenv("TL_RSS_NATIVE_CHILD"):
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", request.node.nodeid],
+            env={
+                **os.environ,
+                "TL_RSS_NATIVE_CHILD": "1",
+                "QTWEBENGINE_CHROMIUM_FLAGS": "--disable-gpu",
+                "QT_QUICK_BACKEND": "software",
+            },
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        return
+    from tests.test_community_interfaces import js, wait_js
+    from tests.test_feeds import Source, release
+    from torrentlinker.downloads import IndexerCategory
+    from torrentlinker.feeds import Subscription
+    from torrentlinker.gui.feeds import FeedsTab
+    from torrentlinker.web.app import create_app
+
+    app = create_app(tmp_path / "config", password="test-password-long")
     control = app.state.agent_service.feed_control
     source = Source()
-    source.rows = []
-    monkeypatch.setattr(control.feeds, "indexer", lambda: source)
-    feed = control.feeds.save(Subscription(name="Films"))
-    control.feeds.refresh(feed.id)
-    source.rows = [release(title="New film")]
-    control.feeds.refresh(feed.id)
-    widget = FeedsTab(lambda: control)
-    qtbot.addWidget(widget)
-    widget.show()
-    assert widget.sidebar.item(1).data(FEED_NAME) == "Films"
-    assert widget.sidebar.item(1).data(FEED_UNREAD) == 1
-    widget.sidebar.setCurrentRow(1)
-    assert widget.table.rowCount() == 1
-    widget.table.selectRow(0)
-    widget.mark("read")
-    assert widget.sidebar.item(1).data(FEED_UNREAD) == 0
-    widget.set_filter(1)
-    assert widget.table.rowCount() == 0
+    source.rows = [release(title="Book", categories=(7020,), metadata={"format": "EPUB"})]
+    control.feeds.indexer = lambda: source
+    control.service.setup.settings.language = "en"
+    control.service.setup.settings.indexer_categories = {7020: IndexerCategory("Books")}
+    saved = control.feeds.save(Subscription(name="Books", categories=[7020]))
+    control.feeds.refresh(saved.id)
+    tab = FeedsTab(lambda: control)
+    qtbot.addWidget(tab)
+    tab.resize(1280, 900)
+    tab.show()
+    wait_js(qtbot, tab, "document.querySelector('#feeds-results').textContent.includes('Book')")
+    js(qtbot, tab, "document.querySelector('#feeds-results tbody input').click()")
+    wait_js(qtbot, tab, "document.querySelector('#feeds-count').textContent.includes('1 selected')")
+    tab.edit(query="book")
+    wait_js(qtbot, tab, "document.querySelector('.feed-editor')!==null")
+    js(qtbot, tab, "document.querySelector('[aria-controls=criteria-legend]').click()")
+    wait_js(qtbot, tab, "!document.querySelector('#criteria-legend').hidden")
+    assert "Require" in js(qtbot, tab, "document.querySelector('#criteria-legend').textContent")
+    if folder := os.getenv("TL_RSS_SCREENSHOTS"):
+        from pathlib import Path
 
-
-def test_desktop_feed_page_header_and_selection_bar(catalogue_app, qtbot, monkeypatch):
-    app, browser, token = catalogue_app
-    control = app.state.agent_service.feed_control
-    widget = FeedsTab(lambda: control)
-    qtbot.addWidget(widget)
-    widget.show()
-    assert widget.stack.currentIndex() == 1  # no subscription yet: the empty state
-    source = Source()
-    source.rows = [release(title="New film")]
-    monkeypatch.setattr(control.feeds, "indexer", lambda: source)
-    feed = control.feeds.save(Subscription(name="Films"))
-    control.feeds.refresh(feed.id)
-    control.set_paused(feed.id, True)
-    widget.reload()
-    assert widget.stack.currentIndex() == 0
-    assert widget.main_action.text() == "New subscription"  # "All feeds" is selected
-    widget.sidebar.setCurrentRow(1)
-    assert widget.title.text() == "Films"
-    assert widget.main_action.text() == "Refresh now"
-    assert widget.status.text() == "Paused · Updated 1 min ago"
-    assert "Resume" in [a.text() for a in widget.more_menu.actions()]
-    assert not widget.selection_bar.isVisible()
-    widget.table.selectRow(0)
-    assert widget.selection_bar.isVisible()
-    assert widget.selection_count.text() == "1 selected"
-    assert widget.table.item(0, 1).text() == "1 KiB"
-    assert widget.table.item(0, 3).text().startswith("Today")
+        Path(folder).mkdir(parents=True, exist_ok=True)
+        tab.grab().save(str(Path(folder) / "rss-desktop.png"))
+    tab.close()
+    control.close()

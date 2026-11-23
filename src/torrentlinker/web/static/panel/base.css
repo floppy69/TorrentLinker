@@ -38,3 +38,7 @@
   --link: #087f76;
   --shadow: 0 16px 60px #172b3e12;
 }
+
+/* The wordmark keeps its two colours in the shell, sign-in and Media Center. */
+.app-wordmark {color:var(--text);white-space:nowrap;font-weight:750}
+.app-wordmark > span {color:var(--accent)}

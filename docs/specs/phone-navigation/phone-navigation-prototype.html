@@ -1,0 +1,207 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway. TorrentLinker's navigation on a phone (≤ 650 px, shared web shell). Three layouts,
+     ?variant=A|B|C: A side drawer, B bottom tabs with a "Plus" sheet, C icon rail. Built from the shared palette
+     (panel/base.css, embedded below). On a computer the page shows a 390 × 844 phone; on a phone it fills the
+     screen. Fictional torrents; nothing is sent. -->
+<html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Navigation mobile · aperçu</title>
+<style>
+/* Embedded copy of the two token blocks of src/torrentlinker/web/static/panel/base.css (approved). */
+:root {
+  color-scheme: dark;
+  --bg: #161d23; --panel: #202932; --raised: #26323c; --line: #33404b; --text: #e2e9ed; --muted: #98aab7;
+  --accent: #80bdb6; --accent-text: #102a2b; --tint: #263e43; --hover: #263e43; --danger: #ff9c9c;
+  --warning: #edbf73; --success: #4ad394; --link: #64c9c0; --shadow: none; --ink: var(--text);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f6fa; --panel: #ffffff; --raised: #f7f9fc; --line: #d5dfe9; --text: #203047; --muted: #5c6c80;
+  --accent: #087f76; --accent-text: #ffffff; --tint: #d8eeeb; --hover: #e8f3f2; --danger: #b42332;
+  --warning: #8a5800; --success: #1f9d63; --link: #087f76; --shadow: 0 16px 60px #172b3e12;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #0c1014; color: var(--text); }
+:root[data-theme="light"] body { background: #cfd8e0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* The phone. */
+#stage { min-height: 100%; display: grid; place-items: center; padding: 24px 0 90px; }
+#phone { position: relative; width: 390px; height: 844px; overflow: hidden; background: var(--bg); border-radius: 38px; border: 10px solid #000; box-shadow: 0 30px 80px #0008; display: flex; flex-direction: column; }
+@media (max-width: 500px) { #stage { padding: 0; display: block; } #phone { width: 100vw; height: 100dvh; border: 0; border-radius: 0; } }
+
+/* Shared app pieces. */
+.topbar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--panel); border-bottom: 1px solid var(--line); min-height: 58px; }
+.topbar h1 { font-size: 18px; margin: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iconbtn { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); padding: 0; }
+.chip { font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--raised); color: var(--muted); white-space: nowrap; }
+.status { font-size: 12px; padding: 4px 9px; border-radius: 999px; background: var(--tint); color: var(--accent); }
+.content { flex: 1; overflow: auto; padding: 14px; }
+.row { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 11px 12px; margin-bottom: 8px; }
+.row b { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.row small { color: var(--muted); }
+.bar { height: 4px; border-radius: 4px; background: var(--line); margin-top: 8px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.filters { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; }
+.filters span { font-size: 13px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); white-space: nowrap; }
+.filters span.on { background: var(--tint); color: var(--accent); border-color: var(--accent); }
+.badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: #1a0d0d; font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--accent); }
+.brand .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; font-size: 13px; }
+.prefs { display: grid; gap: 8px; }
+.prefs label { font-size: 12px; color: var(--muted); display: grid; gap: 4px; }
+.prefs select { font: inherit; font-size: 14px; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--raised); color: var(--text); }
+.plain { border: 1px solid var(--line); background: var(--raised); border-radius: 9px; padding: 9px 12px; text-align: center; font-size: 14px; }
+.scrim { position: absolute; inset: 0; background: #0009; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 20; }
+.scrim.open { opacity: 1; pointer-events: auto; }
+
+/* A · side drawer: the desktop sidebar slides in over the page. */
+.drawer { position: absolute; inset: 0 auto 0 0; width: 82%; max-width: 300px; background: var(--panel); border-right: 1px solid var(--line); z-index: 21; transform: translateX(-102%); transition: transform .22s ease; display: flex; flex-direction: column; padding: 18px 12px 14px; gap: 14px; overflow: auto; }
+.drawer.open { transform: none; box-shadow: 0 0 50px #0008; }
+.navlist { display: grid; gap: 2px; }
+.navlist button { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; text-align: left; font-size: 15px; }
+.navlist button.on { background: var(--tint); color: var(--accent); font-weight: 600; }
+.navlist button .badge { margin-left: auto; }
+.navgroup { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 10px 12px 4px; }
+
+/* B · bottom tabs and a "Plus" sheet. */
+.tabs { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--panel); border-top: 1px solid var(--line); padding: 6px 4px calc(8px + env(safe-area-inset-bottom)); }
+.tabs button { border: 0; background: transparent; display: grid; justify-items: center; gap: 3px; font-size: 11px; color: var(--muted); padding: 5px 0; position: relative; }
+.tabs button.on { color: var(--accent); }
+.tabs button.on svg { stroke-width: 2.3; }
+.tabs .badge { position: absolute; top: 0; left: calc(50% + 6px); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--panel); border-radius: 18px 18px 0 0; border-top: 1px solid var(--line); padding: 10px 16px 20px; transform: translateY(102%); transition: transform .24s ease; max-height: 86%; overflow: auto; }
+.sheet.open { transform: none; box-shadow: 0 -10px 50px #0008; }
+.grabber { width: 40px; height: 4px; border-radius: 4px; background: var(--line); margin: 0 auto 14px; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.tiles button { border: 1px solid var(--line); background: var(--raised); border-radius: 12px; padding: 12px 6px 10px; display: grid; justify-items: center; gap: 6px; font-size: 12px; position: relative; }
+.tiles button.on { border-color: var(--accent); color: var(--accent); background: var(--tint); }
+.tiles .badge { position: absolute; top: 6px; right: 6px; }
+.sheet .prefs { grid-template-columns: 1fr 1fr; }
+.sheet .prefs .plain { grid-column: span 1; }
+
+/* C · icon rail: always there, labels under icons; the logo opens full names. */
+.railwrap { flex: 1; display: flex; min-height: 0; }
+.rail { width: 68px; flex: none; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 2px; overflow-y: auto; z-index: 21; transition: width .2s ease; }
+.rail button { border: 0; background: transparent; width: 58px; border-radius: 12px; padding: 7px 0 6px; display: grid; justify-items: center; gap: 3px; font-size: 10px; color: var(--muted); position: relative; }
+.rail button.on { background: var(--tint); color: var(--accent); }
+.rail .badge { position: absolute; top: 2px; right: 6px; }
+.rail.wide { width: 230px; position: absolute; top: 0; bottom: 0; left: 0; align-items: stretch; padding: 10px 8px; box-shadow: 0 0 50px #0008; }
+.rail.wide button { width: auto; display: flex; align-items: center; gap: 12px; padding: 10px 12px; font-size: 14px; }
+.railwrap .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.railwrap .topbar { padding-left: 12px; }
+
+/* Switcher bar (outside the phone). */
+#switcher { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 14px; background: #000d; color: #fff; font-size: 13px; box-shadow: 0 10px 30px #0008; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 20px); }
+#switcher button { background: #ffffff1c; color: #fff; border: 0; border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+#switcher #state { color: #b7c6cf; font-size: 12px; }
+@media (max-width: 500px) { #switcher { bottom: auto; top: 8px; opacity: .92; } }
+</style>
+<div id="stage"><div id="phone"></div></div>
+<div id="switcher"><button id="prev" aria-label="Variante précédente">←</button><b id="label"></b><button id="next" aria-label="Variante suivante">→</button>
+ <button id="members">Membres : non</button><button id="theme">Thème</button><span id="state"></span></div>
+<script>
+const ICONS = {
+  zen: '<circle cx="12" cy="12" r="8"/><path d="M8 13c1.5 2 6.5 2 8 0"/>',
+  library: '<path d="M5 4v16M10 4v16M15 5l4 15"/>',
+  upload: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+  search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
+  feeds: '<path d="M5 19a1 1 0 1 0 0-.01M5 12a7 7 0 0 1 7 7M5 5a14 14 0 0 1 14 14"/>',
+  torrents: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  assistant: '<path d="M5 6h14v9H9l-4 4z"/><path d="M9 10h6"/>',
+  media: '<rect x="3" y="5" width="18" height="13" rx="2"/><path d="M10 9l5 2.5-5 2.5z"/>',
+  queue: '<path d="M5 6h14M5 12h14M5 18h9"/>',
+  requests: '<path d="M6 4h9l4 4v12H6z"/><path d="M9 12h7M9 16h5"/>',
+  notifications: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20h4"/>',
+  jobs: '<path d="M4 12h4l2-5 4 10 2-5h4"/>',
+  documentation: '<path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
+  setup: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  more: '<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>',
+};
+const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+const PAGES = [
+  ["zen", "Zen", "Zen"], ["library", "Bibliothèque", "Biblio."], ["upload", "Upload", "Upload"],
+  ["search", "Recherche", "Recherche"], ["feeds", "RSS", "RSS"], ["torrents", "Torrents", "Torrents"],
+  ["assistant", "Assistant", "Assistant"], ["media", "Médias", "Médias"], ["queue", "File de téléchargement", "File"],
+  ["requests", "Demandes", "Demandes", "members"], ["notifications", "Notifications", "Notifs", "members"],
+  ["jobs", "Activité", "Activité"], ["documentation", "Documentation", "Docs"], ["setup", "Paramètres", "Réglages"],
+];
+const BADGES = {jobs: 2, notifications: 3, requests: 1};
+const TABS = ["torrents", "search", "media", "zen"];
+const variants = [["A", "Tiroir latéral"], ["B", "Onglets en bas + Plus"], ["C", "Rail d'icônes"]];
+let variant = new URLSearchParams(location.search).get("variant") || "A", page = "torrents", open = false, members = false;
+
+const pages = () => PAGES.filter(p => members || !p[3]);
+const title = () => PAGES.find(p => p[0] === page)[1];
+const badge = id => BADGES[id] && (members || !["notifications", "requests"].includes(id)) ? `<span class="badge">${BADGES[id]}</span>` : "";
+const prefs = () => `<div class="prefs"><label>Thème<select><option>Système</option><option>Clair</option><option>Sombre</option></select></label>
+  <label>Langue<select><option>Français</option><option>English</option></select></label>
+  <button class="plain">Raccourcis clavier</button><button class="plain">Se déconnecter</button></div>`;
+const status = `<span class="status">À jour</span>`;
+const client = `<span class="chip">qBittorrent ▾</span>`;
+
+function body() {
+  if (page === "torrents") return `<div class="filters"><span class="on">Tous · 11 698</span><span>En partage</span><span>En pause</span><span>Erreurs</span></div>` +
+    ["The.Bear.S03.FRENCH.1080p", "Dune.Part.Two.2024.MULTi.2160p", "Fred.Vargas.Adamsberg.T05.EPUB", "Police.Simulator.Update.22", "Arcane.S02.MULTi.1080p.WEB", "Interstellar.2014.REMUX"].map((n, i) =>
+      `<div class="row"><b>${n}</b><small>${["En partage · ratio 2,4", "Téléchargement · 64 %", "En partage · ratio 0,8", "En pause", "En partage · ratio 5,1", "Vérification · 12 %"][i]}</small><div class="bar"><i style="width:${[100, 64, 100, 37, 100, 12][i]}%"></i></div></div>`).join("");
+  return `<div class="row"><b>${title()}</b><small>Contenu de la page ${title()}.</small></div>`.repeat(3);
+}
+function go(id) { page = id; open = false; render(); }
+
+function A() {
+  return `<header class="topbar"><button class="iconbtn" data-act="toggle" aria-label="Navigation">${icon("menu")}</button><h1>${title()}</h1>${client}${status}</header>
+  <main class="content">${body()}</main>
+  <div class="scrim ${open ? "open" : ""}" data-act="close"></div>
+  <nav class="drawer ${open ? "open" : ""}" aria-label="Navigation"><div class="brand"><span class="logo">TL</span>TorrentLinker</div>
+   <div class="navlist">${pages().map(([id, name]) => `<button data-go="${id}" class="${id === page ? "on" : ""}">${icon(id)}${name}${badge(id)}</button>`).join("")}</div>
+   ${prefs()}</nav>`;
+}
+function B() {
+  const inTabs = TABS.includes(page);
+  const rest = pages().filter(p => !TABS.includes(p[0]));
+  const restBadge = rest.reduce((n, p) => n + (badge(p[0]) ? BADGES[p[0]] : 0), 0);
+  return `<header class="topbar"><h1>${title()}</h1>${client}${status}</header>
+  <main class="content">${body()}</main>
+  <nav class="tabs" aria-label="Navigation">${TABS.map(id => `<button data-go="${id}" class="${id === page ? "on" : ""}">${icon(id)}${PAGES.find(p => p[0] === id)[2]}${badge(id)}</button>`).join("")}
+   <button data-act="toggle" class="${!inTabs || open ? "on" : ""}">${icon("more")}Plus${restBadge ? `<span class="badge">${restBadge}</span>` : ""}</button></nav>
+  <div class="scrim ${open ? "open" : ""}" data-act="close"></div>
+  <section class="sheet ${open ? "open" : ""}" aria-label="Plus"><div class="grabber"></div>
+   <div class="tiles">${rest.map(([id, name, short]) => `<button data-go="${id}" class="${id === page ? "on" : ""}">${icon(id)}${short}${badge(id)}</button>`).join("")}</div>
+   ${prefs()}</section>`;
+}
+function C() {
+  return `<div class="railwrap"><nav class="rail ${open ? "wide" : ""}" aria-label="Navigation">
+    <button data-act="toggle" aria-label="Noms des pages"><span class="logo" style="width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accent-text);display:grid;place-items:center;font-weight:700;font-size:12px">TL</span>${open ? "TorrentLinker" : ""}</button>
+    ${pages().map(([id, name, short]) => `<button data-go="${id}" class="${id === page ? "on" : ""}">${icon(id)}${open ? name : short}${badge(id)}</button>`).join("")}
+    ${open ? prefs() : ""}</nav>
+   <div class="scrim ${open ? "open" : ""}" data-act="close"></div>
+   <div class="main"><header class="topbar"><h1>${title()}</h1>${client}</header><main class="content">${body()}</main></div></div>`;
+}
+function render() {
+  document.getElementById("phone").innerHTML = ({A, B, C})[variant]();
+  document.getElementById("label").textContent = `${variant} — ${variants.find(v => v[0] === variant)[1]}`;
+  document.getElementById("members").textContent = `Membres : ${members ? "oui" : "non"}`;
+  document.getElementById("state").textContent = `page : ${title()} · ${variant === "B" ? "feuille Plus" : variant === "C" ? "noms affichés" : "tiroir"} ${open ? "ouvert" : "fermé"}`;
+}
+document.getElementById("phone").addEventListener("click", event => {
+  const target = event.target.closest("[data-go],[data-act]");
+  if (!target) return;
+  if (target.dataset.go) return go(target.dataset.go);
+  open = target.dataset.act === "toggle" ? !open : false; render();
+});
+document.addEventListener("keydown", event => { if (event.key === "Escape" && open) { open = false; render(); } });
+function step(n) {
+  const k = variants.findIndex(v => v[0] === variant);
+  variant = variants[(k + n + variants.length) % variants.length][0]; open = false;
+  const u = new URL(location); u.searchParams.set("variant", variant); history.replaceState(null, "", u); render();
+}
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+document.getElementById("members").onclick = () => { members = !members; if (!members && ["requests", "notifications"].includes(page)) page = "torrents"; render(); };
+document.getElementById("theme").onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme === "light" ? "dark" : "light"; };
+if (!variants.some(v => v[0] === variant)) variant = "A";
+render();
+</script>

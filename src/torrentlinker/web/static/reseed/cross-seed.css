@@ -1,0 +1,54 @@
+/* The Cross-seed tab: only what the Reseed board has no equivalent for. */
+.badge.ok {
+  color: var(--success);
+  border-color: var(--success);
+}
+.badge.bad {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.idx {
+  display: inline-block;
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  color: var(--muted);
+}
+.coverage {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  margin: 8px 0 4px;
+  position: relative;
+}
+.coverage i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.coverage b {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--warning);
+}
+.files {
+  font-size: 12px;
+  margin: 8px 0;
+  max-height: 180px;
+  overflow: auto;
+}
+.files div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+.files .miss {
+  color: var(--warning);
+}

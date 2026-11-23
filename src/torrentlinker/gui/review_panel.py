@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 from collections.abc import Callable
 from pathlib import Path
 
@@ -15,7 +14,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
-    QProgressBar,
     QPushButton,
     QSplitter,
     QTableWidget,
@@ -26,26 +24,26 @@ from PySide6.QtWidgets import (
 )
 
 from torrentlinker.disk_rename import RenameApproval
-from torrentlinker.domain import ContentKind, ItemState, LocalItem
+from torrentlinker.domain import ContentKind, ItemState
 from torrentlinker.gui.controls import set_role
 from torrentlinker.gui.errors import error_text, offer_whole_names
 from torrentlinker.gui.library_model import human_size
 from torrentlinker.gui.rename_dialog import RenameDialog
 from torrentlinker.gui.tables import EmptyState, NumberItem, sortable_table
-from torrentlinker.gui.tasks import run_in_background, run_with_progress
+from torrentlinker.gui.tasks import run_in_background
 from torrentlinker.gui.torrent_details import DescriptionBrowser
 from torrentlinker.indexer import Candidate, Indexer
 from torrentlinker.library import LibraryEntry
 from torrentlinker.matching import MatchRules
 from torrentlinker.qbit import AlreadyInClient, Qbit
 from torrentlinker.reseed import start_reseed
+from torrentlinker.reseed_layout import uses_links
 from torrentlinker.review import (
     CheckedCandidate,
     candidate_key,
     check_candidate,
     find_candidates,
     remember_candidates,
-    unpack_and_reseed,
 )
 from torrentlinker.store import Store
 from torrentlinker.torrent_details import parse_details, preview_html, website_url
@@ -73,7 +71,7 @@ class ReviewPanel(QWidget):
     """Candidates for the selected Orphan, and how a Candidate's files line up locally."""
 
     reseed_started = Signal(object)  # Path of the Local Item
-    unpacked = Signal(object)  # Path of the new folder: the Library needs a Scan
+    recovery_requested = Signal(str, str, str)  # view, Local Item path, Candidate key
     candidates_checked = Signal(object, object)  # LibraryEntry, list[CheckedCandidate]
     upload_requested = Signal(object)  # LibraryEntry to make an Upload of
 
@@ -170,13 +168,6 @@ class ReviewPanel(QWidget):
             lambda: self.entry is not None and self.upload_requested.emit(self.entry)
         )
         actions.addWidget(self.upload_button)
-        self.repair_button = QPushButton(self.tr("Diagnose repair…"))
-        self.repair_button.clicked.connect(self.diagnose_repair)
-        self.repair_supported = lambda: True
-        actions.addWidget(self.repair_button)
-        history = QPushButton(self.tr("Repair history…"))
-        history.clicked.connect(lambda: self.open_repair())
-        actions.addWidget(history)
         actions.addStretch()
         self.reseed_button = QPushButton(self.tr("Reseed"))
         self.reseed_button.setToolTip(
@@ -189,8 +180,6 @@ class ReviewPanel(QWidget):
         self.website_button.clicked.connect(self._open_website)
         actions.addWidget(self.website_button)
         self.action_row = actions
-        self.unpack_progress = QProgressBar()
-        self.unpack_progress.hide()
 
         lower = QWidget()
         lower_layout = QVBoxLayout(lower)
@@ -218,7 +207,6 @@ class ReviewPanel(QWidget):
         self.details_tabs.addTab(self.evidence, self.tr("Evidence"))
         self.details_tabs.currentChanged.connect(self._load_details)
         lower_layout.addWidget(self.details_tabs)
-        lower_layout.addWidget(self.unpack_progress)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.candidates)
@@ -289,42 +277,6 @@ class ReviewPanel(QWidget):
         ]
 
     # Search ----------------------------------------------------------------
-
-    def open_repair(self, diagnose=None) -> None:
-        from torrentlinker.gui.repair_dialog import RepairDialog
-        from torrentlinker.repair import Repairs
-
-        if not self.repair_supported():
-            QMessageBox.information(
-                self,
-                self.tr("Repair"),
-                self.tr("Experimental repair currently requires qBittorrent."),
-            )
-            return
-        dialog = RepairDialog(
-            self,
-            Repairs(self.store.torrent_dir.parent, self.store.client_id),
-            self.qbit(),
-            diagnose=diagnose,
-        )
-        dialog.exec()
-
-    def diagnose_repair(self) -> None:
-        from torrentlinker.repair import Repairs
-
-        selected, entry = self.selected(), self.entry
-        if selected is None or entry is None:
-            return
-        indexer = self.indexer()
-        repository = Repairs(self.store.torrent_dir.parent, self.store.client_id)
-        self.open_repair(
-            lambda stop: repository.diagnose(
-                entry.item,
-                selected.candidate,
-                indexer.fetch_torrent(selected.candidate),
-                stop,
-            )
-        )
 
     def find_compatible(self) -> None:
         import threading
@@ -597,9 +549,6 @@ class ReviewPanel(QWidget):
 
     def _update_actions(self) -> None:
         v, chosen = self.selected(), self.selected_all()
-        self.repair_button.setEnabled(
-            v is not None and self.entry is not None and self.entry.item.path.is_file()
-        )
         self.website_button.setEnabled(v is not None)
         self.check_button.setEnabled(v is not None and not v.compared)
         self.reject_button.setEnabled(bool(chosen))
@@ -613,10 +562,7 @@ class ReviewPanel(QWidget):
             blocker or self.tr("c411 does not have it: make it a c411 Draft in the Upload tab")
         )
         self.reseed_button.setEnabled(
-            bool(chosen)
-            and all(c.match for c in chosen)
-            and not (archive and len(chosen) > 1)
-            and self.unpack_progress.isHidden()
+            bool(chosen) and all(c.match for c in chosen) and not (archive and len(chosen) > 1)
         )
         if archive:
             self.reseed_button.setText(self.tr("Unpack and Reseed…"))
@@ -687,6 +633,7 @@ class ReviewPanel(QWidget):
         renames = {k: n for v in chosen if v.match for k, n in v.match.renames.items()}
         if (
             renames
+            and not uses_links(qbit)
             and not getattr(qbit, "requires_disk_renames", False)
             and not self._confirm_renames(renames)
         ):
@@ -745,95 +692,7 @@ class ReviewPanel(QWidget):
     # Archives --------------------------------------------------------------
 
     def _unpack_and_reseed(self, entry: LibraryEntry, v: CheckedCandidate) -> None:
-        u = v.unpack
-        assert u is not None and v.match is not None
-        folder = u.item.path
-        if folder.exists():
-            QMessageBox.information(
-                self,
-                self.tr("Unpack and Reseed"),
-                self.tr(
-                    "{0} already exists. If it holds this archive unpacked, scan the Library "
-                    "and search that folder to Reseed it."
-                ).format(folder),
-            )
-            return
-        free = shutil.disk_usage(u.archive.parent).free
-        if free < u.size:
-            QMessageBox.warning(
-                self,
-                self.tr("Unpack and Reseed"),
-                self.tr("Unpacking needs {0}, but only {1} is free on that disk.").format(
-                    human_size(u.size), human_size(free)
-                ),
-            )
-            return
-        if not v.match.is_full and not self._confirm_partial(len(v.match.absent), v.match.coverage):
-            return
-        answer = QMessageBox.question(
-            self,
-            self.tr("Unpack and Reseed"),
-            self.tr(
-                "Unpack {0} into the new folder\n{1}?\n\n"
-                "It writes {2} in {3} files; {4} is free on that disk. Nothing is "
-                "overwritten.\n\nThe torrent is then added to your torrent client against the "
-                "unpacked files, and verified before it seeds. Once it is verified, you are "
-                "offered to move the archive to the trash."
-            ).format(
-                u.archive.name,
-                folder,
-                human_size(u.size),
-                len(u.item.files),
-                human_size(free),
-            ),
-        )
-        if answer != QMessageBox.StandardButton.Yes:
-            return
-        qbit, store, rules = self.qbit(), self.store, self.rules()
-        self.unpack_progress.setRange(0, 1000)
-        self.unpack_progress.setValue(0)
-        self.unpack_progress.setFormat(self.tr("Unpacking %p%"))
-        self.unpack_progress.show()
-        self._update_actions()
-
-        def work(report: Callable[[object], None]) -> tuple[str, LocalItem]:
-            return unpack_and_reseed(
-                qbit,
-                store,
-                v,
-                rules,
-                lambda done, total: report((done, total)),
-                approve_disk_renames=self.approve_disk_renames,
-            )
-
-        run_with_progress(
-            work,
-            self._unpack_progress,
-            lambda result: self._unpacked(entry, result[1].path),
-            self._unpack_failed,
-        )
-
-    def _unpack_progress(self, value: tuple[int, int]) -> None:
-        done, total = value
-        self.unpack_progress.setValue(round(1000 * done / total) if total else 0)
-        self.unpack_progress.setFormat(
-            self.tr("Unpacking: {0} of {1}").format(human_size(done), human_size(total))
-        )
-
-    def _unpacked(self, entry: LibraryEntry, folder: Path) -> None:
-        self.unpack_progress.hide()
-        self._update_actions()
-        self.unpacked.emit(folder)
-        self.reseed_started.emit(folder)
-
-    def _unpack_failed(self, error: Exception) -> None:
-        self.unpack_progress.hide()
-        self._update_actions()
-        QMessageBox.warning(
-            self,
-            self.tr("Unpack and Reseed"),
-            self.tr("Could not unpack and Reseed: {0}").format(error_text(error)),
-        )
+        self.recovery_requested.emit("archive", str(entry.item.path), candidate_key(v.candidate))
 
     def _refuse_partial(self, client: str) -> None:
         QMessageBox.information(

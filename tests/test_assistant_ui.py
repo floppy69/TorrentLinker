@@ -9,6 +9,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.shell_support import shell_close_navigation, shell_navigate
 from tests.test_assistant import login
 from torrentlinker.web.app import create_app
 
@@ -86,6 +87,7 @@ def test_desktop_discussion_keeps_the_composer_available(qtbot, tmp_path, monkey
         assert len(browser.get("/api/assistant/conversations").json()) == 2
         widget.conversations.setCurrentItem(widget.conversations.topLevelItem(0).child(1))
         assert "Help me build a Plan." in widget.transcript.toPlainText()
+        qtbot.wait(250)
         widget.grab().save(str(tmp_path / "assistant-desktop.png"))
         from PySide6.QtWidgets import QMessageBox
 
@@ -120,13 +122,15 @@ def test_browser_can_configure_model_chat_and_schedule_on_small_screen(tmp_path)
             browser = pw.chromium.launch()
             page = browser.new_page(viewport={"width": 1000, "height": 740}, locale="en-US")
 
+            panel = page.frame_locator("#assistant-frame")
+
             def new_discussion():
-                expect(page.locator(".assistant-dialog")).to_have_count(0)
-                previous = page.locator("#assistant-prompt").element_handle()
-                page.get_by_role("button", name="New discussion", exact=True).click()
+                expect(panel.locator(".assistant-dialog")).to_have_count(0)
+                previous = panel.locator("#assistant-prompt").element_handle()
+                panel.get_by_role("button", name="New discussion", exact=True).click()
                 # The old controls remain visible until the asynchronous reload replaces them.
                 previous.wait_for_element_state("hidden")
-                expect(page.locator("#assistant-prompt")).to_be_visible()
+                expect(panel.locator("#assistant-prompt")).to_be_visible()
 
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
@@ -134,14 +138,15 @@ def test_browser_can_configure_model_chat_and_schedule_on_small_screen(tmp_path)
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
             page.locator("#navigation-toggle").click()
-            page.locator('[data-view="assistant"]').click()
-            page.locator("#navigation-close").click()
+            shell_navigate(page, "assistant")
+            shell_close_navigation(page)
             # Without a model the composer is replaced by one way to connect one, in Settings.
-            expect(page.locator(".assistant-composer")).to_be_hidden()
-            page.get_by_role("button", name="Connect a model", exact=True).click()
-            expect(page.locator("#assistant-connections")).to_be_visible()
-            page.get_by_role("button", name="Add connection", exact=True).click()
-            dialog = page.locator(".assistant-dialog")
+            expect(panel.locator(".assistant-composer")).to_be_hidden()
+            panel.get_by_role("button", name="Connect a model", exact=True).click()
+            settings = page.frame_locator("#settings-frame")
+            expect(settings.locator("#assistant-connections-body")).to_be_visible()
+            settings.get_by_role("button", name="Add connection", exact=True).click()
+            dialog = settings.locator(".assistant-dialog")
             dialog.get_by_label("Name", exact=True).fill("Local test")
             dialog.get_by_label("Model ID", exact=True).fill("test")
             expect(dialog.get_by_label("Use server sampling defaults", exact=True)).to_be_checked()
@@ -155,12 +160,12 @@ def test_browser_can_configure_model_chat_and_schedule_on_small_screen(tmp_path)
             dialog.get_by_role("button", name="Check context", exact=True).click()
             expect(dialog).to_contain_text("Manual context: 65,536 tokens")
             dialog.get_by_role("button", name="Save", exact=True).click()
-            expect(page.get_by_role("heading", name="Local test")).to_be_visible()
+            expect(settings.get_by_role("heading", name="Local test")).to_be_visible()
             assert app.state.assistant.setup()["providers"][0]["temperature"] == 0
-            page.locator("#assistant-connections-body").get_by_role(
+            settings.locator("#assistant-connections-body").get_by_role(
                 "button", name="Edit", exact=True
             ).click()
-            dialog = page.locator(".assistant-dialog")
+            dialog = settings.locator(".assistant-dialog")
             expect(
                 dialog.get_by_label("Use server sampling defaults", exact=True)
             ).not_to_be_checked()
@@ -175,36 +180,36 @@ def test_browser_can_configure_model_chat_and_schedule_on_small_screen(tmp_path)
             ).to_be_disabled()
             dialog.get_by_role("button", name="Cancel", exact=True).click()
             page.locator("#navigation-toggle").click()
-            page.locator('[data-view="assistant"]').click()
-            page.locator("#navigation-close").click()
-            page.get_by_role("tab", name="Discussion", exact=True).click()
-            page.get_by_role("button", name="Discussions", exact=True).click()
+            shell_navigate(page, "assistant")
+            shell_close_navigation(page)
+            panel.get_by_role("tab", name="Discussion", exact=True).click()
+            panel.get_by_role("button", name="Discussions", exact=True).click()
             # An example prompt fills the composer without sending it.
-            page.locator(".assistant-example").first.click()
-            expect(page.locator("#assistant-prompt")).to_have_value(
+            panel.locator(".assistant-example").first.click()
+            expect(panel.locator("#assistant-prompt")).to_have_value(
                 "Find ten films I don't seed yet and show them before any action."
             )
             new_discussion()
-            expect(page.locator(".assistant-dialog")).to_have_count(0)
-            page.locator("#assistant-prompt").fill("Help me build a Plan.")
-            page.locator("#assistant-prompt").press("Enter")
-            expect(page.locator("#assistant-transcript")).to_contain_text(
+            expect(panel.locator(".assistant-dialog")).to_have_count(0)
+            panel.locator("#assistant-prompt").fill("Help me build a Plan.")
+            panel.locator("#assistant-prompt").press("Enter")
+            expect(panel.locator("#assistant-transcript")).to_contain_text(
                 "Ready to prepare", timeout=10000
             )
-            expect(page.locator(".assistant-message.user")).to_have_count(1)
-            activity = page.locator(".assistant-activity")
+            expect(panel.locator(".assistant-message.user")).to_have_count(1)
+            activity = panel.locator(".assistant-activity")
             expect(activity.locator("summary")).to_contain_text("No tools called · Reply only")
-            expect(page.locator(".assistant-execution-notice")).to_have_text(
+            expect(panel.locator(".assistant-execution-notice")).to_have_text(
                 "No application action was performed in this reply."
             )
             expect(activity).not_to_have_attribute("open", "")
             activity.locator("summary").first.click()
             expect(activity).to_have_attribute("open", "")
             expect(activity).to_contain_text("Model calls: 1 · Tool calls: 0")
-            page.locator("#assistant-prompt").fill("Keep this unfinished message")
-            page.locator("#assistant-more").click()
-            page.get_by_role("menuitem", name="Discussion settings", exact=True).click()
-            dialog = page.locator(".assistant-dialog")
+            panel.locator("#assistant-prompt").fill("Keep this unfinished message")
+            panel.locator("#assistant-more").click()
+            panel.get_by_role("menuitem", name="Discussion settings", exact=True).click()
+            dialog = panel.locator(".assistant-dialog")
             save_reload_dialog_visible = []
 
             def observe_save_reload(route):
@@ -219,43 +224,101 @@ def test_browser_can_configure_model_chat_and_schedule_on_small_screen(tmp_path)
             dialog.get_by_role("button", name="Save", exact=True).click()
             expect(dialog).to_have_count(0)
             assert save_reload_dialog_visible == [True]
-            expect(page.locator("#assistant-prompt")).to_have_value("Keep this unfinished message")
-            expect(page.locator("#assistant-transcript")).to_contain_text("Ready to prepare")
+            expect(panel.locator("#assistant-prompt")).to_have_value("Keep this unfinished message")
+            expect(panel.locator("#assistant-transcript")).to_contain_text("Ready to prepare")
             new_discussion()
-            expect(page.locator(".assistant-dialog")).to_have_count(0)
-            page.locator("#assistant-more").click()
-            page.get_by_role("menuitem", name="Discussion settings", exact=True).click()
-            dialog = page.locator(".assistant-dialog")
+            expect(panel.locator(".assistant-dialog")).to_have_count(0)
+            panel.locator("#assistant-more").click()
+            panel.get_by_role("menuitem", name="Discussion settings", exact=True).click()
+            dialog = panel.locator(".assistant-dialog")
             expect(dialog.get_by_label("Allow public Web research", exact=True)).not_to_be_checked()
             dialog.get_by_label("Allow public Web research", exact=True).check()
             dialog.get_by_role("button", name="Save", exact=True).click()
             new_discussion()
-            page.locator("#assistant-more").click()
-            page.get_by_role("menuitem", name="Discussion settings", exact=True).click()
-            dialog = page.locator(".assistant-dialog")
+            panel.locator("#assistant-more").click()
+            panel.get_by_role("menuitem", name="Discussion settings", exact=True).click()
+            dialog = panel.locator(".assistant-dialog")
             expect(dialog.get_by_label("Allow public Web research", exact=True)).to_be_checked()
             dialog.get_by_role("button", name="Cancel", exact=True).click()
-            page.get_by_role("button", name="My films", exact=True).click()
-            expect(page.locator("#assistant-prompt")).to_have_value("Keep this unfinished message")
+            panel.get_by_role("button", name="My films", exact=True).click()
+            expect(panel.locator("#assistant-prompt")).to_have_value("Keep this unfinished message")
             page.screenshot(path=str(tmp_path / "assistant-web.png"))
             page.once("dialog", lambda dialog: dialog.accept())
-            page.locator("#assistant-more").click()
-            page.get_by_role("menuitem", name="Delete discussion", exact=True).click()
-            expect(page.get_by_role("button", name="My films", exact=True)).to_have_count(0)
-            expect(page.locator(".assistant-message.user")).to_have_count(0)
+            panel.locator("#assistant-more").click()
+            panel.get_by_role("menuitem", name="Delete discussion", exact=True).click()
+            expect(panel.get_by_role("button", name="My films", exact=True)).to_have_count(0)
+            expect(panel.locator(".assistant-message.user")).to_have_count(0)
 
-            page.get_by_role("tab", name="Automations", exact=True).click()
-            page.get_by_role("button", name="Create task", exact=True).click()
-            dialog = page.locator(".assistant-dialog")
+            panel.get_by_role("tab", name="Automations", exact=True).click()
+            panel.get_by_role("button", name="Create task", exact=True).click()
+            dialog = panel.locator(".assistant-dialog")
             dialog.get_by_label("Name", exact=True).fill("Daily report")
             dialog.get_by_label("Instructions", exact=True).fill("Review my Plan.")
+            dialog.locator("summary", has_text="Permissions and limits").click()
+            model_calls = dialog.get_by_label("Maximum model calls per run", exact=True)
+            model_calls.fill("41")
+            dialog.get_by_role("button", name="Save", exact=True).click()
+            expect(dialog).to_be_visible()
+            assert not model_calls.evaluate("input => input.checkValidity()")
+            assert app.state.assistant.schedules() == []
+            model_calls.fill("4")
+            dialog.get_by_label("Maximum duration, seconds", exact=True).fill("30")
+            dialog.get_by_label("Downloads per day, GiB", exact=True).fill(
+                str(1_500_000_000 / 1024**3)
+            )
+            dialog.get_by_label("Torrents per day", exact=True).fill("3")
+            dialog.get_by_label("Keep free, GiB (0 = off)", exact=True).fill("1")
+            dialog.get_by_label("Frequency", exact=True).select_option("weekly")
+            dialog.get_by_label("Mon", exact=True).uncheck()
+            dialog.get_by_label("Sat", exact=True).check()
+            dialog.get_by_label("Time", exact=True).fill("10:15")
+            dialog.get_by_label("Timezone", exact=True).fill("Europe/Paris")
             dialog.get_by_role("button", name="Preview next run").click()
             dialog.get_by_role("button", name="Save", exact=True).click()
-            expect(page.get_by_role("heading", name="Daily report")).to_be_visible()
+            expect(panel.get_by_role("heading", name="Daily report")).to_be_visible()
+            saved = app.state.assistant.schedules()[0]
+            assert saved["max_calls"] == 4 and saved["max_seconds"] == 30
+            assert saved["policy"]["daily_bytes"] == 1_500_000_000
+            assert saved["policy"]["daily_torrents"] == 3
+            assert saved["policy"]["reserve_bytes"] == 1024**3
+            assert saved["weekdays"] == [5] and saved["at"] == "10:15"
+            assert saved["timezone"] == "Europe/Paris"
+            panel.locator(".assistant-task").get_by_role("button", name="More").click()
+            panel.get_by_role("menuitem", name="Edit", exact=True).click()
+            dialog.get_by_label("Name", exact=True).fill("Weekly report")
+            dialog.get_by_role("button", name="Save", exact=True).click()
+            expect(panel.get_by_role("heading", name="Weekly report")).to_be_visible()
+            assert app.state.assistant.schedules()[0]["policy"]["daily_bytes"] == 1_500_000_000
+            output = os.getenv("TL_AUTOMATION_WEB_SCREENSHOTS")
+            page.set_viewport_size({"width": 1280, "height": 720})
+            for lang in ("fr", "en"):
+                page.frame_locator("#shell-navigation-frame").locator("#language").select_option(
+                    lang, force=True
+                )
+                for theme in ("light", "dark"):
+                    page.frame_locator("#shell-navigation-frame").locator("#theme").select_option(
+                        theme, force=True
+                    )
+                    expect(panel.locator("html")).to_have_attribute("lang", lang)
+                    expect(panel.locator("html")).to_have_attribute("data-theme", theme)
+                    expect(
+                        panel.get_by_role(
+                            "button",
+                            name="Créer une tâche" if lang == "fr" else "Create task",
+                            exact=True,
+                        )
+                    ).to_be_visible()
+                    expect(panel.locator(".assistant-task")).to_be_visible()
+                    expect(panel.locator(".assistant-task")).to_have_count(1)
+                    if output:
+                        from pathlib import Path
+
+                        Path(output).mkdir(parents=True, exist_ok=True)
+                        page.screenshot(path=str(Path(output) / f"{lang}-{theme}.png"))
             # A new task starts paused: its card offers Enable, then Run now.
-            page.get_by_role("button", name="Enable", exact=True).click()
-            page.get_by_role("button", name="Run now", exact=True).click()
-            expect(page.locator("#view-assistant")).to_contain_text("Runs and tool receipts")
+            panel.get_by_role("button", name="Enable", exact=True).click()
+            panel.get_by_role("button", name="Run now", exact=True).click()
+            expect(panel.locator("#view-assistant")).to_contain_text("Runs and tool receipts")
             assert not errors
             browser.close()
     finally:
@@ -265,18 +328,8 @@ def test_browser_can_configure_model_chat_and_schedule_on_small_screen(tmp_path)
 
 
 def test_desktop_context_detection_and_manual_override(qtbot, tmp_path):
-    from PySide6.QtCore import QTimer
-    from PySide6.QtWidgets import (
-        QApplication,
-        QCheckBox,
-        QDialogButtonBox,
-        QDoubleSpinBox,
-        QLabel,
-        QPushButton,
-        QSpinBox,
-    )
-
-    from torrentlinker.gui.assistant_connections import AssistantConnections
+    from tests.settings_support import edit_field, service_view
+    from tests.test_community_interfaces import js, wait_js
 
     app = create_app(
         tmp_path, password="test-password-long", assistant_transport=httpx.MockTransport(provider)
@@ -287,66 +340,76 @@ def test_desktop_context_detection_and_manual_override(qtbot, tmp_path):
             "/api/setup/assistant/providers",
             json={"name": "Local test", "kind": "ollama", "model": "test"},
         ).json()
-        widget = AssistantConnections(lambda: app.state.assistant)
-        qtbot.addWidget(widget)
-        widget.show()
-
-        def configure():
-            dialog = QApplication.activeModalWidget()
-            automatic = dialog.findChild(QCheckBox)
-            assert automatic.isChecked()
-            check = next(b for b in dialog.findChildren(QPushButton) if b.text() == "Check context")
-            check.click()
-            qtbot.waitUntil(
-                lambda: any(
-                    "262144 tokens" in label.text() for label in dialog.findChildren(QLabel)
-                ),
-                timeout=5000,
-            )
-            dialog.grab().save(str(tmp_path / "context-editor.png"))
-            automatic.setChecked(False)
-            dialog.findChild(QSpinBox).setValue(65536)
-            sampling = next(
-                box
-                for box in dialog.findChildren(QCheckBox)
-                if box.text() == "Use server sampling defaults"
-            )
-            assert sampling.isChecked()
-            sampling.setChecked(False)
-            dialog.findChild(QDoubleSpinBox).setValue(0)
-            dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Save).click()
-
-        QTimer.singleShot(0, configure)
-        widget.provider_editor(saved)
+        view = service_view(
+            qtbot, app.state.agent_service.setup, assistant=app.state.assistant, section="assistant"
+        )
+        wait_js(
+            qtbot, view, "[...document.querySelectorAll('button')].some(b=>b.textContent==='Edit')"
+        )
+        js(
+            qtbot,
+            view,
+            "[...document.querySelectorAll('button')].find(b=>b.textContent==='Edit').click()",
+        )
+        assert js(
+            qtbot,
+            view,
+            "document.querySelector('[aria-label=\"Detect context automatically\"]').checked",
+        )
+        js(
+            qtbot,
+            view,
+            "[...document.querySelectorAll('dialog button')].find(b=>b."
+            "textContent==='Check context').click()",
+        )
+        wait_js(
+            qtbot,
+            view,
+            "document.querySelector('dialog').textContent.replaceAll(',"
+            "','').includes('262144 tokens')",
+        )
+        js(
+            qtbot,
+            view,
+            "document.querySelector('[aria-label=\"Detect context automa"
+            "tically\"]').click();document.querySelector('[aria-label=\"U"
+            "se server sampling defaults\"]').click()",
+        )
+        edit_field(qtbot, view, "Context window (tokens)", 65536)
+        edit_field(qtbot, view, "Temperature (0 = least variation)", 0)
+        js(qtbot, view, "document.querySelector('dialog .primary').click()")
+        wait_js(qtbot, view, "!document.querySelector('dialog')")
         result = browser.get(f"/api/setup/assistant/providers/{saved['id']}/context").json()
-        assert result["context_window"] == 65536
-        assert result["source"] == "manual"
-        updated = app.state.assistant.setup()["providers"][0]
-        assert updated["temperature"] == 0
-        from torrentlinker.gui import tasks
-
-        qtbot.waitUntil(lambda: not tasks._alive, timeout=5000)
-
-        def restore_defaults():
-            dialog = QApplication.activeModalWidget()
-            sampling = next(
-                box
-                for box in dialog.findChildren(QCheckBox)
-                if box.text() == "Use server sampling defaults"
+        assert result["context_window"] == 65536 and result["source"] == "manual"
+        assert app.state.assistant.setup()["providers"][0]["temperature"] == 0
+        js(
+            qtbot,
+            view,
+            "[...document.querySelectorAll('button')].find(b=>b.textContent==='Edit').click()",
+        )
+        assert (
+            js(
+                qtbot,
+                view,
+                "document.querySelector('[aria-label=\"Use server sampling defaults\"]').checked",
             )
-            assert not sampling.isChecked()
-            assert dialog.findChild(QDoubleSpinBox).value() == 0
-            sampling.setChecked(True)
-            assert not dialog.findChild(QDoubleSpinBox).isEnabled()
-            dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Save).click()
-
-        QTimer.singleShot(0, restore_defaults)
-        widget.provider_editor(updated)
+            is False
+        )
+        js(
+            qtbot,
+            view,
+            "document.querySelector('[aria-label=\"Use server sampling defaults\"]').click()",
+        )
+        assert js(
+            qtbot,
+            view,
+            "document.querySelector('[aria-label=\"Temperature (0 = least variation)\"]').disabled",
+        )
+        js(qtbot, view, "document.querySelector('dialog .primary').click()")
+        wait_js(qtbot, view, "!document.querySelector('dialog')")
         assert app.state.assistant.setup()["providers"][0]["temperature"] is None
-        # Saving changed sampling starts an assessment in the Qt pool. Keep the
-        # service and its widgets alive until that test-owned work has completed.
-        qtbot.waitUntil(lambda: not tasks._alive, timeout=5000)
-        widget.close()
+        qtbot.waitUntil(lambda: view.pending == 0)
+        view.close()
 
 
 def test_chat_follows_messages_after_layout_settles(qtbot, tmp_path):
@@ -445,7 +508,7 @@ def test_desktop_question_approval_and_markdown_table(qtbot, tmp_path):
             ),
             timeout=5000,
         )
-        widget.pages.setCurrentIndex(2)
+        widget.pages.setCurrentWidget(widget.history)
         widget.refresh_run()
         assert any(b.text() == "Submit answer" for b in widget.history.findChildren(QPushButton))
         widget.pages.setCurrentIndex(0)
@@ -565,11 +628,12 @@ def test_browser_inline_question_approval_and_safe_table(tmp_path):
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
             page.locator("#navigation-toggle").click()
-            page.locator('[data-view="assistant"]').click()
-            page.locator("#navigation-close").click()
-            page.locator("#assistant-prompt").fill("Help choose an action.")
-            page.locator("#assistant-prompt").press("Enter")
-            question = page.locator(".assistant-question")
+            shell_navigate(page, "assistant")
+            shell_close_navigation(page)
+            panel = page.frame_locator("#assistant-frame")
+            panel.locator("#assistant-prompt").fill("Help choose an action.")
+            panel.locator("#assistant-prompt").press("Enter")
+            question = panel.locator(".assistant-question")
             expect(question).to_be_visible(timeout=10000)
             submit = question.get_by_role("button", name="Submit answer", exact=True)
             expect(submit).to_be_disabled()
@@ -578,27 +642,27 @@ def test_browser_inline_question_approval_and_safe_table(tmp_path):
             assert len(turns) == 1
             question.get_by_role("textbox").fill("Please pause this torrent")
             submit.click()
-            decision = page.locator(".assistant-decision")
+            decision = panel.locator(".assistant-decision")
             expect(decision).to_be_visible(timeout=10000)
             expect(decision).to_contain_text("pause")
             assert client.paused == []
             # While the run waits for approval, the composer button stops it instead of sending.
-            expect(page.locator("#assistant-send")).to_have_attribute("aria-label", "Stop")
-            assert page.locator(".assistant-dialog").count() == 0
+            expect(panel.locator("#assistant-send")).to_have_attribute("aria-label", "Stop")
+            assert panel.locator(".assistant-dialog").count() == 0
             decision.get_by_role("button", name="Approve once", exact=True).click()
             expect(
-                page.locator(".assistant-markdown table td").filter(has_text="Complete")
+                panel.locator(".assistant-markdown table td").filter(has_text="Complete")
             ).to_be_visible(timeout=10000)
             assert client.paused == ["a" * 40]
             assert (
-                page.locator(
+                panel.locator(
                     ".assistant-markdown script, .assistant-markdown a[href^='javascript:']"
                 ).count()
                 == 0
             )
             assert not remote
             assert (
-                page.locator(
+                panel.locator(
                     ".assistant-markdown a[href='https://resource.test/image.png']"
                 ).count()
                 == 1
@@ -681,50 +745,23 @@ def test_mode_chip_switches_and_confirms_only_the_first_time(qtbot, tmp_path, mo
 
 
 def test_model_connections_open_in_settings(qtbot, tmp_path):
-    from PySide6.QtWidgets import QWidget
+    from tests.settings_support import service_view
+    from tests.test_community_interfaces import js, wait_js
 
-    from torrentlinker.config import Settings
-    from torrentlinker.gui.assistant_connections import AssistantConnections
-    from torrentlinker.gui.settings_dialog import SettingsDialog
-
-    class Host(QWidget):
-        def assistant_service(self):
-            raise RuntimeError("not needed")
-
-    host = Host()
-    qtbot.addWidget(host)
-    dialog = SettingsDialog(Settings(), host)
-    dialog.show_assistant_connections()
-    assert dialog.tabs.currentWidget().isAncestorOf(dialog.findChild(AssistantConnections))
-
-
-def test_automation_cards_show_the_schedule_and_one_main_action(qtbot):
-    from PySide6.QtWidgets import QLabel, QPushButton
-
-    from torrentlinker.gui.automation_cards import AutomationCards
-
-    cards = AutomationCards()
-    qtbot.addWidget(cards)
-    active = {
-        "id": "a",
-        "name": "Daily review",
-        "enabled": True,
-        "frequency": "daily",
-        "at": "08:30",
-        "next_at": 0,
-        "last_error": "",
-        "blocked": False,
-    }
-    paused = {**active, "id": "b", "name": "Weekend Plan", "enabled": False}
-    paused.update(frequency="weekly", weekdays=[5], at="10:00")
-    ran, toggled = [], []
-    cards.runRequested.connect(ran.append)
-    cards.toggleRequested.connect(toggled.append)
-    cards.set_rows([active, paused])
-    texts = [label.text() for label in cards.findChildren(QLabel)]
-    assert any(text.startswith("Daily at 08:30 · Next run") for text in texts)
-    assert "Weekly, Sat at 10:00 · Paused" in texts
-    buttons = {b.text(): b for b in cards.findChildren(QPushButton)}
-    buttons["Run now"].click()
-    buttons["Enable"].click()
-    assert [t["id"] for t in ran] == ["a"] and [t["id"] for t in toggled] == ["b"]
+    app = create_app(
+        tmp_path, password="test-password-long", assistant_transport=httpx.MockTransport(provider)
+    )
+    with TestClient(app):
+        view = service_view(
+            qtbot, app.state.agent_service.setup, assistant=app.state.assistant, section="assistant"
+        )
+        wait_js(
+            qtbot, view, "Boolean(document.querySelector('#assistant-connections-body button'))"
+        )
+        assert (
+            js(qtbot, view, "document.querySelector('.settings-form h2').textContent")
+            == "Assistant"
+        )
+        assert js(qtbot, view, "document.querySelector('#settings-error').textContent") == ""
+        qtbot.waitUntil(lambda: view.pending == 0)
+        view.close()

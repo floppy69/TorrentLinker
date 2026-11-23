@@ -39,6 +39,25 @@ def ui_scale(value: object) -> float:
     return min(max(scale, UI_SCALES[0]), UI_SCALES[-1])
 
 
+MEDIA_LAYOUTS = ("cinematic", "focus", "horizon")
+MEDIA_HORIZON_VIEWS = ("home", "showcase", "wall")
+
+
+def media_layout(data: dict) -> str:
+    """The saved Media interface. Horizon replaced Collection, whose users keep a grid."""
+    value = data.get("media_layout")
+    if value == "collection":
+        return "horizon"
+    return value if value in MEDIA_LAYOUTS else "cinematic"
+
+
+def media_horizon(data: dict) -> str:
+    value = data.get("media_horizon")
+    if value in MEDIA_HORIZON_VIEWS:
+        return value
+    return "wall" if data.get("media_layout") == "collection" else "home"
+
+
 @dataclass
 class QbitSettings:
     host: str = "http://localhost:8080"
@@ -68,9 +87,58 @@ class RtorrentSettings:
     username: str = ""
 
 
+C411_ID = "c411"
+C411_URL = "https://c411.org/api/torznab"
+HUB_SECRET = "indexer-hub-key"  # the Prowlarr or Jackett API key
+
+
 @dataclass
 class IndexerSettings:
-    url: str = "https://c411.org/api/torznab"
+    """One Indexer. c411 is always the first; the others are added by hand or imported.
+
+    Its API key is a secret (`Settings.indexer_secret`). `modes` is what its caps last
+    listed: search mode -> supported parameters, empty until tested."""
+
+    url: str = C411_URL
+    id: str = C411_ID
+    name: str = "c411"
+    enabled: bool = True
+    modes: dict[str, list[str]] = field(default_factory=dict)
+    source: str = ""  # "", "prowlarr" or "jackett": where an imported Indexer comes from
+    source_id: str = ""  # its id in that service
+    missing: bool = False  # the service no longer lists it (flagged by a re-sync, kept)
+
+    @property
+    def searchable_ids(self) -> list[str]:
+        """The ids a search by id may carry on this Indexer (imdbid, tmdbid, tvdbid...)."""
+        return sorted({p for params in self.modes.values() for p in params if p.endswith("id")})
+
+
+@dataclass
+class IndexerHubSettings:
+    """The Prowlarr or Jackett instance Indexers are imported from; its key is a secret."""
+
+    service: str = ""  # "prowlarr" | "jackett" | "" when none is connected
+    url: str = ""
+    last_sync: float = 0.0
+
+
+@dataclass
+class CrossSeedSettings:
+    """Cross-seed rules (ADR-0024): what goes in without a review, and the Owner's pause."""
+
+    auto_add: bool = True  # add safe Matches without a review
+    threshold: float = 0.95  # a Partial Match covering at least this much is safe
+    paused: bool = False
+
+
+def indexers_from(data: dict) -> list[IndexerSettings]:
+    """The saved Indexers, c411 first; a file from before many Indexers has only its URL."""
+    found = [IndexerSettings(**i) for i in data.get("indexers", [])]
+    if not any(i.id == C411_ID for i in found):
+        found.insert(0, IndexerSettings(**data.get("indexer", {})))
+    found.sort(key=lambda i: i.id != C411_ID)
+    return found
 
 
 @dataclass
@@ -125,6 +193,11 @@ class ClientProfile:
     download_folders: DownloadFolders = field(default_factory=DownloadFolders)
     enabled: bool = True
     reseed_link_root: str = ""
+    reseed_layout: str = "auto"  # auto | client | links; disk-rename clients always use links
+
+    def __post_init__(self):
+        if self.reseed_layout not in {"auto", "client", "links"}:
+            raise ValueError("Unknown Reseed layout.")
 
     def secret_name(self, name: str) -> str:
         # The original profile keeps its existing OS keyring/deployment secrets.
@@ -139,15 +212,20 @@ class Settings:
     transmission: TransmissionSettings = field(default_factory=TransmissionSettings)
     utorrent: UtorrentSettings = field(default_factory=UtorrentSettings)
     rtorrent: RtorrentSettings = field(default_factory=RtorrentSettings)
-    indexer: IndexerSettings = field(default_factory=IndexerSettings)
+    indexers: list[IndexerSettings] = field(default_factory=lambda: [IndexerSettings()])
+    indexer_hub: IndexerHubSettings = field(default_factory=IndexerHubSettings)
+    cross_seed: CrossSeedSettings = field(default_factory=CrossSeedSettings)
     proxy: ProxySettings = field(default_factory=ProxySettings)
+    announce_hosts: list[str] = field(default_factory=list)
     matching: MatchingSettings = field(default_factory=MatchingSettings)
+    release_score: dict = field(default_factory=dict)
     # Torznab categories searched for each Content Kind; none listed = all categories.
     kind_categories: dict[ContentKind, list[int]] = field(default_factory=dict)
     language: str = "auto"  # auto | en | fr
     theme: str = "auto"  # auto | light | dark
     ui_scale: float = 1.0  # desktop interface size, on top of the system's scaling
-    media_layout: str = "cinematic"  # cinematic | focus | collection
+    media_layout: str = "cinematic"  # cinematic | focus | horizon
+    media_horizon: str = "home"  # Horizon's view: home | showcase | wall
     # XXX (c411's adult category, Torznab 6000-6999): hidden unless the user opts in.
     adult_content: bool = False
 
@@ -258,6 +336,22 @@ class Settings:
     def secret_name(self, name: str) -> str:
         return self.profile().secret_name(name) if name in CLIENT_SECRET_NAMES else name
 
+    @property
+    def indexer(self) -> IndexerSettings:
+        """c411, the Indexer of the Catalogue, uploads and everything but Cross-seed."""
+        return next(i for i in self.indexers if i.id == C411_ID)
+
+    def find_indexer(self, identifier: str) -> IndexerSettings:
+        for indexer in self.indexers:
+            if indexer.id == identifier:
+                return indexer
+        raise ValueError("Unknown Indexer.")
+
+    @staticmethod
+    def indexer_secret(identifier: str) -> str:
+        """Where an Indexer's API key is kept; c411's keeps the name it always had."""
+        return "indexer-api-key" if identifier == C411_ID else f"indexer-key-{identifier}"
+
     def save(self, path: Path) -> None:
         self.capture_client()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -271,14 +365,19 @@ class Settings:
             "transmission": asdict(self.transmission),
             "utorrent": asdict(self.utorrent),
             "rtorrent": asdict(self.rtorrent),
-            "indexer": asdict(self.indexer),
+            "indexers": [asdict(i) for i in self.indexers],
+            "indexer_hub": asdict(self.indexer_hub),
+            "cross_seed": asdict(self.cross_seed),
             "proxy": asdict(self.proxy),
+            "announce_hosts": self.announce_hosts,
             "matching": asdict(self.matching),
+            "release_score": self.release_score,
             "kind_categories": {k.value: v for k, v in self.kind_categories.items()},
             "language": self.language,
             "theme": self.theme,
             "ui_scale": self.ui_scale,
             "media_layout": self.media_layout,
+            "media_horizon": self.media_horizon,
             "adult_content": self.adult_content,
             "library_folders": [_folder_to_json(f) for f in self.library_folders],
             "path_mappings": [asdict(m) for m in self.path_mappings],
@@ -315,17 +414,18 @@ class Settings:
             transmission=TransmissionSettings(**data.get("transmission", {})),
             utorrent=UtorrentSettings(**data.get("utorrent", {})),
             rtorrent=RtorrentSettings(**data.get("rtorrent", {})),
-            indexer=IndexerSettings(**data.get("indexer", {})),
+            indexers=indexers_from(data),
+            indexer_hub=IndexerHubSettings(**data.get("indexer_hub", {})),
+            cross_seed=CrossSeedSettings(**data.get("cross_seed", {})),
             proxy=ProxySettings(**data.get("proxy", {})),
+            announce_hosts=list(data.get("announce_hosts", [])),
             matching=MatchingSettings(**data.get("matching", {})),
+            release_score=data.get("release_score", {}),
             language=str(data.get("language", "auto")),
             theme=str(data.get("theme", "auto")),
             ui_scale=ui_scale(data.get("ui_scale", 1.0)),
-            media_layout=(
-                data["media_layout"]
-                if data.get("media_layout") in ("cinematic", "focus", "collection")
-                else "cinematic"
-            ),
+            media_layout=media_layout(data),
+            media_horizon=media_horizon(data),
             adult_content=data.get("adult_content", False) is True,
             kind_categories={
                 ContentKind(k): [int(c) for c in v]
@@ -423,6 +523,8 @@ def _plan_options_from_json(d: dict) -> PlanOptions:  # type: ignore[type-arg]
             max(1, int(d["max_torrents"])) if d.get("max_torrents") is not None else None
         ),
         max_seeders=max(1, int(d["max_seeders"])) if d.get("max_seeders") is not None else None,
+        min_torrents=max(0, int(d.get("min_torrents", 0))),
+        min_seeders=max(0, int(d.get("min_seeders", 0))),
         min_size=max(0, int(d.get("min_size", 0))),
         max_size=max(0, int(d.get("max_size", 0))),
     )

@@ -80,6 +80,39 @@ def test_large_category_is_paged_with_stable_numeric_sort_and_full_totals():
     assert first["classes"][-1]["current"] is True
 
 
+def test_ten_thousand_torrents_have_global_pages_and_search_across_category_descendants():
+    profile = ZenProfile(ZenClass.SWARM_KEEPER)
+    torrents = [torrent(i, f"Release {i:05d}", size=i + 1) for i in range(10001)]
+    cached = {
+        row.hash: CatalogueRow(row.hash, row.name, row.size, 12, 7010 if i % 2 else 7020, "", "", 0)
+        for i, row in enumerate(torrents)
+    }
+    view = seeding(
+        profile,
+        torrents,
+        "https://c411.org",
+        catalogue=cached,
+        categories={
+            7000: IndexerCategory("Books"),
+            7010: IndexerCategory("Comics", 7000),
+            7020: IndexerCategory("Fiction", 7000),
+        },
+    )
+    page = seeding_page(
+        view, profile, 0, group="all", sort="size", descending=False, offset=9900, limit=100
+    )
+    assert page["total"] == 10001
+    assert len(page["rows"]) == 100
+    assert page["rows"][0]["name"] == "Release 09900"
+    assert page["rows"][-1]["name"] == "Release 09999"
+    assert page["rows"][0]["category"] == "Books / Fiction"
+    parent = seeding_page(view, profile, 0, group="7000", descendants=True, query="10000")
+    assert parent["total"] == 1
+    assert parent["rows"][0]["name"] == "Release 10000"
+    assert parent["summary"] == page["summary"]
+    assert seeding_page(view, profile, 0, group="all", query="Comics")["total"] == 5000
+
+
 def test_seeding_endpoint_scopes_clients_deduplicates_and_reports_offline(tmp_path):
     class SeedClient(Client):
         def __init__(self, rows):
@@ -143,3 +176,41 @@ def test_seeding_endpoint_scopes_clients_deduplicates_and_reports_offline(tmp_pa
         stale_single = browser.get("/api/zen/seeding?client_id=default").json()
         assert stale_single["client_errors"][0]["name"] == "Home"
         assert stale_single["summary"]["count"] == 1
+
+
+def test_seeding_combines_approved_filters_before_paging_and_keeps_options():
+    from torrentlinker.web.seeding import SeedingFilters
+
+    profile = ZenProfile(ZenClass.SWARM_KEEPER)
+    torrents = [
+        torrent(1, "Small", size=1024**2, tags=("archive",), swarm_seeders=2),
+        torrent(2, "Large", size=2 * 1024**3, tags=("archive",), swarm_seeders=3),
+        torrent(3, "Paused", size=3 * 1024**3, state="pausedUP", tags=("favourite",)),
+        torrent(4, "Unknown seeds", size=4 * 1024**3, swarm_seeders=-1),
+    ]
+    view = seeding(profile, torrents, "https://c411.org")
+    unfiltered = seeding_page(view, profile, 0, group="all")
+    filtered = seeding_page(
+        view,
+        profile,
+        0,
+        group="all",
+        filters=SeedingFilters(state="seeding", tag="archive", size_min=1024**3, seed_max=3),
+    )
+    assert [row["name"] for row in filtered["rows"]] == ["Large"]
+    assert filtered["summary"] == unfiltered["summary"]
+    assert filtered["filter_options"] == unfiltered["filter_options"]
+    assert "private" not in str(filtered)
+    assert (
+        seeding_page(view, profile, 0, group="all", filters=SeedingFilters(zen_min=0))["total"] == 3
+    )
+    assert (
+        seeding_page(view, profile, 0, group="all", filters=SeedingFilters(seed_max=99))["total"]
+        == 3
+    )
+    assert (
+        seeding_page(view, profile, 0, group="all", filters=SeedingFilters(days_min=11))["total"]
+        == 0
+    )
+    with pytest.raises(ValueError):
+        SeedingFilters(size_min=float("nan"))

@@ -4,6 +4,7 @@ import pytest
 from tests.torrents import make_torrent
 from torrentlinker.client_folders import ClientFolder
 from torrentlinker.domain import LocalItem, PathMapping
+from torrentlinker.login_guard import LoginRefused
 from torrentlinker.matching import Match
 from torrentlinker.paths import MappedQbit, PathMapper
 from torrentlinker.qbit import AlreadyInClient
@@ -157,7 +158,7 @@ def test_authentication_token_cookie_and_expiration(host):
 def test_bad_credentials_and_wrong_edition_are_clear():
     web = WebUI()
     web.bad_password = True
-    with pytest.raises(UtorrentError, match="credentials"):
+    with pytest.raises(LoginRefused, match="refused the login"):
         api_for(web).check()
     http = httpx.Client(
         transport=httpx.MockTransport(lambda r: httpx.Response(200, text="<html>Web</html>"))
@@ -391,30 +392,25 @@ def test_removing_verification_label_preserves_personal_label():
 
 
 def test_settings_roundtrip_and_app_factory(qtbot, tmp_path):
+    from tests.settings_support import edit_field, save_group, settings_page
     from torrentlinker.config import Settings
     from torrentlinker.credentials import get_secret
     from torrentlinker.domain import TorrentClient
     from torrentlinker.gui.main_window import MainWindow
-    from torrentlinker.gui.settings_dialog import UTORRENT_PASSWORD, SettingsDialog
+    from torrentlinker.gui.settings_common import UTORRENT_PASSWORD
     from torrentlinker.store import Store
 
-    settings = Settings()
-    dialog = SettingsDialog(settings)
-    qtbot.addWidget(dialog)
-    dialog.client.setCurrentIndex(dialog.client.findData("utorrent"))
-    assert dialog.client_forms.currentWidget().isAncestorOf(dialog.utorrent_host)
-    dialog.utorrent_host.setText("http://client:18089/gui/")
-    dialog.utorrent_user.setText("tester")
-    dialog.utorrent_password.setText("secret")
-    assert isinstance(dialog._form_qbit(), UtorrentApi)
-    dialog._save()
-    settings.save(tmp_path / "settings.json")
+    dialog = settings_page(qtbot, tmp_path)
+    edit_field(qtbot, dialog.view, "Client type", "utorrent")
+    edit_field(qtbot, dialog.view, "Address", "http://client:18089/gui/")
+    edit_field(qtbot, dialog.view, "Username", "tester")
+    edit_field(qtbot, dialog.view, "Password", "secret")
+    save_group(qtbot, dialog)
     saved = Settings.load(tmp_path / "settings.json")
     assert saved.client is TorrentClient.UTORRENT
-    assert saved.utorrent.host == "http://client:18089/gui/" and saved.utorrent.username == "tester"
+    assert saved.utorrent.host == "http://client:18089/gui" and saved.utorrent.username == "tester"
     assert get_secret(UTORRENT_PASSWORD) == "secret"
-    assert "secret" not in (tmp_path / "settings.json").read_text()
-    w = MainWindow(saved, tmp_path / "settings.json", Store(tmp_path / "s.db"))
-    qtbot.addWidget(w)
-    w.qbit()
-    assert isinstance(w.qbit()._inner, UtorrentApi)
+    assert '"secret"' not in (tmp_path / "settings.json").read_text()
+    window = MainWindow(saved, tmp_path / "settings.json", Store(tmp_path / "s.db"))
+    qtbot.addWidget(window)
+    assert isinstance(window.qbit()._inner, UtorrentApi)

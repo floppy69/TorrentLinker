@@ -5,7 +5,13 @@
 1. Enter a title, pick a category pill and adjust the filters. The page searches by itself a moment after each change.
 2. Click a result's title to open its details in a tab.
 3. Select results and add them to the queue, or use a row's download button.
-4. ### Start and manage the queue
+4. Open **Download queue**, check the client and destination, then choose **Start queue** when ready.
+
+### Start and manage the queue
+
+Adding a result to the queue is a review step. Starting the queue sends it to the Torrent Client. If a send has an uncertain outcome, check that client before retrying to avoid a duplicate.
+
+The small ReleaseScore pill compares video releases with your equipment profile. Its colour and number describe different things. See [ReleaseScore setup and colours](release-score.md) to configure it.
 
 ![Download queue](../images/en/file.png)
 
@@ -23,7 +29,7 @@ The page follows c411's torrents page, with TorrentLinker's own colors and extra
 
 - **Header.** The **Compact / Comfortable** switch, **Posters**, and the **Download queue (N)** button. Your choices are remembered.
 - **Search bar.** A large field for the title, original title or release name. On Films & Vidéos, **Cast & crew** also searches actors, directors and screenwriters.
-- **Category pills.** *All* and one pill per category, with c411's own totals. A pill filters at once. The **Category** menu below picks a subcategory.
+- **Category pills.** *All* and one pill per category, with c411's own totals. A pill filters at once. The **Category** menu below picks a subcategory of the chosen pill; it is hidden under *All*. Turning on adult content shows XXX without reloading.
 - **Filters.** Rounded buttons that open a searchable checklist (resolution, source, codec, HDR, audio, channels, language, profile, genre, season and so on), then **Year**, **Team** and **Uploader**. Team takes a team name or slug, as on c411. When four or more values are chosen they also show as chips you can remove one by one. **Exclusive** and the heart button for **soins palliatifs** sit next to the Category menu. **Subscribe to RSS** carries the query into a new subscription, and **Clear all** resets everything.
 - **Automatic search.** Filters, toggles, pills, sort chips and page links search by themselves. Filter changes wait about a second so several clicks make one request. A half-typed year does not search. The Search button and Enter still work.
 - **Results card.** The total number of matches and their size, a row of **sort chips** (Age, Seeders, Leechers, Size, Completed, Comments, Name, Type, and Relevance while a query is typed; click the active chip to flip the direction), and numbered page links above and below.
@@ -77,3 +83,7 @@ The **Download queue** count follows the remaining rows. Successfully sent entri
 When c411 explicitly reports that a torrent is unavailable for download, TorrentLinker removes it from the local Catalogue and remembers its hash across restarts. Catalogue refreshes and snapshot imports cannot add it back, so future Plans stop proposing it. Authentication errors, rate limits and server errors do not remove torrents.
 
 [Documentation](../../README.md) · [Français](../fr/recherche.md)
+
+## XXX searches
+
+With **Show XXX content** on, XXX results come through your signed-in c411 session, by way of the browser companion, and through Torznab otherwise. Update the companion extension from **Settings → Companion** (reload it in your browser). Keep a c411 tab open. The first read can take about 30 seconds.

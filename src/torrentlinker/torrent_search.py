@@ -5,10 +5,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlencode
 
 from torrentlinker.catalogue_sync import ROOTS, SUBCATS, download_url
 from torrentlinker.downloads import IndexerCategory
-from torrentlinker.indexer import Candidate, Indexer, publication_time
+from torrentlinker.indexer import Candidate, Indexer, SearchQuery, publication_time
 
 SERIES_SLUGS = {"serie-tv", "animation-serie", "emission-tv", "serie-documentaire"}
 
@@ -19,6 +20,7 @@ class SearchTree:
     categories: dict[int, IndexerCategory]
     slugs: dict[int, str]
     colors: dict[int, str] = field(default_factory=dict)  # root ID -> "#rrggbb"
+    torznab_only: frozenset[int] = frozenset()  # roots offered through Torznab, no native filters
 
     def root(self, selected: int | None) -> int | None:
         if selected is None or selected not in self.categories:
@@ -34,20 +36,22 @@ ADULT_ROOT = 8  # c411's native XXX category (Torznab 6000)
 
 def parse_tree(payload: dict[str, Any], *, adult: bool = True) -> SearchTree:
     """c411's category tree; without `adult`, XXX is left out (Settings → Adult content)."""
-    categories, slugs, colors = {}, {}, {}
+    categories, slugs, colors, torznab_only = {}, {}, {}, set()
     for root in payload["data"]:
         rid = int(root["id"])
         if rid == ADULT_ROOT and not adult:
             continue
         categories[rid] = IndexerCategory(str(root["name"]))
         slugs[rid] = str(root.get("slug", ""))
+        if root.get("torznabOnly") is True:
+            torznab_only.add(rid)
         if re.fullmatch(r"#[0-9a-fA-F]{6}", str(root.get("color", ""))):
             colors[rid] = str(root["color"])
         for child in root.get("subcategories", []):
             cid = -int(child["id"])
             categories[cid] = IndexerCategory(str(child["name"]), rid)
             slugs[cid] = str(child.get("slug", ""))
-    return SearchTree(categories, slugs, colors)
+    return SearchTree(categories, slugs, colors, frozenset(torznab_only))
 
 
 @dataclass(frozen=True)
@@ -189,10 +193,42 @@ class SearchPage:
         return self.total > self.per_page * self.total_pages
 
 
-def native_search(indexer: Indexer, params: dict[str, str], page: int = 1) -> SearchPage:
-    payload = indexer.catalogue_json(
-        {**params, "page": str(page), "perPage": "100", "viewMode": "flat"}
+def _adult_listing(indexer: Indexer, params: dict[str, str], page: int) -> SearchPage | None:
+    """XXX, which the key's listing hides: through the signed-in session when there is one,
+    else by Torznab (6000 and its children) with only the text and category applied."""
+    if indexer.adult_session:
+        payload = indexer.adult_read("/api/torrents?" + urlencode(sorted(params.items())))
+        if payload is not None:
+            return _native_page(indexer, payload)
+    cats = tuple(
+        SUBCATS[ADULT_ROOT][int(child)]
+        for child in params.get("subcat", "").split(",")
+        if child.isdigit() and int(child) in SUBCATS[ADULT_ROOT]
+    ) or (ROOTS[ADULT_ROOT],)
+    found = indexer.search(
+        SearchQuery(q=params.get("name", ""), categories=cats, limit=100, offset=(page - 1) * 100)
     )
+    return SearchPage(
+        found,
+        page,
+        (page - 1) * 100 + len(found),
+        100,
+        page + int(len(found) == 100),
+        {c.infohash.lower(): "XXX" for c in found if c.infohash},
+        frozenset(),
+    )
+
+
+def native_search(indexer: Indexer, params: dict[str, str], page: int = 1) -> SearchPage:
+    params = {**params, "page": str(page), "perPage": "100", "viewMode": "flat"}
+    if params.get("category") == str(ADULT_ROOT):
+        if not indexer.adult_content():
+            raise ValueError("Adult content is off in Settings.")
+        return _adult_listing(indexer, params, page)  # type: ignore[return-value]
+    return _native_page(indexer, indexer.catalogue_json(params))
+
+
+def _native_page(indexer: Indexer, payload: dict[str, Any]) -> SearchPage:
     rows, labels, palliative, details = [], {}, set(), {}
     for item in payload["data"]:
         h = str(item["infoHash"]).lower()

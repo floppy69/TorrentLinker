@@ -4,18 +4,23 @@ import os
 import subprocess
 import sys
 
-from PySide6.QtWidgets import QLabel
-
 from tests.test_library_folders import window_for
 
 
-def test_sidebar_displays_the_packaged_logo(qtbot, tmp_path, monkeypatch):
+def test_sidebar_displays_the_packaged_logo(qtbot, tmp_path, monkeypatch, request):
+    from tests.test_community_interfaces import wait_js
+    from tests.webengine_support import isolated_webengine_render
+
+    if isolated_webengine_render(request):
+        return
     window, _ = window_for(qtbot, tmp_path, monkeypatch)
     window.show()
-    logo = window.sidebar.findChild(QLabel, "brandLogo")
-    assert logo is not None, "The desktop sidebar has no logo"
-    assert logo.isVisible() and not logo.pixmap().isNull()
-    assert logo.width() >= 24 and logo.height() >= 24
+    wait_js(qtbot, window.navigation, "document.getElementById('brand-logo')?.naturalWidth > 0")
+    wait_js(
+        qtbot,
+        window.navigation,
+        "document.getElementById('brand-logo').getBoundingClientRect().width >= 24",
+    )
 
 
 def test_real_entrypoint_sets_desktop_identity_before_creating_its_window(tmp_path):

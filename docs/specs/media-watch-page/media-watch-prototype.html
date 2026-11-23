@@ -1,0 +1,298 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway. Médias with the player built into the page, like YouTube, for every screen.
+     The Netflix-style browsing stays below the player. The top bar hides when you scroll down and comes back
+     over the film when you scroll up, instead of pushing the page. The selected film no longer stays pinned
+     while the rows scroll. Three ways the player behaves when you scroll, ?variant=A|B|C. Shared palette
+     (panel/base.css) embedded. Fictional films; the "picture" is a moving gradient. -->
+<html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Médias avec lecteur · aperçu</title>
+<style>
+/* Embedded copy of the two token blocks of src/torrentlinker/web/static/panel/base.css (approved). */
+:root {
+  color-scheme: dark;
+  --bg: #161d23; --panel: #202932; --raised: #26323c; --line: #33404b; --text: #e2e9ed; --muted: #98aab7;
+  --accent: #80bdb6; --accent-text: #102a2b; --tint: #263e43; --hover: #263e43; --danger: #ff9c9c;
+  --warning: #edbf73; --success: #4ad394; --link: #64c9c0; --shadow: none; --ink: var(--text);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #0c1014; color: var(--text); overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* The device, scaled to fit this window. */
+#stage { position: absolute; inset: 0 0 64px; display: grid; place-items: center; overflow: hidden; }
+#device { position: relative; overflow: hidden; background: var(--bg); border: 10px solid #000; border-radius: 30px; box-shadow: 0 30px 80px #0008; transform-origin: center; display: flex; }
+#device.phone { width: 390px; height: 844px; }
+#device.phone.landscape { width: 844px; height: 390px; }
+#device.computer { width: 1280px; height: 760px; border-radius: 14px; }
+@media (max-width: 500px) { #stage { inset: 0; } #device { border: 0; border-radius: 0; } }
+
+/* The app around Médias: a sidebar on a computer, hidden in Media Center (enlarged) mode. */
+.sidebar { width: 190px; flex: none; background: var(--panel); border-right: 1px solid var(--line); padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.sidebar b { color: var(--accent); margin-bottom: 12px; }
+.sidebar span { padding: 8px 10px; border-radius: 8px; color: var(--muted); }
+.sidebar span.on { background: var(--tint); color: var(--accent); }
+.app { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+
+/* The top bar: over the film, hidden while scrolling down, back when scrolling up. */
+.topbar { position: absolute; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; gap: 10px; padding: 10px 16px 22px; background: linear-gradient(#0b1015e6, #0b101500); transition: transform .25s ease, opacity .25s ease; }
+.topbar.hide { transform: translateY(-100%); opacity: 0; pointer-events: none; }
+.topbar .tabs { display: flex; gap: 16px; font-size: 14px; color: #cfd8dc; overflow-x: auto; flex: 1; scrollbar-width: none; }
+.topbar .tabs span.on { color: #fff; font-weight: 700; }
+.phone .topbar .tabs { display: none; }
+.topbar h1 { margin: 0; font-size: 17px; flex: none; }
+.phone .topbar h1 { flex: 1; }
+.chip { font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid #ffffff30; background: #0006; color: #dfe7ea; white-space: nowrap; }
+.iconbtn { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; border: 1px solid #ffffff30; background: #0006; color: #fff; padding: 0; flex: none; }
+
+.scroller { position: absolute; inset: 0; overflow-y: auto; scroll-behavior: smooth; }
+
+/* Not playing: the selected film, still, behind the top bar. It changes with a soft fade, never moves. */
+.hero { position: relative; min-height: 440px; padding: 110px 28px 30px; display: flex; flex-direction: column; justify-content: flex-end; }
+.phone .hero { min-height: 470px; padding: 90px 18px 24px; }
+.phone.landscape .hero { min-height: 300px; padding-top: 60px; }
+.hero .art { position: absolute; inset: 0; transition: opacity .35s ease; }
+.hero .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, #161d23f0 0, #161d2399 45%, transparent 75%), linear-gradient(0deg, var(--bg) 0, transparent 40%); }
+.phone .hero .art::after { background: linear-gradient(0deg, var(--bg) 5%, #161d23aa 55%, #161d2355); }
+.hero .copy { position: relative; max-width: 560px; }
+.eyebrow { font-size: 11px; letter-spacing: .2em; color: var(--accent); font-weight: 700; }
+.hero h2 { font-size: 46px; line-height: 1.05; margin: 8px 0; }
+.phone .hero h2 { font-size: 36px; }
+.meta { color: var(--muted); font-size: 13px; }
+.syn { color: #c3cfd5; font-size: 14px; line-height: 1.6; margin: 10px 0 0; max-width: 520px; }
+.actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.primary { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 10px; padding: 10px 22px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+.secondary { background: #ffffff14; border: 1px solid #ffffff30; border-radius: 10px; padding: 10px 16px; }
+
+/* Playing: the player sits at the top of the page, the film's details under it, the rows after. */
+.watch { position: relative; }
+.watch.pinned { position: sticky; top: 0; z-index: 10; background: #000; }
+.watch-grid { display: grid; gap: 20px; padding: 0; }
+.computer .watch-grid.side { grid-template-columns: minmax(0, 1fr) 320px; padding: 64px 20px 0; }
+.screen { position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+.computer .watch-grid.side .screen { border-radius: 12px; }
+/* The pinned picture never takes more than about half the screen, so the rows stay reachable. */
+.computer .watch-grid:not(.side) .screen { width: min(100%, 782px); margin: 0 auto; }
+.phone.landscape .watch .screen { width: 356px; margin: 0 auto; }
+.film { position: absolute; inset: 0; background: linear-gradient(110deg, #0e3b46, #5c3b6b, #b06a3b, #0e3b46); background-size: 300% 100%; animation: pan 9s linear infinite; }
+.film::after { content: attr(data-title); position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; color: #fff8; letter-spacing: .3em; text-transform: uppercase; }
+.paused .film { animation-play-state: paused; }
+@keyframes pan { to { background-position: 300% 0; } }
+.overlay { position: absolute; inset: 0; color: #fff; display: grid; grid-template-rows: 1fr auto 1fr auto; background: linear-gradient(transparent 55%, #000c); transition: opacity .2s; }
+.overlay.off { opacity: 0; }
+.center-row { grid-row: 2; display: flex; align-items: center; justify-content: center; gap: 34px; }
+.round { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 0; background: #0007; color: #fff; padding: 0; }
+.round.big { width: 64px; height: 64px; }
+.bottom { grid-row: 4; padding: 0 14px 10px; display: grid; gap: 6px; }
+.scrub { height: 4px; border-radius: 4px; background: #ffffff40; position: relative; }
+.scrub i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 4px; }
+.tools { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.tools .time { flex: 1; }
+.tools button { border: 0; background: transparent; color: #fff; padding: 4px 6px; display: inline-flex; gap: 5px; align-items: center; font-size: 12px; }
+.tools svg { width: 20px; height: 20px; }
+.info { padding: 14px 18px 4px; }
+.computer .info { padding: 14px 28px 4px; }
+.computer .watch-grid.side .info { padding: 14px 0 0; }
+.info h2 { margin: 0 0 4px; font-size: 22px; }
+.info .actions { margin-top: 10px; }
+.info .secondary { padding: 7px 12px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+.info .secondary svg { width: 18px; height: 18px; }
+.upnext { display: grid; gap: 10px; align-content: start; }
+.upnext h3 { margin: 0; font-size: 15px; }
+.upnext button { display: flex; gap: 10px; text-align: left; border: 0; background: transparent; padding: 0; }
+.upnext .thumb { width: 140px; aspect-ratio: 16/9; border-radius: 8px; flex: none; }
+.upnext small { color: var(--muted); display: block; }
+
+/* The rows. */
+.rows { padding: 8px 0 120px; }
+.row-title { font-size: 17px; font-weight: 700; margin: 18px 28px 10px; }
+.phone .row-title { margin: 16px 16px 10px; }
+.posters { display: flex; gap: 10px; overflow-x: auto; padding: 0 28px 4px; scrollbar-width: none; }
+.phone .posters { padding: 0 16px 4px; }
+.poster { flex: none; width: 150px; aspect-ratio: 2 / 3; border-radius: 10px; display: flex; align-items: end; padding: 8px; font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px #000; border: 2px solid transparent; text-align: left; }
+.phone .poster { width: 112px; }
+.poster.on { border-color: var(--accent); }
+.poster.playing::before { content: "▶ en lecture"; position: absolute; margin-top: -2px; font-size: 10px; background: var(--accent); color: var(--accent-text); border-radius: 4px; padding: 1px 5px; }
+
+/* B: a mini player once the player has scrolled away. */
+.mini { position: absolute; z-index: 25; display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px; box-shadow: 0 12px 40px #0009; }
+.phone .mini { left: 8px; right: 8px; bottom: 10px; }
+.computer .mini { right: 18px; bottom: 18px; width: 380px; }
+.mini .thumbfilm { position: relative; width: 112px; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; flex: none; }
+.mini .thumbfilm .film::after { content: none; }
+.mini .txt { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; padding: 0; }
+.mini .txt b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini .txt small { color: var(--muted); font-size: 12px; }
+.mini .plain { border: 0; background: transparent; padding: 6px; display: grid; place-items: center; }
+
+/* Full screen (⛶): the film alone. */
+.fullscreen { position: absolute; inset: 0; z-index: 40; background: #000; }
+.fullscreen .screen { position: absolute; inset: 0; aspect-ratio: auto; }
+
+#switcher { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 6px; padding: 7px 9px; border-radius: 14px; background: #000e; color: #fff; font-size: 12px; box-shadow: 0 10px 30px #0008; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 16px); }
+#switcher button { background: #ffffff1c; color: #fff; border: 0; border-radius: 8px; padding: 5px 9px; font-size: 12px; }
+#switcher button.on { background: var(--accent); color: var(--accent-text); }
+#switcher #state { color: #b7c6cf; width: 100%; text-align: center; }
+@media (max-width: 500px) { #switcher { bottom: auto; top: 6px; opacity: .93; } }
+</style>
+<div id="stage"><div id="device"></div></div>
+<div id="switcher"><button id="prev" aria-label="Variante précédente">←</button><b id="label"></b><button id="next" aria-label="Variante suivante">→</button>
+ <button id="dev-phone">Téléphone</button><button id="dev-landscape">Paysage</button><button id="dev-computer">Ordinateur</button><button id="center">Media Center</button><span id="state"></span></div>
+<script>
+const I = {
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>', search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
+  play: '<path d="M8 5l11 7-11 7z" fill="currentColor"/>', pause: '<path d="M8 5v14M16 5v14"/>',
+  rew: '<path d="M11 7l-6 5 6 5M19 7l-6 5 6 5"/>', fwd: '<path d="M13 7l6 5-6 5M5 7l6 5-6 5"/>',
+  full: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  subs: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 13h4M13 13h4M7 16h7"/>',
+  next: '<path d="M6 5l9 7-9 7zM18 5v14"/>', check: '<path d="M5 12l5 5 9-10"/>',
+};
+const ic = n => `<svg viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+const FILMS = ["Nope", "Dune", "Arcane", "The Bear", "Interstellar", "Severance", "Shōgun", "Alien", "Heat", "Drive"].map((title, i) => ({
+  title, hue: i * 37, year: 2014 + (i % 10), length: `${1 + (i % 2)} h ${10 + i * 4}`,
+  syn: "Dans une ferme reculée en Californie, un frère et une sœur dressent des chevaux pour le cinéma, jusqu'au jour où quelque chose apparaît dans le ciel.",
+}));
+const ROWS = [["Reprendre la lecture", [0, 3, 5, 7]], ["Aventure", [1, 4, 6, 8, 2, 9]], ["Ajoutés récemment", [9, 8, 7, 6, 5, 4, 3]]];
+const variants = [["A", "Lecteur fixé en haut"], ["B", "Mini-lecteur en défilant"], ["C", "Lecteur + À suivre à côté"]];
+let variant = new URLSearchParams(location.search).get("variant") || "A";
+let device = "phone", center = false, selected = 0, playing = null, paused = false, position = 0, controls = true;
+let barHidden = false, lastScroll = 0, miniShown = false, fullscreen = false, hideTimer;
+
+const art = f => `background:linear-gradient(135deg,hsl(${f.hue} 40% 34%),hsl(${f.hue + 50} 35% 14%))`;
+const clock = s => `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+function topbar() {
+  return `<header class="topbar ${barHidden ? "hide" : ""}"><button class="iconbtn" aria-label="Navigation">${ic("menu")}</button><h1>Médias</h1>
+   <nav class="tabs"><span class="on">Accueil</span><span>Films</span><span>Séries</span><span>Animés</span><span>Reprendre la lecture</span></nav>
+   <button class="iconbtn" aria-label="Rechercher">${ic("search")}</button><span class="chip">qBittorrent ▾</span></header>`;
+}
+function hero() {
+  const f = FILMS[selected];
+  return `<section class="hero"><div class="art" style="${art(f)}"></div><div class="copy"><div class="eyebrow">DANS VOTRE MÉDIATHÈQUE</div><h2>${f.title}</h2>
+   <div class="meta">${f.year} · ${f.length} · −12 · Science-Fiction</div><p class="syn">${f.syn}</p>
+   <div class="actions"><button class="primary" data-act="play" data-film="${selected}">${ic("play")}Lire</button><button class="secondary">Détails</button></div></div></section>`;
+}
+function screen() {
+  const f = FILMS[playing];
+  return `<div class="screen ${paused ? "paused" : ""}" data-act="tap"><div class="film" data-title="${f.title}"></div>
+   <div class="overlay ${controls ? "" : "off"}">
+    <div class="center-row"><button class="round" data-act="rew" aria-label="Reculer de 10 secondes">${ic("rew")}</button>
+     <button class="round big" data-act="toggle" aria-label="${paused ? "Lecture" : "Pause"}">${ic(paused ? "play" : "pause")}</button>
+     <button class="round" data-act="fwd" aria-label="Avancer de 10 secondes">${ic("fwd")}</button></div>
+    <div class="bottom"><div class="scrub"><i style="width:${(position / 7800 * 100).toFixed(2)}%"></i></div>
+     <div class="tools"><span class="time">${clock(position)} / 2:10:00</span>
+      <button data-act="full" aria-label="Plein écran">${ic("full")}</button><button data-act="stop" aria-label="Fermer le lecteur">${ic("close")}</button></div></div>
+   </div></div>`;
+}
+function watch() {
+  const f = FILMS[playing];
+  const side = variant === "C" && device === "computer";
+  const info = `<div class="info"><h2>${f.title}</h2><div class="meta">${f.year} · ${f.length} · −12 · 1080p · Français 5.1</div>
+    <div class="actions"><button class="secondary">${ic("subs")}Audio et sous-titres</button><button class="secondary" data-act="play" data-film="${(playing + 1) % FILMS.length}">${ic("next")}Suivant</button><button class="secondary">${ic("check")}Marquer comme vu</button></div>
+    <p class="syn">${f.syn}</p></div>`;
+  const upnext = side ? `<aside class="upnext"><h3>À suivre</h3>${[1, 2, 3, 4].map(k => { const g = FILMS[(playing + k) % FILMS.length];
+    return `<button data-act="play" data-film="${(playing + k) % FILMS.length}"><span class="thumb" style="${art(g)}"></span><span><b>${g.title}</b><small>${g.year} · ${g.length}</small></span></button>`; }).join("")}</aside>` : "";
+  // C on a computer: player and details on the left, what comes next on the right; nothing stays pinned.
+  if (side) return `<section class="watch"><div class="watch-grid side"><div>${screen()}${info}</div>${upnext}</div></section>`;
+  // A (and C on a phone): only the picture stays at the top while the rest scrolls. B: everything scrolls.
+  return `<section class="watch ${variant === "B" ? "" : "pinned"}"><div class="watch-grid">${screen()}</div></section>${info}`;
+}
+function rows() {
+  return `<div class="rows">${ROWS.map(([name, ids]) => `<div class="row-title">${name}</div><div class="posters">${ids.map(i =>
+    `<button class="poster ${i === selected && playing === null ? "on" : ""} ${i === playing ? "playing" : ""}" style="${art(FILMS[i])};position:relative" data-act="pick" data-film="${i}">${FILMS[i].title}</button>`).join("")}</div>`).join("")}</div>`;
+}
+function mini() {
+  const f = FILMS[playing];
+  return `<div class="mini"><span class="thumbfilm ${paused ? "paused" : ""}"><span class="film"></span></span>
+   <button class="txt" data-act="totop"><b>${f.title}</b><small class="mini-time">${clock(position)} · ${paused ? "en pause" : "lecture"}</small></button>
+   <button class="plain" data-act="toggle" aria-label="${paused ? "Lecture" : "Pause"}">${ic(paused ? "play" : "pause")}</button>
+   <button class="plain" data-act="stop" aria-label="Fermer le lecteur">${ic("close")}</button></div>`;
+}
+function render(keepScroll = true) {
+  const dev = document.getElementById("device");
+  const old = dev.querySelector(".scroller"), scroll = keepScroll && old ? old.scrollTop : 0;
+  dev.className = `${device === "computer" ? "computer" : "phone"} ${device === "landscape" ? "landscape" : ""} ${center ? "center" : ""}`;
+  const sidebar = device === "computer" && !center ? `<nav class="sidebar"><b>TorrentLinker</b>${["Zen", "Bibliothèque", "Recherche", "Torrents", "Médias", "Activité", "Paramètres"].map(n => `<span class="${n === "Médias" ? "on" : ""}">${n}</span>`).join("")}</nav>` : "";
+  dev.innerHTML = `${sidebar}<div class="app">${topbar()}<div class="scroller">${playing === null ? hero() : watch()}${rows()}</div>
+    ${playing !== null && miniShown ? mini() : ""}${fullscreen && playing !== null ? `<div class="fullscreen">${screen()}</div>` : ""}</div>`;
+  const scroller = dev.querySelector(".scroller");
+  scroller.style.scrollBehavior = "auto"; scroller.scrollTop = scroll; scroller.style.scrollBehavior = "";
+  scroller.addEventListener("scroll", onScroll);
+  // Anything brought into view lands below the pinned picture, not under it.
+  const pinned = scroller.querySelector(".watch.pinned");
+  scroller.style.scrollPaddingTop = `${(pinned ? pinned.offsetHeight : 0) + 64}px`;
+  fit(); status();
+}
+function status() {
+  document.getElementById("label").textContent = `${variant} — ${variants.find(v => v[0] === variant)[1]}`;
+  for (const [id, on] of [["dev-phone", device === "phone"], ["dev-landscape", device === "landscape"], ["dev-computer", device === "computer"], ["center", center]])
+    document.getElementById(id).classList.toggle("on", on);
+  document.getElementById("state").textContent = `${playing === null ? `sélection : ${FILMS[selected].title}` : `${paused ? "pause" : "lecture"} : ${FILMS[playing].title} · ${clock(position)}`}`
+    + ` · barre du haut ${barHidden ? "masquée" : "visible"}${miniShown ? " · mini-lecteur" : ""}${fullscreen ? " · plein écran" : ""}`;
+}
+function fit() {
+  const dev = document.getElementById("device"), stage = document.getElementById("stage");
+  if (innerWidth <= 500) { dev.style.transform = ""; dev.style.width = "100vw"; dev.style.height = "100dvh"; return; }
+  dev.style.width = dev.style.height = "";
+  const scale = Math.min(1, (stage.clientWidth - 20) / dev.offsetWidth, (stage.clientHeight - 20) / dev.offsetHeight);
+  dev.style.transform = `scale(${scale})`;
+}
+function onScroll(event) {
+  const scroller = event.currentTarget, top = scroller.scrollTop;
+  if (scroller !== document.querySelector(".scroller")) return; // a page drawn before the last change
+  let changed = false;
+  // The bar hides while you scroll down and comes back as soon as you scroll up.
+  if (top > lastScroll + 6 && top > 40 && !barHidden) { barHidden = true; changed = true; }
+  else if ((top < lastScroll - 6 || top < 40) && barHidden) { barHidden = false; changed = true; }
+  lastScroll = top;
+  if (variant === "B" && playing !== null) {
+    const screenNode = scroller.querySelector(".watch .screen");
+    const gone = top > 5 && !!screenNode && screenNode.getBoundingClientRect().bottom < scroller.getBoundingClientRect().top + 10;
+    if (gone !== miniShown) { miniShown = gone; render(); return; }
+  }
+  if (changed) { document.querySelector(".topbar").classList.toggle("hide", barHidden); status(); }
+}
+function reveal() { controls = true; clearTimeout(hideTimer); hideTimer = setTimeout(() => { if (!paused) { controls = false; document.querySelectorAll(".overlay").forEach(o => o.classList.add("off")); } }, 3000); }
+const actions = {
+  pick(film) {
+    // Like Netflix: a card selects its film. While a film plays, the card plays the new one instead.
+    if (playing !== null) return actions.play(film);
+    selected = film; const scroller = document.querySelector(".scroller"); render(); document.querySelector(".scroller").scrollTo({top: 0});
+  },
+  play(film) { playing = film; selected = film; paused = false; position = 0; miniShown = false; barHidden = false; lastScroll = 0; reveal(); render(false); },
+  tap() { if (controls && !paused) { controls = false; clearTimeout(hideTimer); document.querySelectorAll(".overlay").forEach(o => o.classList.add("off")); } else { reveal(); document.querySelectorAll(".overlay").forEach(o => o.classList.remove("off")); } },
+  toggle() { paused = !paused; reveal(); render(); },
+  rew() { position = Math.max(0, position - 10); reveal(); render(); },
+  fwd() { position += 10; reveal(); render(); },
+  full() { fullscreen = !fullscreen; reveal(); render(); },
+  stop() { playing = null; fullscreen = false; miniShown = false; barHidden = false; lastScroll = 0; render(false); },
+  totop() { miniShown = false; barHidden = false; lastScroll = 0; render(false); },
+};
+document.getElementById("device").addEventListener("click", event => {
+  const target = event.target.closest("[data-act]");
+  if (!target) return;
+  event.stopPropagation();
+  actions[target.dataset.act](Number(target.dataset.film));
+});
+setInterval(() => {
+  if (playing === null || paused) return;
+  position += 1;
+  document.querySelectorAll(".time").forEach(n => n.textContent = `${clock(position)} / 2:10:00`);
+  document.querySelectorAll(".scrub i").forEach(n => n.style.width = `${(position / 7800 * 100).toFixed(2)}%`);
+  document.querySelectorAll(".mini-time").forEach(n => n.textContent = `${clock(position)} · lecture`);
+  status();
+}, 1000);
+function step(n) {
+  const k = variants.findIndex(v => v[0] === variant);
+  variant = variants[(k + n + variants.length) % variants.length][0]; miniShown = false;
+  const u = new URL(location); u.searchParams.set("variant", variant); history.replaceState(null, "", u); render(false);
+}
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+for (const name of ["phone", "landscape", "computer"]) document.getElementById(`dev-${name}`).onclick = () => { device = name; render(false); };
+document.getElementById("center").onclick = () => { center = !center; render(false); };
+addEventListener("resize", fit);
+if (!variants.some(v => v[0] === variant)) variant = "A";
+if (innerWidth > 900) device = "computer";
+render(false);
+</script>

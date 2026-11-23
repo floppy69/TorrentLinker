@@ -97,22 +97,48 @@ def test_assessment_returning_after_shutdown_does_not_touch_closed_database(tmp_
 
 
 @pytest.mark.parametrize("deleted", [False, True])
-def test_late_provider_ui_callbacks_are_ignored(qtbot, monkeypatch, deleted):
-    from types import SimpleNamespace
+def test_late_provider_ui_callbacks_are_ignored(qtbot, tmp_path, monkeypatch, deleted):
+    import json
 
     from shiboken6 import delete
 
-    from torrentlinker.gui.assistant_connections import AssistantConnections
+    from torrentlinker.agent.desktop import DesktopSetup
+    from torrentlinker.config import Settings
+    from torrentlinker.gui import tasks
+    from torrentlinker.gui.settings_view import SettingsView
+    from torrentlinker.settings_workspace import SettingsWorkspace
+    from torrentlinker.store import Store
 
-    widget = AssistantConnections(lambda: None)
+    setup = DesktopSetup(Settings(), tmp_path / "settings.json", Store(tmp_path / "state.db"))
+    workspace = SettingsWorkspace(setup)
+    view = SettingsView(workspace)
     if not deleted:
-        qtbot.addWidget(widget)
-    widget.service = SimpleNamespace(closed=True)
-    monkeypatch.setattr(
-        "torrentlinker.gui.assistant_connections.QMessageBox.warning",
-        lambda *a: pytest.fail("Late shutdown error opened a dialog"),
+        qtbot.addWidget(view)
+    entered, release = threading.Event(), threading.Event()
+    responses = []
+    view.bridge.response.connect(lambda *args: responses.append(args))
+
+    def late_snapshot():
+        entered.set()
+        assert release.wait(5)
+        raise ValueError("Assistant is shutting down.")
+
+    monkeypatch.setattr(workspace, "snapshot", late_snapshot)
+    view.bridge.requestAsync(
+        9, "snapshot", json.dumps({"_client": setup.settings.active_client_id})
     )
-    if deleted:
-        delete(widget)
-    widget._notify("Late result")
-    widget.error(ValueError("Assistant is shutting down."))
+    try:
+        qtbot.waitUntil(entered.is_set)
+        if deleted:
+            delete(view)
+        else:
+            view.close()
+        release.set()
+        qtbot.waitUntil(lambda: not tasks._alive)
+        if deleted:
+            assert responses == []
+        else:
+            assert len(responses) == 1
+            assert json.loads(responses[0][1])["error"] == "Assistant is shutting down."
+    finally:
+        release.set()

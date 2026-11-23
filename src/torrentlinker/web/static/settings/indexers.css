@@ -1,0 +1,67 @@
+/* The Indexers section: only what the Settings page has no equivalent for. */
+.indexer-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.indexer-head p {
+  margin: 4px 0 0;
+}
+.indexer-card {
+  margin: 12px 0;
+}
+.indexer-card.locked {
+  border-style: dashed;
+}
+.indexer-pace {
+  margin: 8px 0 0;
+}
+.indexer-error {
+  color: var(--danger);
+  margin: 6px 0 0;
+}
+.indexer-tag {
+  display: inline-block;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 7px;
+  margin: 0 6px 4px 0;
+  color: var(--muted);
+}
+.indexer-tag.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.indexer-tag.bad {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.indexer-tag.warn {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+.indexer-import-list {
+  margin-top: 12px;
+}
+.indexer-import-list label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.indexer-import-list small {
+  margin-left: auto;
+}
+.settings-card ~ .settings-card,
+.indexer-card ~ .settings-card {
+  margin-top: 12px;
+}
+#cross-seed-threshold {
+  padding: 0;
+  border: 0;
+  background: none;
+}

@@ -12,28 +12,20 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent, QFile, QItemSelection, QSignalBlocker, Qt, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeyEvent
+from PySide6.QtCore import QEvent, QFile, QSignalBlocker, Qt, QTimer, QTranslator
+from PySide6.QtGui import QAction, QCloseEvent, QKeyEvent
 from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QCheckBox,
-    QComboBox,
     QDialog,
     QFrame,
     QHBoxLayout,
-    QHeaderView,
     QInputDialog,
     QLabel,
-    QLineEdit,
-    QListWidget,
     QMainWindow,
     QMenu,
     QMessageBox,
     QProgressBar,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
-    QStackedWidget,
     QToolBar,
     QToolButton,
     QVBoxLayout,
@@ -55,11 +47,9 @@ from torrentlinker.catalogue import (
 )
 from torrentlinker.catalogue_sync import (
     LISTED_ROOTS,
-    ROOT_FEED,
     ROOT_NAMES,
     SNAPSHOT_NAME,
     TORZNAB_ONLY_CATEGORIES,
-    TORZNAB_ONLY_ROOTS,
     fetch_all,
     fetch_root,
     refresh_catalogue,
@@ -69,41 +59,41 @@ from torrentlinker.catalogue_sync import (
     site_counts,
     sync_catalogue,
 )
+from torrentlinker.catalogue_workspace import catalogue_cards
 from torrentlinker.category_tags import sync_category_tags
-from torrentlinker.config import Settings
+from torrentlinker.config import MEDIA_HORIZON_VIEWS, MEDIA_LAYOUTS, Settings
 from torrentlinker.credentials import get_secret
-from torrentlinker.domain import ContentKind, ItemState, LibraryFolder, TorrentClient
+from torrentlinker.domain import ContentKind, ItemState, LibraryFolder
 from torrentlinker.downloads import IndexerCategory
 from torrentlinker.ebooks import UNLOCK_COUNT, book_categories, book_roots, seeded_ebooks
 from torrentlinker.gui.batch_runner import BatchRunner
 from torrentlinker.gui.catalogue_runner import CatalogueRunner
-from torrentlinker.gui.controls import set_role
 from torrentlinker.gui.documentation import DocumentationTab
 from torrentlinker.gui.ebook_reader import ReadingRoom
 from torrentlinker.gui.errors import error_text
-from torrentlinker.gui.library_model import LibraryFilter, LibraryModel, human_size, state_label
+from torrentlinker.gui.library_model import LibraryModel, human_size
 from torrentlinker.gui.library_workspace import LibraryWorkspace
 from torrentlinker.gui.reseed_consent import ReseedConsent
 from torrentlinker.gui.reseed_dialog import ReseedDialog
 from torrentlinker.gui.review_panel import ReviewPanel, Searcher
-from torrentlinker.gui.search_view import SearchTab
+from torrentlinker.gui.search_workspace import SearchTab
 from torrentlinker.gui.send_runner import SendRunner
-from torrentlinker.gui.settings_dialog import (
-    ANNOUNCE_URL,
+from torrentlinker.gui.settings_common import (
     INDEXER_API_KEY,
     PROXY_PASSWORD,
     TMDB_API_KEY,
-    SettingsDialog,
     choose_directory,
     extra_indexer_keys,
 )
-from torrentlinker.gui.tables import EmptyState, TreeTable, style_tree
+from torrentlinker.gui.settings_view import SettingsPage
+from torrentlinker.gui.shell_host import ShellHost
+from torrentlinker.gui.shell_view import WORKSPACES, ShellView
 from torrentlinker.gui.tasks import run_in_background, run_with_progress
 from torrentlinker.gui.theme import set_theme
 from torrentlinker.gui.torrents_view import TorrentsTab
 from torrentlinker.gui.update_notice import UpdateNotice
-from torrentlinker.gui.upload_view import UploadTab
-from torrentlinker.gui.zen_view import CategoryCard, ZenBand, ZenTab
+from torrentlinker.gui.upload_eligibility import UploadEligibility
+from torrentlinker.gui.zen_view import ZenBand, ZenTab
 from torrentlinker.indexer import Candidate, Indexer
 from torrentlinker.library import (
     LibraryEntry,
@@ -202,6 +192,7 @@ class MainWindow(QMainWindow):
 
         toolbar = QToolBar(self.tr("Library"), self)
         toolbar.setMovable(False)
+        toolbar.hide()
         self.add_folder_action = QAction(self.tr("Add folder…"), self)
         self.add_folder_action.triggered.connect(self.add_library_folder)
         self.scan_action = QAction(self.tr("Scan"), self)
@@ -247,6 +238,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.cancel_action)
         match_toolbar = QToolBar(self.tr("Matches"), self)
         match_toolbar.setMovable(False)
+        match_toolbar.hide()
         match_toolbar.addAction(self.check_all_action)
         match_toolbar.addAction(self.reseed_all_action)
         manage_action = QAction(self.tr("Open in Torrents"), self)
@@ -277,50 +269,6 @@ class MainWindow(QMainWindow):
         self.countdown.timeout.connect(self._show_batch_progress)
 
         self.library_model = LibraryModel()
-        self.library_proxy = LibraryFilter()
-        self.library_proxy.setSourceModel(self.library_model)
-        self.library_view = TreeTable()
-        self.library_view.setModel(self.library_proxy)
-        style_tree(self.library_view)
-        self.library_view.setAccessibleName(self.tr("Library"))
-        self.library_empty = EmptyState(
-            self.library_view,
-            self.tr("No Local Items to show. Adjust the filters or scan your Library Folders."),
-        )
-        self.library_view.setSortingEnabled(True)
-        self.library_view.sortByColumn(0, Qt.SortOrder.AscendingOrder)
-        self.library_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.library_view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        header = self.library_view.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
-        header.resizeSection(3, 160)
-        self.library_view.selectionModel().selectionChanged.connect(self._selection_changed)
-
-        self.library_search = QLineEdit()
-        self.library_search.setPlaceholderText(self.tr("Filter Local Items…"))
-        self.library_search.setAccessibleName(self.tr("Filter Local Items"))
-        self.library_search.setClearButtonEnabled(True)
-        self.library_search.textChanged.connect(self._apply_filters)
-        filters = QHBoxLayout()
-        self.state_filter = QComboBox()
-        self.state_filter.addItem(self.tr("All states"), None)
-        for state in ItemState:
-            self.state_filter.addItem(state_label(state), state)
-        self.folder_filter = QComboBox()
-        self.state_filter.currentIndexChanged.connect(self._apply_filters)
-        self.folder_filter.currentIndexChanged.connect(self._apply_filters)
-        filters.addWidget(self.library_search, 2)
-        filters.addWidget(self.state_filter)
-        filters.addWidget(self.folder_filter, 1)
-        library_pane = QWidget()
-        library_layout = QVBoxLayout(library_pane)
-        library_layout.setContentsMargins(0, 0, 0, 0)
-        library_layout.addLayout(filters)
-        library_layout.addWidget(self.library_view)
-        self._fill_folder_filter()
-
         self.reseed_consent = ReseedConsent(self, lambda: self.settings.client.display_name)
         self.review = ReviewPanel(
             store,
@@ -332,9 +280,7 @@ class MainWindow(QMainWindow):
             approve_disk_renames=self.reseed_consent.approve,
         )
         self.review.compatible_categories = lambda kind: self.settings.categories(kind)
-        self.review.repair_supported = lambda: self.settings.client is TorrentClient.QBITTORRENT
         self.review.reseed_started.connect(self._reseed_started)
-        self.review.unpacked.connect(lambda _folder: self.scan())  # show the new folder
         self.review.candidates_checked.connect(self._show_match_zen)
         self.zen_tab = ZenTab(self.seeding_loader, lambda: self.settings.zen, settings.uploads)
         from torrentlinker.gui.community_view import CommunityView
@@ -344,68 +290,46 @@ class MainWindow(QMainWindow):
         )
         self.zen_tab.pages.addTab(self.community_view, self.tr("Community"))
         self.zen_tab.profile_view.language = self.settings.language
+        self.zen_tab.catalogue.language = self.settings.language
         self.zen_tab.profile_view.refresh_requested.connect(self.refresh_profile)
         self.zen_tab.profile_view.refresh_requested.connect(self.refresh_torrent_clients)
-        self.companion_panel = None  # only while Settings is open
         self.profile_timer = QTimer(self)
         self.profile_timer.setInterval(3000)
         self.profile_timer.timeout.connect(self._poll_account_profile)
+        self._profile_held = False
         self.profile_timer.start()
         self.show_account_profile()
-        self.zen_tab.comparison.uploads_changed.connect(self._uploads_changed)
-        self.zen_tab.defer_while_hidden(
-            lambda: self.isVisible() and not self.zen_tab.seeding_view.table.isVisible()
-        )
+        self.zen_tab.seeding_view.uploads_changed.connect(self._uploads_changed)
+        self.zen_tab.seeding_view.language = self.settings.language
+        self.zen_tab.seeding_view.client = lambda: self.settings.active_client_id
+        self.zen_tab.seeding_view.scope = str(self.settings_path.resolve())
         from torrentlinker.gui.workspace_tabs import WorkspaceTabs
 
         self.tabs = WorkspaceTabs()
         self.tabs.addTab(self.zen_tab, self.tr("Zen"))
-        self.library_workspace = LibraryWorkspace(self, library_pane, toolbar, match_toolbar)
+        self.library_workspace = LibraryWorkspace(self, toolbar, match_toolbar)
+        self.review.recovery_requested.connect(self.library_workspace.reseed.open_recovery)
         self.tabs.addTab(self.library_workspace, self.tr("Library"))
-        self.upload_tab = UploadTab(
-            store,
-            self.indexer,
-            self.qbit,
-            lambda: self.settings.matching.ignore,
-            lambda: get_secret(ANNOUNCE_URL),
-            store.torrent_dir.parent / "uploads",
-            approve_disk_renames=self.reseed_consent.approve,
-        )
+        self.upload_tab = UploadEligibility(self)
         self.review.candidates_checked.connect(self.upload_tab.remember)
         self.review.upload_blocker = self.upload_tab.why_not
         self.review.upload_requested.connect(self._open_upload)
-        self.upload_tab.upload_started.connect(self._reseed_started)
-        self.upload_tab.unpacked.connect(lambda _folder: self.scan())  # show the new folder
         from torrentlinker.gui.upload_workspace import UploadBoard
 
         self.upload_workspace = UploadBoard(self)
-        self.upload_tab.hide()
         self.tabs.addTab(self.upload_workspace, self.tr("Upload"))
-        self.search_tab = SearchTab(store, settings, self.indexer, self.qbit)
+        self.search_tab = SearchTab(self)
         self.tabs.addTab(self.search_tab, self.tr("Search"))
         from torrentlinker.gui.feeds import FeedsTab
 
-        self.feeds_tab = FeedsTab(lambda: self.assistant_service().agent.feed_control)
+        self.feeds_tab = FeedsTab(lambda: self.assistant_service().agent.feed_control, self)
         self.tabs.addTab(self.feeds_tab, self.tr("RSS"))
         self.search_tab.subscribe_requested.connect(lambda query: self.feeds_tab.edit(query=query))
-        self.torrents_tab = TorrentsTab(self.qbit)
-        from torrentlinker.gui.client_overview import ClientOverview
+        self.torrents_tab = TorrentsTab(self)
+        self.tabs.addTab(self.torrents_tab, self.tr("Torrents"))
+        from torrentlinker.gui.assistant_view import AssistantPanel
 
-        self.client_overview = ClientOverview(settings, store)
-        torrents_page = QWidget()
-        torrents_layout = QVBoxLayout(torrents_page)
-        torrents_layout.setContentsMargins(0, 0, 0, 0)
-        self.all_clients = QCheckBox(self.tr("All clients"))
-        torrents_layout.addWidget(self.all_clients)
-        self.torrent_stack = QStackedWidget()
-        self.torrent_stack.addWidget(self.torrents_tab)
-        self.torrent_stack.addWidget(self.client_overview)
-        torrents_layout.addWidget(self.torrent_stack)
-        self.all_clients.toggled.connect(self._show_all_clients)
-        self.tabs.addTab(torrents_page, self.tr("Torrents"))
-        from torrentlinker.gui.assistant import AssistantTab
-
-        self.assistant_tab = AssistantTab(self.assistant_service)
+        self.assistant_tab = AssistantPanel(self.assistant_service)
         self.assistant_tab.connectionsRequested.connect(self.open_assistant_connections)
         self.tabs.addTab(self.assistant_tab, self.tr("Assistant"))
         from torrentlinker.gui.media import MediaTab
@@ -416,19 +340,22 @@ class MainWindow(QMainWindow):
             self.add_library_folder,
         )
         self.media_tab.set_media_layout(settings.media_layout)
+        self.media_tab.set_media_horizon(settings.media_horizon)
         self.media_tab.set_adult(settings.adult_content)
         self.media_tab.refresh_on_first_open = True
         self.media_tab.layout_changed.connect(self._save_media_layout)
+        self.media_tab.horizon_changed.connect(self._save_media_horizon)
         self.media_tab.center_mode_requested.connect(self.set_media_center)
+        self.media_tab.client_requested.connect(self._media_client_requested)
         self.media_tab.video_playing_changed.connect(self._video_playing_changed)
         self.media_tab.connections_requested.connect(self.open_assistant_connections)
+        self.media_tab.discussion_requested.connect(self.open_media_discussion)
         self.tabs.addTab(self.media_tab, self.tr("Media"))
         self.search_tab.manage_requested.connect(self.open_torrents)
-        self.band = ZenBand()
+        self.band = ZenBand(language=settings.language)
         self.band.refresh_requested.connect(self.refresh_profile)
         self.zen_tab.seeding_view.updated.connect(self.band.set_seeding)
         self.zen_tab.seeding_view.updated.connect(self.search_tab.set_seeding)
-        self.zen_tab.seeding_view.updated.connect(self.torrents_tab.set_seeding)
         self.zen_tab.seeding_view.updated.connect(self.library_model.set_seeding)
         self.zen_tab.seeding_view.unavailable.connect(lambda: self.library_model.set_seeding(None))
         self.zen_tab.seeding_view.updated.connect(self._update_reading_room)
@@ -437,114 +364,32 @@ class MainWindow(QMainWindow):
         self._reader_view: Seeding | None = None
         self._reader_unlocked = False
         self.tabs.tabBar().hide()
-        self.navigation = QListWidget()
-        self.navigation.setObjectName("navigation")
-        self.navigation.setAccessibleName(self.tr("Workspaces"))
-        self.navigation.addItems(
-            [
-                self.tr("Zen"),
-                self.tr("Library"),
-                self.tr("Upload"),
-                self.tr("Search"),
-                self.tr("RSS"),
-                self.tr("Torrents"),
-                self.tr("Assistant"),
-                self.tr("Media"),
-            ]
-        )
-        self.navigation.setCurrentRow(0)
-        self.navigation.currentRowChanged.connect(self.tabs.setCurrentIndex)
-        self.navigation.itemClicked.connect(
-            lambda item: self.tabs.setCurrentIndex(self.navigation.row(item))
-        )
-        self.tabs.currentChanged.connect(self._sync_navigation)
-        sidebar = QFrame()
-        self.sidebar = sidebar
-        sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(190)
-        side = QVBoxLayout(sidebar)
-        side.setContentsMargins(16, 24, 16, 16)
-        brand_row = QHBoxLayout()
-        brand_row.setSpacing(8)
-        logo = QLabel()
-        logo.setObjectName("brandLogo")
-        logo.setFixedSize(28, 28)
-        logo.setPixmap(QIcon(str(Path(__file__).parents[1] / "assets" / "icon.png")).pixmap(28, 28))
-        brand_row.addWidget(logo)
-        brand = QLabel("TorrentLinker")
-        brand.setProperty("role", "brand")
-        brand.setStyleSheet("font-size: 14px;")
-        brand_row.addWidget(brand, 1)
-        side.addLayout(brand_row)
-        side.addSpacing(24)
-        side.addWidget(self.navigation, 1)
-        self.reader_button = QPushButton(self.tr("Reading room"))
-        set_role(self.reader_button, "quiet")
-        self.reader_button.setCheckable(True)
-        self.reader_button.setObjectName("readingRoomButton")
-        self.reader_button.hide()
-        self.reader_button.clicked.connect(self._open_reading_room)
-        side.addWidget(self.reader_button)
+        self.aggregate_clients = False
+        self.setup_needed = False
         self.documentation_tab: DocumentationTab | None = None
-        self.documentation_button = QPushButton(self.tr("Documentation"))
-        set_role(self.documentation_button, "quiet")
-        self.documentation_button.setCheckable(True)
-        self.documentation_button.clicked.connect(self._open_documentation)
-        side.addWidget(self.documentation_button)
-        settings_button = QPushButton(self.tr("Settings"))
-        set_role(settings_button, "quiet")
-        settings_button.clicked.connect(self.open_settings)
-        side.addWidget(settings_button)
+        self.shell_host = ShellHost(self)
+        self.navigation = ShellView("navigation", self.shell_host.snapshot, self.shell_host.command)
+        self.sidebar = self.navigation
+        self.sidebar.setFixedWidth(190)
+        self.tabs.currentChanged.connect(self._sync_navigation)
+        self.band.profile_notice_changed.connect(lambda _: self.shell_host.refresh())
         central = QWidget()
         shell = QHBoxLayout(central)
         shell.setContentsMargins(0, 0, 0, 0)
         shell.setSpacing(0)
-        shell.addWidget(sidebar)
+        shell.addWidget(self.sidebar)
+        self.shell_layout = shell
         content = QWidget()
         central_layout = QVBoxLayout(content)
         self.content_layout = central_layout
         central_layout.setContentsMargins(24, 20, 24, 12)
         central_layout.setSpacing(16)
-        self.app_header = QWidget()
-        header_layout = QVBoxLayout(self.app_header)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(16)
+        self.app_header = ShellView("header", self.shell_host.snapshot, self.shell_host.command)
         central_layout.addWidget(self.app_header)
-        self.page_title = QLabel()
-        self.page_title.setProperty("role", "heading")
-        self.page_description = QLabel()
-        self.page_description.setProperty("role", "muted")
-        self.page_description.setWordWrap(True)
-        self.client_selector = QComboBox()
-        self.client_selector.setAccessibleName(self.tr("Target client"))
-        for profile in settings.client_profiles:
-            if profile.enabled:
-                self.client_selector.addItem(profile.name, profile.id)
-        self.client_selector.setCurrentIndex(
-            self.client_selector.findData(settings.active_client_id)
-        )
-        self.client_selector.currentIndexChanged.connect(self._select_client)
-        title_row = QHBoxLayout()
-        title_row.addWidget(self.page_title, 1)
-        title_row.addWidget(QLabel(self.tr("Target client")))
-        title_row.addWidget(self.client_selector)
-        clients_button = QPushButton(self.tr("Clients…"))
-        clients_button.clicked.connect(self.open_client_profiles)
-        title_row.addWidget(clients_button)
-        header_layout.addLayout(title_row)
-        header_layout.addWidget(self.page_description)
-        self.update_notice = UpdateNotice()
-        header_layout.addWidget(self.update_notice)
-        self.setup_notice = QLabel(
-            self.tr('Add your Indexer API key to get started. <a href="settings">Open settings</a>')
-        )
-        self.setup_notice.setWordWrap(True)
-        self.setup_notice.linkActivated.connect(lambda _link: self.open_settings())
-        self.setup_notice.hide()
-        header_layout.addWidget(self.setup_notice)
-        header_layout.addWidget(self.band.message)
+        self.update_notice = UpdateNotice(language=settings.language)
+        central_layout.addWidget(self.update_notice)
         self.statusBar().addWidget(self.batch_status, 1)
-        self.statusBar().addPermanentWidget(self.band)
+        self.statusBar().addPermanentWidget(self.band, 3)
         # A wide workspace must not impose its minimum size on the desktop window.
         # Keep navigation and the status band visible; scroll only the workspace.
         self.workspace_scroll = QScrollArea()
@@ -554,6 +399,7 @@ class MainWindow(QMainWindow):
         central_layout.addWidget(self.workspace_scroll, 1)
         shell.addWidget(content, 1)
         self.tabs.currentChanged.connect(self._workspace_changed)
+        self.tabs.currentChanged.connect(self._settings_navigation)
         self._workspace_changed(0)
         self.setCentralWidget(central)
         self.media_center_active = False
@@ -577,18 +423,17 @@ class MainWindow(QMainWindow):
         self._plan_destinations = {settings.active_client_id: 0}
         self.zen_tab.plan_view.client_names = {p.id: p.name for p in settings.client_profiles}
         self.zen_tab.plan_view.client_names[""] = settings.profile().name
-        self.plan_targets_button = QPushButton(self.tr("Plan destinations…"))
-        self.plan_targets_button.clicked.connect(self._choose_plan_clients)
-        plan_layout = self.zen_tab.plan_view.layout()
-        assert isinstance(plan_layout, QVBoxLayout)
-        plan_layout.insertWidget(0, self.plan_targets_button)
+        from torrentlinker.gui.plan_host import PlanHost
+
+        self.plan_host = PlanHost(self)
+        self.zen_tab.plan_view.language = settings.language
         self.zen_tab.plan_view.make_requested.connect(self.make_plan)
         self.zen_tab.plan_view.categories_changed.connect(self._plan_categories_changed)
         self.zen_tab.plan_view.set_options(self.settings.plan_options)
         self.zen_tab.plan_view.options_changed.connect(self._plan_options_changed)
         self.zen_tab.plan_view.stop_fetch_requested.connect(self._stop_plan_fetch)
         self.offer_plan_categories()
-        self.zen_tab.plan_view.send_requested.connect(self.confirm_send)
+        self.zen_tab.plan_view.send_requested.connect(self.send_plan)
         self.zen_tab.plan_view.stop_send_requested.connect(self.stop_sending)
         self.zen_tab.plan_view.speed_test_requested.connect(self.test_speed)
         self.zen_tab.plan_view.set_speed(settings.download_speed, settings.download_speed_tested)
@@ -610,6 +455,7 @@ class MainWindow(QMainWindow):
         self.zen_tab.catalogue.start_requested.connect(lambda: self.crawl_catalogue())
         self.zen_tab.catalogue.category_requested.connect(self.crawl_catalogue)
         self.zen_tab.catalogue.pause_requested.connect(self.pause_catalogue)
+        self.zen_tab.catalogue.plan_requested.connect(self._catalogue_plan_now)
         self._show_catalogue_age()
         self.verify_timer = QTimer(self)
         self.verify_timer.setInterval(3000)
@@ -618,6 +464,12 @@ class MainWindow(QMainWindow):
         self.seeding_timer.setInterval(30_000)
         self.seeding_timer.timeout.connect(self._refresh_seeding_quietly)
         self._seeding_held = False
+        self._settings_page: SettingsPage | None = None  # while Settings is open
+        self._settings_stack: ExitStack | None = None
+        self._settings_timers: list[QTimer] = []
+        self._settings_folders: list = []
+        self._settings_return = 0
+        self._settings_from_media_center = False
         # Checks often, fetches only once the whole Catalogue is REFRESH_INTERVAL old.
         self.catalogue_refresh_timer = QTimer(self)
         self.catalogue_refresh_timer.setInterval(10 * 60_000)
@@ -654,53 +506,6 @@ class MainWindow(QMainWindow):
     def open_agent_access(self) -> None:
         self.open_settings(agents=True)
 
-    def agent_access_widget(self, parent=None):
-        try:
-            from PySide6.QtWidgets import QApplication
-
-            from torrentlinker.agent.desktop import DesktopServer
-            from torrentlinker.gui.agent_access import AgentAccess
-
-            if self.agent_runtime is None:
-                self.agent_runtime = DesktopServer(
-                    self.settings, self.settings_path, self.store, workspace=self.account_workspace
-                )
-                app = QApplication.instance()
-                if app is not None:
-                    app.aboutToQuit.connect(self.agent_runtime.close)
-            self.agent_runtime.start()
-            stack = getattr(self, "_settings_stack", None)
-            if stack is not None and not self.agent_runtime.settings_edit_depth:
-                stack.enter_context(self.agent_runtime.editing_settings())
-            return AgentAccess(self.agent_runtime.service, self.agent_runtime.url, parent)
-        except Exception as error:
-            from torrentlinker.torrent_management import safe_error
-
-            port = self.agent_runtime.port if self.agent_runtime else 8790
-            detail = (
-                self.agent_runtime.setup.secrets.redact(str(error))
-                if self.agent_runtime
-                else safe_error(error)
-            ) or type(error).__name__
-            log.error("Agent access startup failed (%s): %s", type(error).__name__, detail)
-            if self.agent_runtime is not None and self.agent_runtime.app is None:
-                self.agent_runtime.close()
-                self.agent_runtime = None
-            if isinstance(error, OSError) and (
-                error.errno == errno.EADDRINUSE or getattr(error, "winerror", None) == 10048
-            ):
-                message = self.tr(
-                    "Cannot start the local MCP server on port {0}. Check whether another "
-                    "TorrentLinker instance or another application is using it."
-                ).format(port)
-            else:
-                message = self.tr("Cannot open Agent access. See torrentlinker.log for details.")
-            QMessageBox.warning(
-                self,
-                self.tr("Agent access"),
-                message + "\n" + detail,
-            )
-
     def start_saved_agent_access(self) -> None:
         if not (self.settings_path.parent / "agents.sqlite").exists():
             return
@@ -726,7 +531,8 @@ class MainWindow(QMainWindow):
         return bool(self.settings.indexer.url.strip() and get_secret(INDEXER_API_KEY).strip())
 
     def _await_setup(self) -> None:
-        self.setup_notice.show()
+        self.setup_needed = True
+        self.shell_host.refresh()
         self.tabs.setEnabled(True)
         for index in range(self.tabs.count()):
             self.tabs.setTabEnabled(index, self.tabs.widget(index) is self.media_tab)
@@ -760,7 +566,8 @@ class MainWindow(QMainWindow):
         self._startup_complete = True
         if (self.settings_path.parent / "feeds.sqlite").exists():
             QTimer.singleShot(0, self.assistant_service)
-        self.setup_notice.hide()
+        self.setup_needed = False
+        self.shell_host.refresh()
         self.tabs.setEnabled(True)
         for index in range(self.tabs.count()):
             self.tabs.setTabEnabled(index, True)
@@ -769,7 +576,7 @@ class MainWindow(QMainWindow):
         self.seeding_timer.start()
         self.catalogue_refresh_timer.start()
         QTimer.singleShot(0, self.check_verifications)
-        QTimer.singleShot(0, self.zen_tab.seeding_view.refresh)
+        QTimer.singleShot(0, self.zen_tab.seeding_view.reload)
         QTimer.singleShot(0, self.refresh_profile)
         QTimer.singleShot(0, self.upload_tab.refresh_drafts)
         QTimer.singleShot(0, lambda: self.refresh_categories(then=self.update_catalogue))
@@ -784,11 +591,6 @@ class MainWindow(QMainWindow):
             lambda error: log.debug("release check unavailable: %s", error),
         )
 
-    def _show_all_clients(self, checked: bool) -> None:
-        self.torrent_stack.setCurrentIndex(int(checked))
-        if checked:
-            self.client_overview.refresh()
-
     def open_torrents(self, hash: str = "") -> None:
         self.tabs.setCurrentIndex(self.tabs.indexOf(self.feeds_tab) + 1)
         self.torrents_tab.focus_torrent(hash)
@@ -799,35 +601,20 @@ class MainWindow(QMainWindow):
             and self.tabs.widget(index) is not self.media_tab
         ):
             self.set_media_center(False)
+        self._sync_app_header()
         self._sync_workspace_scrolling()
         self.workspace_scroll.horizontalScrollBar().setValue(0)
         if self.tabs.widget(index) is self.zen_tab:  # opening on the Catalogue page
             self._zen_page_changed(self.zen_tab.pages.currentIndex())
         self.workspace_scroll.verticalScrollBar().setValue(0)
-        self.page_title.setText(self.tabs.tabText(index))
-        descriptions = [
-            self.tr("Track your earnings and plan what to seed next."),
-            self.tr("Find Orphans, compare Candidates and Reseed your files."),
-            self.tr("Prepare an Upload, then review and publish its Draft on c411."),
-            self.tr("Search torrents and queue the ones you want to download."),
-            self.tr("Review RSS releases and manage subscription rules."),
-            self.tr("Manage downloads and seeds in your Torrent Client."),
-            self.tr("Discuss tasks, review proposals and schedule automations."),
-            self.tr("Play videos and music from your Library Folders."),
-            self.tr("Ten thousand books kept alive. Take a moment to read one."),
-        ]
-        if 0 <= index < len(descriptions):
-            self.page_description.setText(descriptions[index])
-        zen = index < self.navigation.count() and index not in {5, 6, 7}
+        if self.tabs.widget(index) is not self.torrents_tab:
+            self.aggregate_clients = False
+        zen = index < len(WORKSPACES) and index not in {5, 6, 7}
         self.band.setVisible(zen)
-        self.band.message.setVisible(zen and bool(self.band.message.text()))
-        self.page_title.setVisible(index < self.navigation.count())
-        self.page_description.setVisible(
-            index < self.navigation.count() and self.tabs.currentWidget() is not self.media_tab
-        )
+        self.shell_host.refresh()
         policy = (
             QSizePolicy.Policy.Ignored
-            if index >= self.navigation.count() or index in {5, 6, 7}
+            if index >= len(WORKSPACES) or index in {5, 6, 7}
             else QSizePolicy.Policy.Preferred
         )
         self.tabs.setSizePolicy(policy, policy)
@@ -838,21 +625,25 @@ class MainWindow(QMainWindow):
         if self.reading_room is not None and self.tabs.currentWidget() is self.reading_room:
             self.reading_room.activate()
 
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if not hasattr(self, "shell_layout"):
+            return
+        compact = self.width() < 650
+        self.shell_layout.setDirection(
+            QHBoxLayout.Direction.TopToBottom if compact else QHBoxLayout.Direction.LeftToRight
+        )
+        if compact:
+            self.sidebar.setMinimumWidth(0)
+            self.sidebar.setMaximumWidth(16777215)
+        else:
+            self.sidebar.setFixedWidth(190)
+            self.sidebar.setMinimumHeight(0)
+            self.sidebar.setMaximumHeight(16777215)
+        self.shell_host.refresh()
+
     def _sync_navigation(self, index: int) -> None:
-        with QSignalBlocker(self.navigation):
-            if index < self.navigation.count():
-                self.navigation.setCurrentRow(index)
-            else:
-                # Keep the current row so Qt doesn't select row zero on focus
-                # and unexpectedly navigate away from the reading room.
-                self.navigation.clearSelection()
-        current = self.tabs.currentWidget()
-        self.reader_button.setChecked(
-            self.reading_room is not None and current is self.reading_room
-        )
-        self.documentation_button.setChecked(
-            self.documentation_tab is not None and current is self.documentation_tab
-        )
+        self.shell_host.refresh()
 
     def _update_reading_room(self, view: Seeding) -> None:
         if seeded_ebooks(view) < UNLOCK_COUNT:
@@ -860,7 +651,7 @@ class MainWindow(QMainWindow):
             return
         self._reader_unlocked = True
         self._reader_view = view
-        self.reader_button.show()
+        self.shell_host.refresh()
         if self.reading_room is not None:
             self.reading_room.set_roots(
                 book_roots(self.settings, view), book_categories(self.settings, view)
@@ -869,7 +660,7 @@ class MainWindow(QMainWindow):
     def _lock_reading_room(self) -> None:
         self._reader_unlocked = False
         self._reader_view = None
-        self.reader_button.hide()
+        self.shell_host.refresh()
         if self.reading_room is not None:
             index = self.tabs.indexOf(self.reading_room)
             if index >= 0:
@@ -902,7 +693,7 @@ class MainWindow(QMainWindow):
 
     def _focus_search(self) -> None:
         if self.tabs.currentWidget() is self.assistant_tab:
-            self.assistant_tab.prompt.setFocus()
+            self.assistant_tab.focus_composer()
             return
         if self.reading_room is not None and self.tabs.currentWidget() is self.reading_room:
             self.reading_room.filter.setFocus()
@@ -911,8 +702,7 @@ class MainWindow(QMainWindow):
             self.search_tab.focus_search()
             return
         self.tabs.setCurrentIndex(1)
-        self.library_search.setFocus()
-        self.library_search.selectAll()
+        self.library_workspace.reseed.focus_search()
 
     def apply_proxy(self) -> None:
         """Make every connection from now on go through the proxy set in Settings."""
@@ -978,8 +768,6 @@ class MainWindow(QMainWindow):
             self._avatar_token = state.get("avatar")
             image = self.account_workspace.avatar()
             self.zen_tab.profile_view.show_avatar(image[0] if image else None)
-        if self.companion_panel is not None:
-            self.companion_panel.show_state(state)
         if state["paired"] and self.companion_receiver is None:
             if time.monotonic() >= self._receiver_retry_at:
                 self._receiver_retry_at = time.monotonic() + 30
@@ -994,6 +782,11 @@ class MainWindow(QMainWindow):
                     )
 
     def _poll_account_profile(self) -> None:
+        """The 3-second Profile poll. Its keyring read and view refresh take 40 to 85 ms on
+        the GUI thread, a dropped frame each time, so it waits for a video to stop."""
+        if self.media_tab.video_playing:
+            self._profile_held = True
+            return
         self.show_account_profile()
         if time.time() >= self.account_workspace.state()["refresh_after"]:
             self.refresh_profile()
@@ -1069,36 +862,18 @@ class MainWindow(QMainWindow):
             self.account_workspace.remember_receiver(self.companion_receiver.server.server_port)
             address = self.companion_receiver.address
             account_id = self.account_workspace.state()["api"]["account_id"]
-            if self.companion_panel is not None:
-                self.companion_panel.show_pairing()
             QDesktopServices.openUrl(QUrl(connection_url(address, pairing["code"], account_id)))
         except (ValueError, OSError) as error:
             QMessageBox.warning(self, self.tr("Browser companion"), str(error))
-
-    def companion_panel_widget(self, parent=None):
-        from torrentlinker.gui.companion_panel import CompanionPanel
-
-        panel = self.companion_panel = CompanionPanel(parent)
-        panel.pair_requested.connect(self.pair_companion)
-        panel.disconnect_requested.connect(self.disconnect_companion)
-        panel.extension_requested.connect(self.save_companion_extension)
-        panel.session_downloads_toggled.connect(self.set_session_downloads)
-        panel.destroyed.connect(lambda: setattr(self, "companion_panel", None))
-        panel.show_state(self.account_workspace.state())
-        return panel
 
     def set_session_downloads(self, enabled: bool) -> None:
         try:
             self.account_workspace.set_session_downloads(enabled)
         except ValueError as error:
             QMessageBox.warning(self, self.tr("Browser companion"), str(error))
-        if self.companion_panel is not None:
-            self.companion_panel.show_state(self.account_workspace.state())
 
     def disconnect_companion(self) -> None:
         self.account_workspace.disconnect()
-        if self.companion_panel is not None:
-            self.companion_panel.pairing_box.hide()
         if self.companion_receiver is not None:
             self.companion_receiver.stop()
             self.companion_receiver = None
@@ -1131,10 +906,9 @@ class MainWindow(QMainWindow):
         self.band.show_profile(profile)
         filled = profile.apply(self.settings.zen)
         if filled != self.settings.zen:
-            self.settings.zen = filled
-            self.settings.save(self.settings_path)
+            self._update_settings(zen=filled)
             log.info("Zen Profile filled from c411: %s", filled)
-            self.zen_tab.seeding_view.refresh()
+            self.zen_tab.seeding_view.reload()
 
     def _profile_failed(self, error: Exception) -> None:
         self._profile_refreshing = False
@@ -1327,6 +1101,7 @@ class MainWindow(QMainWindow):
         self.settings.plan_categories = sorted(chosen) if chosen is not None else None
         self.settings.save(self.settings_path)
         self.offer_plan_categories()
+        self._plan_options_changed(self.settings.plan_options)
 
     def ensure_download_folder(self, cid: int) -> bool:
         """Whether the Plan can draw from `cid`; asks for its Download Folder if needed."""
@@ -1386,16 +1161,6 @@ class MainWindow(QMainWindow):
         self.store.clear_plan()
         self.zen_tab.plan_view.invalidate()
         self.band.set_plan(None)
-
-    def _choose_plan_clients(self) -> None:
-        from torrentlinker.gui.plan_clients import PlanClientsDialog
-
-        dialog = PlanClientsDialog(self.settings, self._plan_destinations, self)
-        if dialog.exec() and dialog.selected():
-            self._plan_destinations = dialog.selected()
-            names = [self.settings.profile(i).name for i in self._plan_destinations]
-            self.plan_targets_button.setText(self.tr("Plan destinations: ") + ", ".join(names))
-            self.zen_tab.plan_view.invalidate()
 
     def plan_maker(self) -> Callable[[], Plan]:
         """Build on the GUI thread the work that makes a Plan (no Indexer request)."""
@@ -1514,63 +1279,28 @@ class MainWindow(QMainWindow):
                     "Cached torrents remain usable for this Plan."
                 )
             )
-        if notices:
-            self.zen_tab.plan_view.catalogue_notice.setText("\n".join(notices))
-            self.zen_tab.plan_view.catalogue_notice.show()
         if plan.items:
-            notice = self.zen_tab.plan_view.catalogue_notice
             notices.append(
                 self.tr(
                     "Provisional estimates from cached metadata. Seeder counts update from "
                     "your torrent client after tracker responses."
                 )
             )
-            notice.setText("\n".join(notices))
-            notice.show()
+        self.zen_tab.plan_view.set_notice("\n".join(notices))
         self.band.set_plan(plan.zen_added if plan.items else None)
 
     def confirm_send(self) -> None:
-        """Summary before sending, with the choice to refresh the Catalogue first."""
-        plan = self.zen_tab.plan_view.plan
-        if plan is None or not plan.items:
-            return
-        payback = plan.payback_days
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Question)
-        box.setWindowTitle(self.tr("Send the Plan to your torrent client"))
-        box.setText(
-            self.tr(
-                "{0} torrents · {1} Go to download · ≈ +{2} Zen/day · paid back in ≈ {3} "
-                "days.\nCatalogue: {4}.\n\nEach .torrent is downloaded directly from c411 "
-                "with your key and added to its Download Folder. A torrent whose files "
-                "already exist there is refused."
-            ).format(
-                len(plan.items),
-                f"{plan.download_size / 1e9:.1f}",
-                f"{plan.zen_added:.2f}",
-                f"{payback:.0f}" if payback is not None else "–",
-                self.catalogue_age(),
-            )
-            + "\n\n"
-            + self.zen_tab.plan_view.times.text()
-        )
-        send = box.addButton(self.tr("Send"), QMessageBox.ButtonRole.AcceptRole)
-        refresh = box.addButton(self.tr("Refresh first"), QMessageBox.ButtonRole.ActionRole)
-        box.addButton(QMessageBox.StandardButton.Cancel)
-        box.exec()
-        if box.clickedButton() is send:
-            self.send_plan(plan)
-        elif box.clickedButton() is refresh:
-            self.make_plan(then=self.confirm_send)  # fetches the Plan's categories first
+        self.zen_tab.plan_view.open_review()
 
     def test_speed(self) -> None:
         self.zen_tab.plan_view.speed_testing()
         run_in_background(measure_download_speed, self._speed_measured, self._speed_failed)
 
     def _speed_measured(self, speed: float) -> None:
-        self.settings.download_speed = speed
-        self.settings.download_speed_tested = datetime.now().isoformat(timespec="minutes")
-        self.settings.save(self.settings_path)
+        self._update_settings(
+            download_speed=speed,
+            download_speed_tested=datetime.now().isoformat(timespec="minutes"),
+        )
         log.info("Download speed tested: %.0f Mbit/s", speed * 8 / 1e6)
         view = self.zen_tab.plan_view
         view.set_speed(speed, self.settings.download_speed_tested)
@@ -1589,6 +1319,7 @@ class MainWindow(QMainWindow):
         self.zen_tab.pages.setCurrentIndex(2)
         if self.send_runner is not None:
             return
+        self._sending_plan: Plan | None = plan
         qbit, indexer, reseeder = self.qbit(), self.indexer(), self.plan_reseeder()
 
         def fetch(c: PlanCandidate) -> bytes:
@@ -1651,7 +1382,7 @@ class MainWindow(QMainWindow):
 
     def _send_progress(self, progress: SendProgress) -> None:
         self.zen_tab.plan_view.sending(progress)
-        plan = self.zen_tab.plan_view.plan
+        plan = getattr(self, "_sending_plan", None) or self.zen_tab.plan_view.plan
         self.band.set_sending(progress, plan.zen_added if plan and plan.items else None)
 
     def _send_ended(self) -> None:
@@ -1662,6 +1393,7 @@ class MainWindow(QMainWindow):
 
     def _send_failed(self, error: Exception) -> None:
         self._send_ended()
+        self._sending_plan = None
         if not self.show_saved_plan():
             self.zen_tab.plan_view.show_plan(Plan())
         self.zen_tab.plan_view.failed(error)
@@ -1687,7 +1419,7 @@ class MainWindow(QMainWindow):
             if interrupted
             else self.tr("Saved Plan: {0} torrents left to send.")
         )
-        view.summary.setText(view.summary.text() + "\n" + left.format(len(plan.items)))
+        view.set_notice(left.format(len(plan.items)))
         self.band.set_plan(plan.zen_added)
         return True
 
@@ -1712,8 +1444,8 @@ class MainWindow(QMainWindow):
         return reseed
 
     def _plan_sent(self, report: SendReport) -> None:
+        self._sending_plan = None
         self._send_ended()
-        total = len(self.zen_tab.plan_view.plan.items) if self.zen_tab.plan_view.plan else 0
         log.info(
             "Plan sent: %d added, %d Reseeds, %d refused, %d failed%s",
             len(report.added),
@@ -1724,30 +1456,8 @@ class MainWindow(QMainWindow):
         )
         if not self.show_saved_plan():
             self.zen_tab.plan_view.show_plan(Plan())
-        lines = [self.tr("{0} torrents added to your torrent client.").format(len(report.added))]
-        if report.reseeded:
-            lines.append(self.tr("{0} Reseeds started.").format(len(report.reseeded)))
-        if report.stopped:
-            lines.append(
-                self.tr(
-                    "Stopped after {0} of {1} torrents. The rest of the Plan is saved: "
-                    "send it again to continue, even after restarting the app."
-                ).format(report.handled, total)
-            )
-        problems = [self.tr("Refused: {0} ({1})").format(t, why) for t, why in report.refused]
-        problems += [self.tr("Failed: {0} ({1})").format(t, why) for t, why in report.failed]
-        box = QMessageBox(
-            QMessageBox.Icon.Information, self.tr("Plan sent"), "\n".join(lines), parent=self
-        )
-        if problems:
-            box.setInformativeText(
-                self.tr("{0} refused, {1} failed: see the details.").format(
-                    len(report.refused), len(report.failed)
-                )
-            )
-            box.setDetailedText("\n".join(problems))
-        box.exec()
-        self.zen_tab.seeding_view.refresh()
+        self.zen_tab.plan_view.show_report(report)
+        self.zen_tab.seeding_view.reload()
         if report.reseeded:
             self.check_verifications()  # shows them as Verifying… and keeps polling
 
@@ -1768,9 +1478,8 @@ class MainWindow(QMainWindow):
         def done(categories: dict[int, IndexerCategory]) -> None:
             if categories and categories != self.settings.indexer_categories:
                 log.info("Indexer categories updated: %d", len(categories))
-                self.settings.indexer_categories = categories
+                self._update_settings(indexer_categories=categories)
                 self.search_tab.refresh_categories()
-                self.settings.save(self.settings_path)
                 self.offer_plan_categories()
             if then is not None:
                 then()
@@ -1820,12 +1529,15 @@ class MainWindow(QMainWindow):
         if self.media_tab.video_playing:
             self._seeding_held = True
             return
-        self.zen_tab.seeding_view.refresh(quiet=True)
+        self.zen_tab.seeding_view.reload(quiet=True)
 
     def _video_playing_changed(self, playing: bool) -> None:
         if not playing and self._seeding_held:
             self._seeding_held = False
             self._refresh_seeding_quietly()
+        if not playing and self._profile_held:
+            self._profile_held = False
+            self._poll_account_profile()
 
     def refresh_whole_catalogue(self) -> bool:
         """Every few hours, the newest torrents of every category (timer). Waits for any
@@ -1883,7 +1595,9 @@ class MainWindow(QMainWindow):
                     position=lambda done, total: position.__setitem__(slice(None), [done, total]),
                 ):
                     return
-            wanted = crawl_categories(categories)
+            wanted = (
+                sorted(root_categories(root)) if root is not None else crawl_categories(categories)
+            )
             if indexer.is_c411:  # XXX: only c411's Torznab search returns it
                 wanted = [c for c in wanted if c in TORZNAB_ONLY_CATEGORIES]
             for i, category in enumerate(wanted, 1):
@@ -1907,6 +1621,12 @@ class MainWindow(QMainWindow):
         self.zen_tab.catalogue.set_state(True, False)
         self._run_catalogue(work)
         self._show_catalogue_cards()
+
+    def _catalogue_plan_now(self) -> None:
+        self.zen_tab.pages.setCurrentIndex(2)
+        self.make_plan()
+        if self._pending_plan is not None:
+            self._stop_plan_fetch()
 
     def pause_catalogue(self) -> None:
         if self.catalogue_runner is not None:
@@ -2061,70 +1781,16 @@ class MainWindow(QMainWindow):
     def _show_catalogue_cards(self) -> None:
         """One card per c411 category: the Catalogue's count against the site's."""
         self._cards_drawn = time.monotonic()
-        known, unknown = self.store.catalogue_root_counts()
-        owner: dict[int, int] = {}
-        for root in ROOT_NAMES:
-            for category in root_categories(root):
-                owner.setdefault(category, root)  # shared ids: the first category
-        ours = dict(known)
-        for category, count in unknown.items():
-            if (holder := owner.get(category)) is not None:
-                ours[holder] = ours.get(holder, 0) + count
         current = self._fetching_root()
-        roots = [*LISTED_ROOTS, *TORZNAB_ONLY_ROOTS]
-        order = {root: i for i, root in enumerate(LISTED_ROOTS)}
-        cards = []
-        for root in roots:
-            if root in TORZNAB_ONLY_ROOTS and not self.settings.adult_content:
-                continue
-            feed = self.store.feed_state(f"{ROOT_FEED}{root}")
-            count = ours.get(root, 0)
-            site = None if root in TORZNAB_ONLY_ROOTS else (feed.count or None)
-            if site is None and root in TORZNAB_ONLY_ROOTS:
-                state, note = "cache", self.tr("From searches and the first import")
-            elif root == current:
-                state = self._card_phase
-                note = {
-                    "year": self.tr("Reading year by year"),
-                    "prune": self.tr("Checking torrents c411 no longer lists"),
-                }.get(state, self.tr("Reading every page"))
-            else:
-                waiting = (
-                    current is not None
-                    and self._single_root is None
-                    and order.get(root, -1) > order.get(current, -1)
-                )
-                state = (
-                    "waiting"
-                    if waiting
-                    else "paused"
-                    if feed.started_at is not None
-                    else "done"
-                    if feed.updated_at is not None
-                    else "never"
-                )
-                gap = count - site if site else 0
-                note = (
-                    self.tr("Not compared with c411 yet")
-                    if not site
-                    else self.tr("At parity with c411")
-                    if gap == 0
-                    else self.tr("{0} more than c411: fetch it to remove deleted ones").format(gap)
-                    if gap > 0
-                    else self.tr("{0} missing from the Catalogue").format(-gap)
-                )
-            cards.append(
-                CategoryCard(
-                    root,
-                    ROOT_NAMES.get(root, str(root)),
-                    count,
-                    site,
-                    state,
-                    note,
-                    fetchable=root not in TORZNAB_ONLY_ROOTS,
-                )
+        self.zen_tab.catalogue.set_cards(
+            catalogue_cards(
+                self.store,
+                adult=self.settings.adult_content,
+                current=current,
+                phase=self._card_phase,
+                single_root=self._single_root,
             )
-        self.zen_tab.catalogue.set_cards(cards)
+        )
         if current is not None:
             done, total = self._crawl_position
             self.zen_tab.catalogue.set_phase(
@@ -2142,8 +1808,8 @@ class MainWindow(QMainWindow):
             )
 
     def _sync_workspace_scrolling(self) -> None:
-        community = self.zen_tab.pages.currentWidget() is self.community_view
-        self.zen_tab.setProperty("ownsScrolling", community)
+        page = self.zen_tab.pages.currentWidget()
+        self.zen_tab.setProperty("ownsScrolling", bool(page.property("ownsScrolling")))
         owns_scroll = bool(self.tabs.currentWidget().property("ownsScrolling"))
         policy = QSizePolicy.Policy.Ignored if owns_scroll else QSizePolicy.Policy.Preferred
         self.tabs.setSizePolicy(policy, policy)
@@ -2255,9 +1921,23 @@ class MainWindow(QMainWindow):
         return work
 
     def _uploads_changed(self, uploads: int) -> None:
-        self.settings.uploads = uploads
         if self.settings_path.exists():
-            self.settings.save(self.settings_path)
+            self._update_settings(uploads=uploads)
+        else:
+            self.settings.uploads = uploads
+
+    def _update_settings(self, **fields: object) -> None:
+        """Record what a background task learned. Settings may be open meanwhile: it edits
+        its own copy and saves it as the owner goes, so both copies take the new values and
+        the newest one is written. Without this, closing Settings dropped the update, and
+        the update had overwritten what Settings had just saved."""
+        targets = [self.settings]
+        if self._settings_page is not None:
+            targets.append(self._settings_page.setup.settings)
+        for target in targets:
+            for name, value in fields.items():
+                setattr(target, name, value)
+        targets[-1].save(self.settings_path)
 
     def default_query(self, entry: LibraryEntry) -> str:
         kind = entry.folder.kind
@@ -2324,8 +2004,12 @@ class MainWindow(QMainWindow):
         return True
 
     @agent_settings_change
-    def save_reseed_folder(self, path: str) -> bool:
+    def save_reseed_folder(self, path: str, layout: str | None = None) -> bool:
+        if layout is not None and layout not in {"auto", "client", "links"}:
+            raise ValueError("Unknown Reseed layout.")
         self.settings.profile().reseed_link_root = path
+        if layout is not None:
+            self.settings.profile().reseed_layout = layout
         self.settings.save(self.settings_path)
         if self.agent_runtime:
             self.agent_runtime.reset(self.settings)
@@ -2342,8 +2026,26 @@ class MainWindow(QMainWindow):
             raise
         if self.agent_runtime:
             self.agent_runtime.reset(self.settings)
-        self.client_selector.addItem(profile.name, profile.id)
+        self.shell_host.refresh()
         return True
+
+    def _media_client_requested(self, identifier: str) -> None:
+        # The same switch as the page header's, which Media hides.
+        try:
+            self.shell_host.command("client", {"client_id": identifier})
+        except ValueError as error:
+            self.media_tab._set_notice(str(error))
+
+    def _sync_app_header(self) -> None:
+        # Media has its own menu: the page header and the space above it would only take
+        # room from the films.
+        center = getattr(self, "media_center_active", False)
+        media = self.tabs.currentWidget() is self.media_tab
+        self.app_header.setVisible(not center and not media)
+        self.content_layout.setContentsMargins(
+            *((0, 0, 0, 0) if center else (24, 0 if media else 20, 24, 12))
+        )
+        self.content_layout.setSpacing(0 if center else 16)
 
     def set_media_center(self, enabled: bool) -> None:
         if enabled == self.media_center_active:
@@ -2356,10 +2058,8 @@ class MainWindow(QMainWindow):
         self.media_center_active = enabled
         self.media_tab.set_center_mode(enabled)
         self.sidebar.setVisible(not enabled)
-        self.app_header.setVisible(not enabled)
+        self._sync_app_header()
         self.statusBar().setVisible(not enabled and self._media_status_visible)
-        self.content_layout.setContentsMargins(*((0, 0, 0, 0) if enabled else (24, 20, 24, 12)))
-        self.content_layout.setSpacing(0 if enabled else 16)
         if enabled:
             self.showFullScreen()
         else:
@@ -2382,14 +2082,19 @@ class MainWindow(QMainWindow):
         else:
             super().keyPressEvent(event)
 
+    def _save_media_horizon(self, value: str) -> None:
+        if value not in MEDIA_HORIZON_VIEWS:
+            return
+        self.settings.media_horizon = value
+        self.settings.save(self.settings_path)
+
     def _save_media_layout(self, value: str) -> None:
-        if value not in ("cinematic", "focus", "collection"):
+        if value not in MEDIA_LAYOUTS:
             return
         self.settings.media_layout = value
         self.settings.save(self.settings_path)
 
-    def _select_client(self) -> None:
-        identifier = self.client_selector.currentData()
+    def _select_client(self, identifier: str) -> None:
         if identifier == self.settings.active_client_id:
             return
         from PySide6.QtCore import QThreadPool
@@ -2397,16 +2102,46 @@ class MainWindow(QMainWindow):
         if QThreadPool.globalInstance().activeThreadCount() or (
             self.agent_runtime and self.agent_runtime.busy()
         ):
-            self.client_selector.blockSignals(True)
-            self.client_selector.setCurrentIndex(
-                self.client_selector.findData(self.settings.active_client_id)
-            )
-            self.client_selector.blockSignals(False)
+            self.shell_host.refresh()
             self.statusBar().showMessage(
                 self.tr("Wait for the current operation before changing client."), 5000
             )
             return
         self._replace_workspace(self.settings.for_client(identifier))
+
+    @agent_settings_change
+    def _change_language(self, language: str) -> None:
+        """Translate existing views without replacing their unsaved interaction state."""
+        import json
+
+        from PySide6.QtWidgets import QApplication
+
+        from torrentlinker.gui.community_view import BundledView
+
+        self.settings.language = language
+        self.settings.save(self.settings_path)
+        if self.agent_runtime is not None:
+            self.agent_runtime.setup.settings.language = language
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            for translator in app.findChildren(QTranslator):
+                app.removeTranslator(translator)
+            self._language_translators = i18n.install(app, i18n.pick_language(language))
+        for view in self.findChildren(BundledView):
+            view.language = i18n.pick_language(language)
+            environment = json.loads(view.bridge.environment_value or "{}")
+            environment["language"] = view.language
+            view.bridge.environment_value = json.dumps(environment)
+            view.bridge.ready()
+        for index, label in enumerate(
+            ("Zen", "Library", "Upload", "Search", "RSS", "Torrents", "Assistant", "Media")
+        ):
+            self.tabs.setTabText(index, self.tr(label))
+        for index, label in enumerate(("Profile", "Seeding", "Plan", "Catalogue")):
+            self.zen_tab.pages.setTabText(index, self.zen_tab.tr(label))
+        self.zen_tab.pages.setTabText(4, self.tr("Community"))
+        self.band.set_catalogue(self.catalogue_age())
+        self.shell_host.refresh()
 
     @agent_settings_change
     def _replace_workspace(self, settings: Settings) -> None:
@@ -2417,6 +2152,7 @@ class MainWindow(QMainWindow):
         settings.save(self.settings_path)
         self.verify_timer.stop()
         tab_title = self.tabs.tabText(self.tabs.currentIndex())
+        tab_key = self.shell_host.page()
         replacement = MainWindow(settings, self.settings_path, self.store)
         replacement.agent_runtime = self.agent_runtime
         if replacement.agent_runtime:
@@ -2429,14 +2165,25 @@ class MainWindow(QMainWindow):
             with QSignalBlocker(self.tabs):
                 self.tabs.removeTab(self.tabs.indexOf(self.media_tab))
             self.media_tab.layout_changed.disconnect(self._save_media_layout)
+            self.media_tab.horizon_changed.disconnect(self._save_media_horizon)
             self.media_tab.center_mode_requested.disconnect(self.set_media_center)
+            self.media_tab.client_requested.disconnect(self._media_client_requested)
             self.media_tab.video_playing_changed.disconnect(self._video_playing_changed)
+            self.media_tab.connections_requested.disconnect(self.open_assistant_connections)
+            self.media_tab.discussion_requested.disconnect(self.open_media_discussion)
             replacement.media_tab = self.media_tab
             replacement.media_tab.layout_changed.connect(replacement._save_media_layout)
+            replacement.media_tab.horizon_changed.connect(replacement._save_media_horizon)
             replacement.media_tab.center_mode_requested.connect(replacement.set_media_center)
+            replacement.media_tab.client_requested.connect(replacement._media_client_requested)
             replacement.media_tab.video_playing_changed.connect(replacement._video_playing_changed)
+            replacement.media_tab.connections_requested.connect(
+                replacement.open_assistant_connections
+            )
+            replacement.media_tab.discussion_requested.connect(replacement.open_media_discussion)
             replacement.media_tab.set_center_mode(False)
             replacement.media_tab.set_media_layout(settings.media_layout)
+            replacement.media_tab.set_media_horizon(settings.media_horizon)
             replacement.media_tab.set_adult(settings.adult_content)
             replacement.tabs.insertTab(media_index, self.media_tab, self.tr("Media"))
         else:
@@ -2458,7 +2205,9 @@ class MainWindow(QMainWindow):
             ),
             0,
         )
-        replacement.tabs.setCurrentIndex(replacement_index)
+        replacement.tabs.setCurrentIndex(
+            WORKSPACES.index(tab_key) if tab_key in WORKSPACES else replacement_index
+        )
         replacement.show()
         from PySide6.QtWidgets import QApplication
 
@@ -2471,32 +2220,106 @@ class MainWindow(QMainWindow):
 
     @agent_settings_change
     def open_client_profiles(self) -> None:
-        if self.agent_runtime and self.agent_runtime.busy():
-            self.statusBar().showMessage(self.tr("Wait for agent jobs before changing settings."))
-            return
         from PySide6.QtCore import QThreadPool
 
-        if QThreadPool.globalInstance().activeThreadCount():
-            self.statusBar().showMessage(
-                self.tr("Wait for the current operation before changing client."), 5000
-            )
+        # Said in a box: running updates redraw the status bar, which hid these refusals.
+        if self.agent_runtime and self.agent_runtime.busy():
+            message = self.tr("Wait for agent jobs before changing settings.")
+        elif QThreadPool.globalInstance().activeThreadCount():
+            # Clients are replaced, not edited: work in progress still uses the current one.
+            message = self.tr("Wait for the current operation before changing client.")
+        else:
+            message = ""
+        if message:
+            QMessageBox.information(self, self.tr("Settings"), message)
             return
-        from torrentlinker.gui.client_profiles import ClientProfilesDialog
+        self.open_settings(section="clients")
 
-        if ClientProfilesDialog(self.settings, self.store, self).exec():
-            self._replace_workspace(self.settings)
+    def open_media_discussion(self, identifier: str) -> None:
+        self.media_tab.close_chat()
+        self.tabs.setCurrentWidget(self.assistant_tab)
+        self.assistant_tab.select_conversation(identifier)
 
     def open_assistant_connections(self) -> None:
         self.open_settings(assistant=True)
 
-    @agent_settings_change
-    def open_settings(self, *, assistant: bool = False, agents: bool = False) -> None:
-        with ExitStack() as stack:
-            self._settings_stack: ExitStack | None = stack
-            try:
-                self._edit_settings(assistant=assistant, agents=agents)
-            finally:
-                self._settings_stack = None
+    def open_settings(
+        self, *, assistant: bool = False, agents: bool = False, section: str = "connections"
+    ) -> None:
+        """Settings is a page of this window; leaving it applies what was saved."""
+        section = "assistant" if assistant else "agents" if agents else section
+        if self._settings_page is not None:
+            self._settings_page.show_section(section)
+            self.tabs.setCurrentWidget(self._settings_page)
+            return
+        # Agents may not submit work while the settings they run under are being edited.
+        stack = ExitStack()
+        runtime = self.agent_runtime
+        try:
+            if runtime is not None and runtime.app is not None:
+                runtime.sync(self.settings)
+                stack.enter_context(runtime.editing_settings())
+        except ValueError as error:
+            stack.close()
+            self.shell_host.refresh()
+            QMessageBox.information(self, self.tr("Settings"), self.tr(str(error)))
+            return
+        self._settings_stack = stack
+        self._settings_folders = list(self.settings.library_folders)
+        # Settings saves each group immediately. Keep periodic desktop workers
+        # from writing an older Settings snapshot while the page is open.
+        self._settings_timers = [
+            timer
+            for timer in self.findChildren(QTimer)
+            if timer.parent() is self and timer.isActive()
+        ]
+        for timer in self._settings_timers:
+            timer.stop()
+        self._settings_return = self.tabs.currentIndex()
+        # Media Center hides the sidebar Settings needs; coming back to Media restores it.
+        self._settings_from_media_center = self.media_center_active
+        page = SettingsPage(self, section=section)
+        self._settings_page = page
+        self.tabs.addTab(page, self.tr("Settings"))
+        self.tabs.setCurrentWidget(page)
+        self.shell_host.refresh()
+
+    def close_settings(self) -> None:
+        """Back to the page Settings was opened from."""
+        page = self._settings_page
+        if page is None:
+            return
+        index = self._settings_return
+        if self.tabs.widget(index) in (None, page) or not self.tabs.isTabEnabled(index):
+            index = self.tabs.indexOf(self.media_tab)
+        self.tabs.setCurrentIndex(index)
+
+    def _settings_navigation(self, index: int) -> None:
+        page = getattr(self, "_settings_page", None)  # pages are added before it exists
+        if page is not None and self.tabs.widget(index) is not page:
+            self._leave_settings()
+
+    def _leave_settings(self) -> None:
+        page = self._settings_page
+        if page is None or self.tabs.currentWidget() is page:
+            return  # the owner came back
+        if page.view.pending:
+            # A save is on its way: apply once it has landed.
+            QTimer.singleShot(100, self._leave_settings)
+            return
+        self._settings_page = None
+        self.tabs.removeTab(self.tabs.indexOf(page))
+        page.view.close()
+        page.deleteLater()
+        for timer in self._settings_timers:
+            timer.start()
+        self._settings_timers = []
+        stack, self._settings_stack = self._settings_stack, None
+        if stack is not None:
+            stack.close()
+        if self._settings_from_media_center and self.tabs.currentWidget() is self.media_tab:
+            self.set_media_center(True)
+        self._settings_applied(page, self._settings_folders)
 
     def _export_diagnostics(self, parent: QWidget) -> None:
         from torrentlinker.diagnostics import build_report
@@ -2505,22 +2328,15 @@ class MainWindow(QMainWindow):
         jobs = self.agent_runtime.service.jobs if self.agent_runtime else None
         export_report(parent, lambda: build_report(self.settings, self.store, jobs))
 
-    def _edit_settings(self, *, assistant: bool, agents: bool) -> None:
-        if self.agent_runtime and self.agent_runtime.busy():
-            self.statusBar().showMessage(self.tr("Wait for agent jobs before changing settings."))
+    def _settings_applied(self, page: SettingsPage, folders: list) -> None:
+        accepted = page.saved
+        if accepted and page.setup.settings.active_client_id != self.settings.active_client_id:
+            self._replace_workspace(page.setup.settings)
             return
-        folders = list(self.settings.library_folders)
-        dialog = SettingsDialog(self.settings, self)
-        dialog.diagnostics_requested.connect(lambda: self._export_diagnostics(dialog))
-        dialog.folder_editor.set_scan_errors(
-            self.library_workspace.scan_errors, self.library_workspace.scanned
-        )
-        if assistant:
-            dialog.show_assistant_connections()
-        if agents:
-            dialog.show_agent_access()
-        accepted = dialog.exec()
-        for identifier in dialog.agent_approvals:
+        if accepted:
+            # Keep the Settings object used by existing workspaces authoritative.
+            self.settings.__dict__.update(page.setup.settings.__dict__)
+        for identifier in page.agent_approvals:
             # Run only after the settings transaction has released its suspension.
             # execute() still checks the reviewed proposal's settings fingerprint.
             QTimer.singleShot(
@@ -2531,12 +2347,14 @@ class MainWindow(QMainWindow):
             if chat is not None and chat.service:
                 chat.refresh()
         if accepted:
+            self._plan_options_changed(self.settings.plan_options)
+            self.zen_tab.plan_view.set_speed(
+                self.settings.download_speed, self.settings.download_speed_tested
+            )
             self._lock_reading_room()
             self.torrents_tab.reset_connection()
             self.settings.capture_client()
-            self.client_selector.setItemText(
-                self.client_selector.currentIndex(), self.settings.profile().name
-            )
+            self.shell_host.refresh()
             self.settings.save(self.settings_path)
             if self.agent_runtime:
                 self.agent_runtime.reset(self.settings)
@@ -2544,6 +2362,7 @@ class MainWindow(QMainWindow):
             self.apply_proxy()
             set_theme(self.settings.theme)
             self.media_tab.set_media_layout(self.settings.media_layout)
+            self.media_tab.set_media_horizon(self.settings.media_horizon)
             self.media_tab.set_adult(self.settings.adult_content)
             self.search_tab.refresh_categories()
             self.offer_plan_categories()
@@ -2559,11 +2378,11 @@ class MainWindow(QMainWindow):
             if not self._startup_complete:
                 self._start_services()
             else:
-                self.zen_tab.seeding_view.refresh()
+                self.zen_tab.seeding_view.reload()
                 if self.settings.library_folders != folders:
                     self.scan()  # a new folder, depth or Content Kind changes every entry
         else:
-            log.info("settings dialog cancelled")
+            log.info("settings left without changes")
 
     def _execute_agent_approval(self, identifier: str) -> None:
         if self.agent_runtime is None:
@@ -2576,44 +2395,14 @@ class MainWindow(QMainWindow):
         )
 
     def _fill_folder_filter(self) -> None:
-        current = self.folder_filter.currentData()
-        self.folder_filter.blockSignals(True)
-        self.folder_filter.clear()
-        self.folder_filter.addItem(self.tr("All Library Folders"), None)
-        for f in self.settings.library_folders:
-            self.folder_filter.addItem(str(f.path), f.path)
-        index = self.folder_filter.findData(current)
-        self.folder_filter.setCurrentIndex(max(index, 0))
-        self.folder_filter.blockSignals(False)
-        self._apply_filters()
         if hasattr(self, "library_workspace"):
             self.library_workspace.refresh()
-            self.library_workspace.reseed.refresh()
-
-    def _apply_filters(self) -> None:
-        state = self.state_filter.currentData()  # Qt hands enum data back as plain str
-        self.library_proxy.set_filters(
-            ItemState(state) if state else None,
-            self.folder_filter.currentData(),
-            self.library_search.text(),
-        )
 
     def selected_entries(self) -> list[LibraryEntry]:
-        rows = self.library_view.selectionModel().selectedRows()
-        return [self.library_proxy.data(r, Qt.ItemDataRole.UserRole) for r in rows]
-
-    def _selection_changed(self, selected: QItemSelection, _deselected: QItemSelection) -> None:
-        current = self.library_view.currentIndex()
-        chosen = self.selected_entries()
-        entry = None
-        if current.isValid() and self.library_view.selectionModel().isRowSelected(
-            current.row(), current.parent()
-        ):
-            entry = self.library_proxy.data(current.siblingAtColumn(0), Qt.ItemDataRole.UserRole)
-        elif chosen:
-            entry = chosen[0]
-        if self.review.entry is not entry:
-            self.review.set_entry(entry)
+        board = self.library_workspace.reseed
+        library = board.service().library
+        paths = {row["path"] for row in library.rows()}
+        return [library.entry(path) for path in board.selected_paths if path in paths]
 
     # Batch search ----------------------------------------------------------
 
@@ -3031,16 +2820,11 @@ class MainWindow(QMainWindow):
     def _searches_restored(
         self, restored: list[tuple[LibraryEntry, list[CheckedCandidate]]]
     ) -> None:
-        # Sort once afterwards, not per status and Zen update.
-        self.library_proxy.setDynamicSortFilter(False)
-        try:
-            with self.upload_tab.defer_refresh():
-                for entry, checked in restored:
-                    if self.library_model.contains(entry):
-                        self.review.remember(entry, checked)
-                        self.library_model.set_status(entry.item.path, self._summary(checked))
-        finally:
-            self.library_proxy.setDynamicSortFilter(True)
+        with self.upload_tab.defer_refresh():
+            for entry, checked in restored:
+                if self.library_model.contains(entry):
+                    self.review.remember(entry, checked)
+                    self.library_model.set_status(entry.item.path, self._summary(checked))
 
     def _restore_failed(self, error: Exception) -> None:
         log.warning("could not restore previous searches: %s", error)

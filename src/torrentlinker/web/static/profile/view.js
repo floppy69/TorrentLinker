@@ -1208,10 +1208,11 @@ TLPanel.connect("profile").then((request) => {
     try {
       await request(path, body);
     } catch (error) {
-      $("profile-notice").textContent = error.message;
+      TLToast.error(error);
     }
   };
-  $("profile-refresh").onclick = () => run("refresh");
+  $("profile-refresh").onclick = (event) =>
+    TLToast.press(event.currentTarget, () => request("refresh"));
   for (const button of $("profile-period").querySelectorAll("button"))
     button.onclick = () => run("period", { days: Number(button.dataset.days) });
   window.profileReady();

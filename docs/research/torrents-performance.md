@@ -1,5 +1,10 @@
 # Native Torrents performance baseline
 
+Historical measurement of the retired native table. The current shared panel is
+measured in [the November 20 report](shared-torrents-performance.md). The benchmark
+command now runs that panel; check out the dated baseline revision to reproduce the
+native table measurements below.
+
 Recorded on 2026-10-31 for [#49](https://github.com/Vietnoirien/TorrentLinker/issues/49).
 The baseline is `f1cbef1`; the follow-up is the implementation committed with this report.
 [Raw measurements](torrents-performance-2026-10-31.json) retain all three refresh samples.

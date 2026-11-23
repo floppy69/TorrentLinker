@@ -374,3 +374,23 @@ def test_client_submission_cannot_be_reported_as_cancelled(tmp_path):
         assert result["status"] == "completed", result
         assert result["result"]["status"] == "verifying"
         assert client.rechecked == [candidate.infohash]
+
+
+def test_archive_status_follows_real_verification_without_starting_it(tmp_path):
+    from dataclasses import replace
+
+    from torrentlinker.reseed import check_verifications
+
+    with archive_app(tmp_path) as (browser, archive, _, candidate, client, setup):
+        body = {"path": str(archive), "candidate_key": candidate.infohash}
+        preview = run_job(browser, {"kind": "preview-unpack", **body})["result"]
+        run_job(browser, {"kind": "unpack-reseed", **body, "confirmation": preview["token"]})
+        status = {"kind": "refresh-unpack", "hashes": [candidate.infohash]}
+        assert run_job(browser, status)["result"]["status"] == "verifying"
+        assert not client.started
+        client.by_hash[candidate.infohash] = replace(
+            client.by_hash[candidate.infohash], state="stoppedUP", progress=1
+        )
+        check_verifications(client, setup.store)
+        assert run_job(browser, status)["result"]["status"] == "seeding"
+        assert client.started == [candidate.infohash]

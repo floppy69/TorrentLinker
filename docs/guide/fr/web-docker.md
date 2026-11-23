@@ -47,7 +47,7 @@ L'image démarre toujours avec l'UID/GID 1000 par défaut. Les déploiements exi
 La prise en charge de PUID/PGID au démarrage est disponible à partir de **1.0.0-beta.21**. Choisissez cette version ou le tag `beta` ; l'ancienne image stable `latest` ne la contient pas. Pour utiliser un compte du NAS, activez explicitement l'initialisation :
 
 ```bash
-TL_IMAGE_TAG=1.0.0-beta.43 PUID=1001 PGID=100 docker compose \
+TL_IMAGE_TAG=1.0.0-beta.48 PUID=1001 PGID=100 docker compose \
   -f compose.yaml -f deploy/compose.identity.yaml up -d --pull always
 ```
 
@@ -192,3 +192,26 @@ Une fois l’assistant terminé, **Torrents** affiche le client connecté. Filtr
 ![Configuration du stockage dans le navigateur](../images/web/storage-fr.png)
 
 **Documentation**, au-dessus des **Paramètres**, ouvre ces mêmes guides sans quitter l’interface. Choisissez un guide dans le sélecteur ; la flèche revient au guide précédent. Le sélecteur de langue de la barre latérale change aussi la langue des guides. Le lien **GitHub** ouvre leur version en ligne.
+
+### Membres facultatifs
+
+Les membres sont désactivés par défaut. Définissez `TL_WEB_MEMBERS=on` ou passez `--members on` pour activer les comptes personnels, invitations, écrans partagés et demandes. Redémarrez le serveur après modification.
+
+Lorsque les membres sont désactivés, le mot de passe du serveur ou un proxy de confiance connecte toujours le propriétaire. Les en-têtes d'identité du proxy sont ignorés, y compris ceux d'Authelia ou Authentik. Les routes des membres répondent 404 et leurs commandes sont masquées. La désactivation révoque les liens d'invitation et de mot de passe, les sessions des membres et les jetons des écrans partagés. Les comptes et leur historique sont conservés, mais une nouvelle connexion est nécessaire après réactivation.
+
+### Utiliser les membres
+
+Le propriétaire ouvre **Paramètres → Utilisateurs** pour créer un membre, choisir ses permissions (fonctions, dossiers de la bibliothèque, types de contenu, contenu adulte, faire ou accepter des demandes, gérer les membres) et envoyer un lien d’invitation. Un membre se connecte avec son nom et son mot de passe, ne voit que ce que ses permissions autorisent, et gère son mot de passe, ses spectateurs et ses codes PIN dans **Mon compte**.
+
+- **Spectateurs et écrans partagés.** Un spectateur regarde sous un compte sans se connecter, avec sa propre progression et ses listes de lecture. Un navigateur marqué comme écran partagé demande qui regarde ; un spectateur moins restreint demande un code PIN.
+- **Classifications d’âge.** Les films et séries ont un âge minimum (Tous publics, −10, −12, −16, −18). La limite d’âge d’un membre masque ce qui la dépasse, et les titres sans classification sous toute limite.
+- **Demandes et souhaits.** Un membre demande une release du tracker depuis Médias ou Recherche. Un approbateur (le propriétaire, ou un membre autorisé) l’accepte et elle part aussitôt vers le client torrent, ou la refuse avec une note. Un souhait réclame un titre sans release ; un approbateur peut l’associer plus tard à une release.
+- **Assistant des membres.** Chaque membre a un assistant privé, avec des plafonds quotidiens fixés par le propriétaire.
+
+### Notifications des membres
+
+Lorsque les membres sont activés, Notifications affiche les événements de votre compte et un compteur de notifications non lues. Les approbateurs reçoivent les nouvelles demandes et les souhaits ; les demandeurs reçoivent les décisions et les annonces de disponibilité. Le propriétaire reçoit aussi les événements d’invitation, d’écran partagé, de blocage de connexion et de marge de téléchargement configurée.
+
+Dans Paramètres → Notifications, le propriétaire active les e-mails SMTP et les notifications du navigateur, définit les choix par défaut et renseigne l’adresse publique de l’application. Le préréglage OVHcloud MX Plan utilise `ssl0.ovh.net`, le port 465 et SSL/TLS. L’identifiant est l’adresse e-mail complète. Chaque compte choisit ensuite ses préférences. Les e-mails et notifications du navigateur sont désactivés au départ ; les notifications dans l’application restent disponibles. Les e-mails contiennent le titre, l’état et le lien vers l’application. Les notes de refus restent dans l’application.
+
+Les notifications du navigateur nécessitent HTTPS et une autorisation dans ce navigateur. La déconnexion supprime son abonnement. Un envoi échoué est retenté jusqu’à cinq tentatives. Les identifiants SMTP et les clés du navigateur utilisent le stockage des secrets configuré. Les liens d’invitation et de mot de passe peuvent aussi être envoyés depuis Utilisateurs après configuration SMTP.

@@ -1,0 +1,206 @@
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+button,
+select {
+  font: inherit;
+  color: inherit;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 0;
+}
+button {
+  cursor: pointer;
+}
+button:hover {
+  background: var(--raised);
+}
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+[hidden] {
+  display: none !important;
+}
+#navigation {
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 100vh;
+  background: var(--panel);
+}
+.brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 18px;
+  color: var(--accent);
+}
+nav {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  align-content: start;
+}
+nav button {
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+}
+nav button[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--tint);
+}
+.preferences {
+  display: grid;
+  gap: 8px;
+}
+label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+#header {
+  padding: 4px 0;
+}
+.heading {
+  display: flex;
+  align-items: start;
+  gap: 20px;
+  justify-content: space-between;
+}
+h1 {
+  font-size: 27px;
+  line-height: 1.25;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+p {
+  margin: 8px 0 0;
+}
+#page-description {
+  color: var(--muted);
+}
+#client-label {
+  min-width: 170px;
+  max-width: 280px;
+}
+#client-title {
+  font-size: 12px;
+  color: var(--muted);
+}
+#setup-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+#setup-notice button {
+  flex: none;
+}
+.notice {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+#update {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#update-message {
+  flex: 1;
+  min-width: 170px;
+}
+#band {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  padding: 4px;
+}
+#band span + span {
+  border-left: 1px solid var(--line);
+  padding-left: 12px;
+}
+#refresh-profile {
+  padding: 3px 9px;
+}
+#help {
+  padding: 20px;
+}
+#help h2 {
+  margin-top: 0;
+}
+#help-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 20px;
+}
+dd {
+  margin: 0;
+}
+#error {
+  color: var(--danger);
+  padding: 8px;
+}
+/* On a phone the navigation is a drawer: the page list, then the preferences. */
+body[data-compact="true"] #navigation {
+  min-height: 0;
+  padding: 10px;
+}
+body[data-compact="true"] .brand {
+  display: none;
+}
+body[data-compact="true"] nav {
+  grid-template-columns: 1fr 1fr;
+  flex: none;
+}
+body[data-compact="true"] .preferences {
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 560px) {
+  .heading {
+    flex-direction: column;
+    gap: 12px;
+  }
+  #client-label {
+    width: 100%;
+    max-width: none;
+  }
+  #band {
+    justify-content: start;
+  }
+  h1 {
+    font-size: 24px;
+  }
+}
+
+
+/* Keep navigation text consistent with the two-colour app wordmark. */
+nav button {color:var(--text)}
+nav button:hover {color:var(--text);background:var(--raised)}
+nav button[aria-current="page"] {color:var(--accent);font-weight:600}
+html[data-theme="light"] nav button[aria-current="page"] {color:var(--text)}
+.preferences label > span {color:var(--muted);font-size:12px}

@@ -1,4 +1,4 @@
-"""Persistent job history with one application-owned worker, independent of HTTP sessions."""
+"""Persistent job history with separate batch and read-only interactive workers."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
+
+from torrentlinker.job_lanes import job_lane
 
 
 class JobStop(threading.Event):
@@ -29,7 +31,10 @@ class Jobs:
         self.lock = threading.RLock()
         self.db = sqlite3.connect(directory / "jobs.sqlite", check_same_thread=False)
         self.db.row_factory = sqlite3.Row
-        self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="torrentlinker")
+        self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="torrentlinker-batch")
+        self.interactive_executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="torrentlinker-interactive"
+        )
         self.stops: dict[str, JobStop] = {}
         # Pending work never survives restart. Keep only digests in memory, not
         # request bodies that may contain paths, confirmation tokens or credentials.
@@ -45,6 +50,10 @@ class Jobs:
                 self.db.execute(
                     "ALTER TABLE jobs ADD COLUMN client_id TEXT NOT NULL DEFAULT 'default'"
                 )
+            if "lane" not in {r[1] for r in self.db.execute("PRAGMA table_info(jobs)")}:
+                self.db.execute("ALTER TABLE jobs ADD COLUMN lane TEXT NOT NULL DEFAULT 'batch'")
+            if "subject" not in {r[1] for r in self.db.execute("PRAGMA table_info(jobs)")}:
+                self.db.execute("ALTER TABLE jobs ADD COLUMN subject TEXT NOT NULL DEFAULT '{}'")
             self.db.execute(
                 "UPDATE jobs SET status='interrupted', error='Server restarted. "
                 "Check the Torrent Client before retrying; no action was "
@@ -110,17 +119,28 @@ class Jobs:
             if deduplicate:
                 self._request_keys[identifier] = _request_key(parameters)
             stop = self.stops[identifier] = JobStop()
+            lane = job_lane(kind, parameters)
             with self.db:
                 self.db.execute(
-                    "INSERT INTO jobs VALUES (?,?,'queued',?,'null','null','',?)",
-                    (identifier, kind, time.time(), client_id),
+                    "INSERT INTO jobs "
+                    "(id,kind,status,created,progress,result,error,client_id,lane,subject) "
+                    "VALUES (?,?,'queued',?,'null','null','',?,?,?)",
+                    (
+                        identifier,
+                        kind,
+                        time.time(),
+                        client_id,
+                        lane,
+                        json.dumps(job_subject(kind, parameters)),
+                    ),
                 )
             with self.db:
                 self.db.execute(
                     "DELETE FROM jobs WHERE status NOT IN ('queued','running') AND id "
                     "NOT IN (SELECT id FROM jobs ORDER BY created DESC LIMIT 200)"
                 )
-            self.executor.submit(self._run, identifier, stop, work)
+            executor = self.interactive_executor if lane == "interactive" else self.executor
+            executor.submit(self._run, identifier, stop, work)
             return identifier
 
     def _run(self, identifier: str, stop: threading.Event, work: Callable) -> None:
@@ -146,8 +166,8 @@ class Jobs:
             # Never persist raw network exception text, which may include credentials.
             self._update(
                 identifier,
-                status="failed",
-                error=self.error_message(error),
+                status="cancelled" if stop.is_set() else "failed",
+                error="" if stop.is_set() else self.error_message(error),
             )
         else:
             status = (
@@ -180,7 +200,7 @@ class Jobs:
         if row is None:
             raise KeyError(identifier)
         result = dict(row)
-        for key in ("progress", "result"):
+        for key in ("progress", "result", "subject"):
             result[key] = json.loads(result[key])
         return result
 
@@ -195,10 +215,28 @@ class Jobs:
     def list(self) -> list[dict[str, Any]]:
         with self.lock:
             rows = self.db.execute(
-                "SELECT id,kind,status,created,progress,error,client_id FROM jobs ORDER BY "
-                "created DESC LIMIT 100"
+                "SELECT id,kind,status,created,progress,error,client_id,lane,subject "
+                "FROM jobs WHERE status IN ('queued','running') OR id IN "
+                "(SELECT id FROM jobs WHERE status NOT IN ('queued','running') "
+                "ORDER BY created DESC LIMIT 100) ORDER BY created DESC"
             ).fetchall()
-        return [{**dict(r), "progress": json.loads(r["progress"])} for r in rows]
+        result = [
+            {**dict(r), "progress": json.loads(r["progress"]), "subject": json.loads(r["subject"])}
+            for r in rows
+        ]
+        lanes: dict[str, list[dict]] = {}
+        for row in reversed(result):
+            if row["status"] not in {"running", "queued"}:
+                continue
+            ahead = lanes.setdefault(row["lane"], [])
+            row["queue_position"] = len(ahead) if row["status"] == "queued" else 0
+            row["waiting_for"] = (
+                {key: ahead[-1][key] for key in ("id", "kind", "client_id")}
+                if ahead and row["status"] == "queued"
+                else None
+            )
+            ahead.append(row)
+        return result
 
     def cancel(self, identifier: str) -> None:
         with self.lock:
@@ -236,9 +274,29 @@ class Jobs:
                 if (self.get(identifier)["progress"] or {}).get("cancellable") is not False:
                     stop.set()
         self.executor.shutdown(wait=True)
+        self.interactive_executor.shutdown(wait=True)
         self.db.close()
 
 
 def _request_key(parameters: dict[str, Any] | None) -> str:
     encoded = json.dumps(parameters or {}, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def job_subject(kind: str, parameters: dict[str, Any] | None) -> dict[str, Any]:
+    """Persist identifiers for UI matching, never arbitrary request bodies or tokens."""
+    parameters = parameters or {}
+    subject: dict[str, Any] = {"kind": kind}
+    for key in ("path", "draft_id", "repair_id", "plan_id", "feed_id"):
+        value = parameters.get(key)
+        if isinstance(value, str) and value:
+            subject[key] = value
+    for key in ("paths", "hashes"):
+        value = parameters.get(key)
+        if isinstance(value, list):
+            subject[key] = [item for item in value if isinstance(item, str)]
+    for key in ("inspector_action", "reseed_action", "queue_action", "feed_operation"):
+        value = parameters.get(key)
+        if isinstance(value, str) and value:
+            subject[key] = value
+    return subject

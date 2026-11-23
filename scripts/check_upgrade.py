@@ -29,6 +29,24 @@ def fingerprints(directory: Path) -> dict[str, str]:
     }
 
 
+def assert_preserved(actual, expected, path="settings"):
+    """Allow new default fields while requiring every old value and list entry."""
+    if isinstance(expected, dict):
+        assert isinstance(actual, dict), ("Settings type changed", path)
+        for key, value in expected.items():
+            assert key in actual, ("Setting removed", path + "." + key)
+            assert_preserved(actual[key], value, path + "." + key)
+    elif isinstance(expected, list):
+        assert isinstance(actual, list) and len(actual) == len(expected), (
+            "Settings list changed",
+            path,
+        )
+        for index, (new, old) in enumerate(zip(actual, expected, strict=True)):
+            assert_preserved(new, old, f"{path}[{index}]")
+    else:
+        assert actual == expected, ("Setting changed", path)
+
+
 CONNECTION_ATTEMPTS: list[str] = []
 
 
@@ -183,8 +201,7 @@ def worker(mode: str, directory: Path, manifest: Path) -> None:
             settings = Settings.load(directory / "settings.json")
             settings.save(directory / "roundtrip-settings.json")
             roundtrip = json.loads((directory / "roundtrip-settings.json").read_text())
-            for key, value in expected["settings"].items():
-                assert roundtrip[key] == value, ("Settings changed", key)
+            assert_preserved(roundtrip, expected["settings"])
             assert settings.language == "fr" and settings.theme == "dark"
             assert settings.qbit.host == "https://fixture.invalid"
             assert settings.library_folders == [LibraryFolder(media)]

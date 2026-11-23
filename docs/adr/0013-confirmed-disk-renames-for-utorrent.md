@@ -7,3 +7,5 @@ Approval is per torrent, never remembered globally. The warning explains that ex
 ## BitTorrent Classic
 
 BitTorrent Classic 7.11 uses the same WebUI protocol and file-renaming limitation. The same per-torrent confirmation and verification rules apply. Live tests against build 47391 on 2026-10-24 covered single-file and multifile Reseeds, confirmed disk renames, Upload seeding and rejection of incorrect data. This extends the exception above to BitTorrent Classic. BitTorrent Web is a separate protocol variant and is not covered.
+
+Configured client workflows now use the per-client layout choice in ADR-0021. Existing layouts and recovery journals remain intact.

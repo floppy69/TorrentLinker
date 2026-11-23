@@ -20,6 +20,7 @@ import httpx
 from torrentlinker import net
 from torrentlinker.client_folders import ClientFolder
 from torrentlinker.domain import Torrent, TorrentFile
+from torrentlinker.login_guard import LoginGuard
 from torrentlinker.qbit import AlreadyInClient
 
 SESSION_HEADER = "X-Transmission-Session-Id"
@@ -103,10 +104,13 @@ class TransmissionApi:
             torrent_client=True, timeout=httpx.Timeout(300, connect=5), verify=False
         )
         self._auth = auth
+        # Basic credentials ride on every request: once refused, none is sent again.
+        self._guard = LoginGuard("transmission", url, username, password)
         self._session = ""
         self._lock = threading.Lock()
 
     def _call(self, method: str, **arguments: Any) -> dict[str, Any]:
+        self._guard.check()
         for _ in range(3):
             response = self._http.post(
                 self._url,
@@ -119,7 +123,7 @@ class TransmissionApi:
                     self._session = response.headers.get(SESSION_HEADER, "")
                 continue
             if response.status_code == 401:
-                raise TransmissionError("Transmission refused the username or password")
+                raise self._guard.refuse()
             response.raise_for_status()
             reply = response.json()
             if reply.get("result") != "success":
@@ -130,8 +134,34 @@ class TransmissionApi:
     def _session_get(self, *fields: str) -> dict[str, Any]:
         return self._call("session-get", fields=list(fields))
 
+    def tracker_updates_supported(self) -> bool:
+        return int(self._session_get("rpc-version").get("rpc-version", 0)) >= 17
+
+    def announce_entries(self, hash: str):
+        from torrentlinker.tracker_updates import Announce
+
+        rows = self._call("torrent-get", ids=[hash], fields=["trackers"])["torrents"]
+        if not rows:
+            raise ValueError("Torrent no longer exists.")
+        return [Announce(str(r["announce"]), int(r["tier"])) for r in rows[0]["trackers"]]
+
+    def apply_announces(self, hash: str, before, after) -> None:
+        # trackerList preserves tiers and unrelated URLs on Transmission 4.x.
+        tiers: dict[int, list[str]] = {}
+        for entry in after:
+            tiers.setdefault(entry.tier, []).append(entry.url)
+        self._call(
+            "torrent-set",
+            ids=[hash],
+            trackerList="\n\n".join("\n".join(tiers[tier]) for tier in sorted(tiers)),
+        )
+
+    def reannounce(self, hash: str) -> None:
+        self._call("torrent-reannounce", ids=[hash])
+
     def check(self) -> str:
         """Return Transmission's version; refused while it would rename files to .part."""
+        self._guard.rearm()  # the user pressed Test
         version = str(self._session_get("version")["version"])
         self._require_whole_names()
         return version

@@ -18,6 +18,13 @@ from torrentlinker.web.library import Library
 from torrentlinker.web.setup import Connection, FolderSetup
 
 ASSETS = Path(__file__).parents[1] / "web" / "static" / "reseed"
+CROSS_SEED_ACTIONS = {
+    "cross-seed",
+    "cross-seed-accept",
+    "cross-seed-reject",
+    "cross-seed-retry",
+    "cross-seed-remove",
+}
 
 
 class ReseedBridge(ViewBridge):
@@ -51,6 +58,45 @@ class ReseedBridge(ViewBridge):
                 # Desktop paths are chosen by the local owner, not server roots.
                 setup._folder_candidate = Path(body["local"]).expanduser().resolve()
                 run_in_background(lambda: setup.preview_folder(FolderSetup(**body)), done, failed)
+            elif action == "inspect":
+                board = self.board
+                library = board.service().library
+                run_in_background(
+                    lambda: library.inspector(
+                        body["path"],
+                        body["action"],
+                        JobStop(),
+                        key=body.get("key", ""),
+                        torrent_data=body.get("torrent_data", ""),
+                    ),
+                    done,
+                    failed,
+                )
+            elif action == "combine":
+                board = self.board
+                if board.running or board.scanning or board.configuring:
+                    raise ValueError("Wait for the current Library operation to finish.")
+                service = board.service()
+                client = board.owner.settings.active_client_id
+                board.configuring = True
+
+                def combined(value):
+                    board.configuring = False
+                    if client == board.owner.settings.active_client_id:
+                        board.refresh_rows()
+                    done(value)
+
+                def combine_failed(error):
+                    board.configuring = False
+                    failed(error)
+
+                run_in_background(
+                    lambda: service.library.combine(body["paths"], JobStop(), body.get("name", "")),
+                    combined,
+                    combine_failed,
+                )
+            elif action in CROSS_SEED_ACTIONS:
+                run_in_background(lambda: self.board.cross_seed(action, body), done, failed)
             elif action == "add-client":
                 self.board.add_client(body, done, failed)
             else:
@@ -63,6 +109,9 @@ class ReseedBoard(BundledView):
     def __init__(self, window):
         self.owner = window
         self.rows: list[dict] = []
+        self.selected_paths: list[str] = []
+        self.selection_client = window.settings.active_client_id
+        self.selections_by_client: dict[str, tuple[dict, dict]] = {}
         self.running = False
         self.stop = JobStop()
         self.link_root = window.settings.profile().reseed_link_root
@@ -74,13 +123,17 @@ class ReseedBoard(BundledView):
         self.scan_errors: list[str] = []
         self.requested_tab = "reseed"
         self.folder_dialog_request = 0
+        self.focus_request = 0
         self.scanning = False
+        self.recovery_jobs = None
+        self.recovery_request = None
         super().__init__(ReseedBridge(self), ASSETS, "reseed", window.settings.language)
         self.setMinimumHeight(620)
         window.library_model.modelReset.connect(self.refresh_rows)
         app = QApplication.instance()
         if app:
             app.aboutToQuit.connect(self.stop_run)
+            app.aboutToQuit.connect(self.close_recovery)
         self.refresh_rows()
 
     def service(self):
@@ -93,9 +146,31 @@ class ReseedBoard(BundledView):
             setup._folder_candidate = Path(self.link_root)
         library = Library(setup)
         library.entries = list(self.owner.library_model.entries)
+        library.selections, library.selection_rows = self.selections_by_client.setdefault(
+            self.owner.settings.active_client_id, ({}, {})
+        )
         return ReseedWorkspace(library)
 
+    def cross_seed(self, action, body):
+        """The Cross-seed tab's data and decisions, on the client being shown. The searches
+        themselves run on a server; this reads and settles what they left in the Store."""
+        from torrentlinker.crossseed import CrossSeed
+
+        service = self.service()
+        engine = CrossSeed(service.setup, service.library)
+        if action == "cross-seed":
+            return engine.activity(body.get("state") or None)
+        if action == "cross-seed-reject":
+            engine.reject(body["id"])
+        else:
+            getattr(engine, action.removeprefix("cross-seed-"))(body["id"])
+        return {"ok": True}
+
     def refresh_rows(self):
+        client = self.owner.settings.active_client_id
+        if client != self.selection_client:
+            self.selected_paths = []
+            self.selection_client = client
         if self.running and self.current_service:
             self.current_service.library.entries = list(self.owner.library_model.entries)
             self.rows = self.current_service.rows()
@@ -114,16 +189,41 @@ class ReseedBoard(BundledView):
                 "client": self.owner.settings.active_client_id,
                 "tab": self.requested_tab,
                 "folder_dialog_request": self.folder_dialog_request,
+                "focus_request": self.focus_request,
+                "recovery_request": self.recovery_request,
             }
         )
         self.bridge.ready()
 
+    def focus_search(self):
+        self.focus_request += 1
+        self.refresh()
+
     def request(self, action, body):
+        if action == "selection":
+            self.selected_paths = body.get("paths", [])
+            return {}
+
         if action == "state":
             setup = self.service().setup.snapshot()
             return {
                 "rows": self.rows,
-                "activity": self.activity,
+                "activity": self.activity
+                + (
+                    [
+                        {
+                            "at": row["created"],
+                            "kind": row["kind"],
+                            "status": row["status"],
+                            "message": row["error"],
+                        }
+                        for row in self.recovery_jobs.jobs.list()
+                        if row["client_id"] == self.owner.settings.active_client_id
+                        and row["kind"] not in {"refresh-unpack", "refresh-repair"}
+                    ]
+                    if self.recovery_jobs
+                    else []
+                ),
                 "folder_errors": self.scan_errors,
                 "setup": setup,
                 "running": self.running,
@@ -173,8 +273,20 @@ class ReseedBoard(BundledView):
             }
         elif action == "manage-folders":
             self.owner.library_workspace.open_folders()
-        elif action == "review":
-            self.owner.library_workspace.open_review(body["path"])
+        elif action == "open-link":
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+
+            url = QUrl(body["url"])
+            if url.scheme() not in {"http", "https"} or not url.host() or url.userInfo():
+                raise ValueError("Invalid public link.")
+            QDesktopServices.openUrl(url)
+        elif action in {"recovery-start", "recovery-job", "recovery-cancel"}:
+            from torrentlinker.gui.recovery_jobs import RecoveryJobs
+
+            if self.recovery_jobs is None:
+                self.recovery_jobs = RecoveryJobs(self)
+            return self.recovery_jobs.request(action, body)
         elif action in {"settings", "add-folder", "remove-folder", "save-root"}:
             if self.running or self.scanning or self.configuring:
                 raise ValueError("Stop the current operation before changing settings.")
@@ -221,18 +333,38 @@ class ReseedBoard(BundledView):
                         "The folder could not be saved. Wait for the current operation."
                     )
             else:
-                path = Path(body["path"]).expanduser().resolve()
-                if not path.is_dir():
+                value = body.get("path", "").strip()
+                path = Path(value).expanduser().resolve() if value else None
+                from torrentlinker.reseed_layout import DISK_RENAME_CLIENTS
+
+                profile = self.owner.settings.profile()
+                choice = body.get("layout", profile.reseed_layout)
+                links = choice == "links" or profile.client in DISK_RENAME_CLIENTS
+                if links and path is not None and not path.is_dir():
                     raise ValueError("Folder is unavailable.")
-                if not self.owner.save_reseed_folder(str(path)):
+                root = str(path) if path is not None else ""
+                if not self.owner.save_reseed_folder(root, body.get("layout")):
                     raise ValueError("Wait for the current settings operation to finish.")
-                self.link_root = str(path)
+                self.link_root = root
             self.refresh_rows()
             if action == "add-folder":
                 return {"ok": True, "local": str(path)}
         else:
             raise ValueError("Unknown reseed operation.")
         return {"ok": True}
+
+    def open_recovery(self, view, path, key):
+        import time
+
+        self.owner.tabs.setCurrentWidget(self.owner.library_workspace)
+        self.owner.library_workspace.sections.setCurrentWidget(self)
+        self.recovery_request = {"id": time.monotonic_ns(), "view": view, "path": path, "key": key}
+        self.refresh()
+
+    def close_recovery(self):
+        if self.recovery_jobs is not None:
+            self.recovery_jobs.close()
+            self.recovery_jobs = None
 
     def add_client(self, body, done, failed):
         if self.running or self.scanning or self.configuring:
@@ -269,9 +401,7 @@ class ReseedBoard(BundledView):
             done({**result, "client_id": profile.id})
             QTimer.singleShot(
                 0,
-                lambda: self.owner.client_selector.setCurrentIndex(
-                    self.owner.client_selector.findData(profile.id)
-                ),
+                lambda: self.owner.shell_host.command("client", {"client_id": profile.id}),
             )
 
         def failure(error):

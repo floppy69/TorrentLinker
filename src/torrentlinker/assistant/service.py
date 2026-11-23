@@ -192,11 +192,22 @@ class Assistant:
     def setup(self):
         with self.lock:
             return {
+                "execute_acknowledged": bool(
+                    self.db.execute(
+                        "SELECT 1 FROM options WHERE key='execute_acknowledged' AND value='1'"
+                    ).fetchone()
+                ),
                 "presets": PRESETS,
                 "providers": [
                     self.provider_row(r) for r in self.db.execute("SELECT * FROM providers")
                 ],
             }
+
+    def acknowledge_execute(self):
+        """Remember the owner's mode acknowledgement across desktop and Web."""
+        with self.lock, self.db:
+            self.db.execute("INSERT OR REPLACE INTO options VALUES ('execute_acknowledged','1')")
+        return self.setup()
 
     def provider_row(self, row):
         return {

@@ -1,4 +1,9 @@
 "use strict";
+// A host can publish while later deferred panel scripts are still loading.
+const tlPanelReady = new Promise((resolve) => {
+  if (document.readyState === "complete") resolve();
+  else window.addEventListener("DOMContentLoaded", resolve, { once: true });
+});
 // Each panel selects only its existing owner bridge. Hosts validate operations.
 window.TLPanel.connect = (name, { asynchronous = false } = {}) =>
   new Promise((resolve) => {
@@ -11,8 +16,10 @@ window.TLPanel.connect = (name, { asynchronous = false } = {}) =>
       error ? reject(new Error(error)) : accept(value);
     };
     const environment = (value) =>
-      window.dispatchEvent(
-        new CustomEvent(`${name}-environment`, { detail: value }),
+      tlPanelReady.then(() =>
+        window.dispatchEvent(
+          new CustomEvent(`${name}-environment`, { detail: value }),
+        ),
       );
     if (location.protocol === "file:") {
       const script = document.createElement("script");

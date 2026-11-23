@@ -42,6 +42,45 @@ def test_automatic_comments_are_durable_and_disabling_preserves_manual(tmp_path)
     assert next(i for i in items if i["id"] == automatic["id"])["state"] == "cancelled"
 
 
+def test_full_calendar_stops_planning_new_comments(tmp_path, monkeypatch):
+    # The companion claims every 30 seconds; trying each of thousands of candidates
+    # against a full week held the interpreter lock long enough to freeze video.
+    import torrentlinker.community as community
+
+    now = datetime(2026, 11, 17, 10, tzinfo=UTC).timestamp()
+    q = CommunityActions(tmp_path, lambda: now)
+    q.discover("42")
+    for page in range(1, 41):
+        q.observe(
+            "42",
+            {
+                **observation(),
+                "page": page,
+                "has_more": page < 40,
+                "candidates": [
+                    {"hash": f"{page * 50 + i:040x}", "title": f"Torrent {page}-{i}"}
+                    for i in range(50)
+                ],
+            },
+        )
+    settings = deepcopy(DEFAULTS)
+    settings["enabled"] = True
+    settings["templates"]["comment"] = "Merci pour le partage de {titre} !"
+    settings["automation"]["enabled"] = True
+    settings["automation"]["kinds"]["comment"] = True
+    q.settings("42", settings)
+    planned = [i["due"] for i in q.state("42")["items"] if i["source"] == "automatic"]
+    calls = []
+    counted = community.next_slot
+    monkeypatch.setattr(community, "next_slot", lambda *args: calls.append(args) or counted(*args))
+    q.claim("42")
+    assert len(calls) <= 1
+    assert sorted(i["due"] for i in q.state("42")["items"] if i["source"] == "automatic") == sorted(
+        planned
+    )
+    assert 0 < len(planned) < 2000
+
+
 def test_discovery_advances_pages_and_retains_more_than_500_torrents(tmp_path):
     q = CommunityActions(tmp_path, lambda: 1000000.0)
     q.discover("42")

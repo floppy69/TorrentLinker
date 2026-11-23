@@ -90,6 +90,16 @@ L’estimation concerne le contenu utile manquant, pas le trafic réseau total. 
 
 Avant de préparer une copie, activez explicitement la réparation expérimentale. Les essais sur des bibliothèques réelles restent à mener ; le diagnostic reste disponible sans activer les téléchargements.
 
+## Cross-seed et indexeurs
+
+Un cross-seed ajoute à un autre indexeur un torrent que vous avez déjà, avec les mêmes fichiers et sans téléchargement. TorrentLinker le trouve, le vérifie et l’ajoute pour vous. Cette fonction est réservée au propriétaire.
+
+**Indexeurs.** Ouvrez **Paramètres → Indexeurs**. c411 est intégré. Ajoutez-en d’autres avec **Ajouter un indexeur Torznab** (nom, URL, clé d’API ; **Tester** lit aussi ce qu’il sait chercher), ou importez-les depuis Prowlarr ou Jackett (adresse et clé d’API, cochez ceux voulus, **Importer la sélection** ; **Resynchroniser** reprend les changements). Chaque carte montre son état, les recherches prises en charge et son rythme. TorrentLinker respecte les limites de chaque indexeur. Retirer un indexeur laisse ses cross-seeds dans votre client.
+
+**Cross-seed automatique.** Chaque torrent terminé de votre client et chaque élément de la bibliothèque est cherché sur les autres indexeurs, par identifiant IMDb ou TMDb quand l’indexeur le permet, par nom sinon. Une correspondance complète, ou partielle couvrant au moins 95 % (seuil réglable), est ajoutée sans revue. Elle entre arrêtée, est vérifiée à 100 % par le client, puis démarrée. Les fichiers manquants sont ignorés, jamais téléchargés. Le torrent garde la catégorie et le dossier de l’original, avec les étiquettes `cross-seed` et le nom de l’indexeur. **Suspendre le cross-seed** dans les paramètres le met en pause.
+
+**Onglet Cross-seed.** Dans **Bibliothèque → Remise en seed**, l’onglet **Cross-seed** liste ce qui a été trouvé. Filtrez par À vérifier, Ajoutés, En attente, Échecs ou Données disparues. Une correspondance partielle sous le seuil, ou dans une archive, attend votre décision : ajouter sans les fichiers manquants, décompresser et remettre en seed, ou écarter. Après un échec de vérification, **Réessayer** est possible. Si les données d’un cross-seed disparaissent, il est signalé comme orphelin ; **Retirer du client (garder les données)** le retire. Les notifications signalent les cross-seeds ajoutés, en attente et en échec.
+
 ## Captures des nouveaux outils
 
 ![Éléments de preuve dans l’examen des candidats](../images/library-evidence.png)

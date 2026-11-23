@@ -11,10 +11,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from torrentlinker.client_limits import client_name
+from torrentlinker.disk_rename import RenameApproval
 from torrentlinker.options import category_options, options_body
 from torrentlinker.paths import PathMapper
+from torrentlinker.reseed_layout import needs_disk_rename_review
 from torrentlinker.scan import scan_item
 from torrentlinker.torrent_details import web_url
+from torrentlinker.tracker_updates import announce_hosts
 from torrentlinker.upload import (
     PROFILES,
     PreparedUpload,
@@ -73,6 +76,7 @@ class Uploads:
         self.setup = setup
         self.library = library
         self.prepared: dict[str, tuple[PreparedUpload, str]] = {}
+        self.approve_disk_renames: RenameApproval | None = None
 
     def prepare(
         self, path: str, form: UploadForm, stop: threading.Event, *, stored: bool = False
@@ -275,6 +279,7 @@ class Uploads:
                 self.setup.store,
                 report=lambda done, total: progress({"done": done, "total": total}),
                 stopped=stop.is_set,
+                announce_hosts=announce_hosts(self.setup),
             ),
         )
         client_path = PathMapper(self.setup.settings.path_mappings).to_qbit(str(request.item.path))
@@ -301,6 +306,7 @@ class Uploads:
             self.setup.store,
             report=lambda done, total: progress({"done": done, "total": total}),
             stopped=stop.is_set,
+            announce_hosts=announce_hosts(self.setup),
         )
         client_path = PathMapper(self.setup.settings.path_mappings).to_qbit(str(request.item.path))
         self.prepared[prepared.meta.infohash] = (prepared, client_path)
@@ -333,7 +339,7 @@ class Uploads:
         self.library.check_tree(prepared.saved.item_path, stop)
         item = scan_item(prepared.saved.item_path)
         client = self.library.client()
-        if client.requires_disk_renames:
+        if needs_disk_rename_review(client):
             raise ValueError(
                 f"{client_name(client)} cannot rename files inside a torrent. Seed this "
                 "Upload from the desktop application, which shows the files to rename on disk."

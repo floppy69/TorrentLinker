@@ -1,10 +1,10 @@
 import httpx
 import pytest
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, Qt, QUrl
-from PySide6.QtGui import QImage, QTextDocument
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, Qt
+from PySide6.QtGui import QImage
 
 from tests.test_torrent_search import fake_indexer
-from torrentlinker.gui.torrent_details import TorrentDetailsDialog, decode_preview
+from torrentlinker.gui.torrent_details import decode_preview
 from torrentlinker.indexer import Candidate, Indexer
 from torrentlinker.torrent_details import fetch_image, parse_details, preview_html, website_url
 
@@ -112,60 +112,6 @@ def test_image_byte_limit_and_decoder(monkeypatch, qtbot):
         decode_preview(b"not image data")
 
 
-def test_dialog_previews_description_nfo_files_and_image_without_torrent_download(
-    qtbot, monkeypatch
-):
-    requests = []
-
-    def handler(request):
-        requests.append(request)
-        return httpx.Response(200, json=DETAILS)
-
-    monkeypatch.setattr("torrentlinker.gui.torrent_details.fetch_image", lambda url: png())
-    dialog = TorrentDetailsDialog(
-        Candidate("Example", 1024, "DO NOT DOWNLOAD", 2, "a" * 40),
-        fake_indexer(handler),
-        "≈ 0.25",
-        "Estimate",
-    )
-    qtbot.addWidget(dialog)
-    dialog.show()
-    qtbot.waitUntil(lambda: dialog.reload.isEnabled() and not dialog.status.text())
-    assert [r.url.path for r in requests] == ["/api/torrents/" + "a" * 40]
-    assert "Synopsis" in dialog.description.toPlainText()
-    assert dialog.nfo.toPlainText() == DETAILS["metadata"]["nfoContent"]
-    assert dialog.files.item(0, 0).text() == "Folder/film.mkv"
-    image = dialog.description.document().resource(
-        QTextDocument.ResourceType.ImageResource, QUrl("preview-image:0")
-    )
-    assert isinstance(image, QImage) and not image.isNull()
-    assert dialog.description.loadResource(2, QUrl("file:///etc/passwd")) is None
-    dialog.close()
-
-
-def test_late_details_after_close_are_ignored_and_failures_allow_retry(qtbot, monkeypatch):
-    jobs = []
-    monkeypatch.setattr(
-        "torrentlinker.gui.torrent_details.run_in_background",
-        lambda work, done, fail: jobs.append((work, done, fail)),
-    )
-    dialog = TorrentDetailsDialog(
-        Candidate("Example", 1, "download", infohash="b" * 40),
-        fake_indexer(lambda r: httpx.Response(200, json=DETAILS)),
-        "≈ 0.10",
-        "Estimate",
-    )
-    qtbot.addWidget(dialog)
-    dialog.show()
-    jobs.pop()[2](ValueError("Unavailable"))
-    assert dialog.reload.isEnabled() and "Unavailable" in dialog.status.text()
-    dialog.reload.click()
-    assert not dialog.reload.isEnabled()
-    dialog.close()
-    jobs.pop()[1](parse_details(DETAILS))
-    assert not jobs  # No image fetches after closing.
-
-
 def test_large_valid_cover_is_not_rejected_by_old_ten_mib_limit(monkeypatch, qtbot):
     # The reported cover is a 17,018,281-byte PNG, well within the decoder's pixel limit.
     content = png() + b"\0" * 17_018_281
@@ -201,63 +147,6 @@ def test_description_centers_blocks_and_preserves_explicit_alignment(qtbot):
     assert alignments["Heading"] & Qt.AlignmentFlag.AlignHCenter
     assert alignments["Summary"] & Qt.AlignmentFlag.AlignHCenter
     assert alignments["Credit"] & Qt.AlignmentFlag.AlignRight
-
-
-def test_failed_images_use_compact_links_and_host_cooldown_then_retry(qtbot, monkeypatch):
-    payload = {
-        "description": '<p><img src="https://limited.example/a.png"></p><p><img src="https://limited.example/b.png"></p>',
-        "metadata": {},
-    }
-    calls = []
-
-    def limited(url):
-        calls.append(url)
-        response = httpx.Response(
-            429, headers={"Retry-After": "120"}, request=httpx.Request("GET", url)
-        )
-        response.raise_for_status()
-
-    monkeypatch.setattr("torrentlinker.gui.torrent_details.fetch_image", limited)
-    dialog = TorrentDetailsDialog(
-        Candidate("Example", 1, "", infohash="a" * 40),
-        fake_indexer(lambda r: httpx.Response(200, json=payload)),
-        "0.1",
-        "",
-    )
-    qtbot.addWidget(dialog)
-    dialog.show()
-    qtbot.waitUntil(lambda: dialog._image_failures == 2)
-    assert len(calls) == 1
-    assert "<img " not in dialog.description.toHtml()
-    assert "HTTP 429" in dialog.description.toPlainText()
-    assert not dialog.retry_images.isEnabled()
-    dialog._host_retry.clear()
-    dialog._update_image_retry()
-    monkeypatch.setattr("torrentlinker.gui.torrent_details.fetch_image", lambda url: png())
-    dialog.retry_images.click()
-    qtbot.waitUntil(lambda: len(dialog._loaded_images) == 2 and not dialog._images_busy)
-    assert not dialog._image_errors and not dialog.status.text()
-    assert "<img " in dialog.description.toHtml()
-    dialog.close()
-
-
-def test_details_window_has_download_actions_bound_to_its_candidate_and_folder(qtbot):
-    actions = []
-    dialog = TorrentDetailsDialog(
-        Candidate("Example", 1, "", infohash="a" * 40),
-        Indexer("https://example.test/api", "key"),
-        "–",
-        "",
-        download=lambda folder, now: actions.append((folder, now)) or "Done",
-        folder="/tmp/downloads",
-    )
-    qtbot.addWidget(dialog)
-    dialog.show()
-    dialog.add_queue.click()
-    dialog.download_now.click()
-    assert actions == [("/tmp/downloads", False), ("/tmp/downloads", True)]
-    assert dialog.action_status.text() == "Done"
-    dialog.close()
 
 
 RICH = {
@@ -348,48 +237,3 @@ def test_details_ignore_malformed_facts():
     assert d.media is not None and (d.media.year, d.media.rating) == (None, None)
     assert d.media.tmdb_id == "" and d.media.imdb_id == ""
     assert parse_details({}).media is None
-
-
-def test_dialog_shows_the_page_structure_like_c411(qtbot, monkeypatch):
-    monkeypatch.setattr("torrentlinker.gui.torrent_details.fetch_image", lambda url: png())
-    dialog = TorrentDetailsDialog(
-        Candidate("Example", 1024, "x", 0, "a" * 40),
-        fake_indexer(lambda r: httpx.Response(200, json=RICH)),
-        "≈ 0.25",
-        "Estimate",
-        torrent_note="1.10",
-    )
-    qtbot.addWidget(dialog)
-    dialog.show()
-    qtbot.waitUntil(lambda: dialog.card.isVisible() and not dialog.poster.pixmap().isNull())
-    assert dialog.badge.text() == "ÉMISSION TV" and not dialog.badge.isHidden()
-    assert "Sent by Anonyme" in dialog.byline.text() and "Team MTLQC" in dialog.byline.text()
-    assert not dialog.banner.isHidden() and "not tested" in dialog.banner_title.text()
-    chips = [w.text() for w in dialog.findChildren(type(dialog.badge), "detailChip")]
-    for expected in ("★ Exclusive", "Low bitrate", "Not tested", "3 leechers", "Seeds wanted"):
-        assert expected in chips
-    assert "Langue: Québecois (VFQ/French)" in chips and "Reality" in chips
-    assert "TMDB 74342" in chips and "IMDb tt11947282" in chips
-    assert "Occupation Double (2017)" in dialog.card_title.text()
-    assert "4.0/10" in dialog.card_facts.text() and "Jonathan" in dialog.card_facts.text()
-    assert not dialog.trust_box.isHidden() and "👍 1" in dialog.trust_line.text()
-    assert "Note: 1.10" in dialog.summary.text()
-    assert dialog.files_section.toggle.text() == "Show the files (1)"
-    # The NFO and files stay closed until asked for, as on c411.
-    assert not dialog.nfo.isVisible() and not dialog.files.isVisible()
-    dialog.nfo_section.set_open(True)
-    assert dialog.nfo.isVisible()
-
-
-def test_dialog_without_tmdb_or_trust_data_keeps_those_sections_hidden(qtbot, monkeypatch):
-    monkeypatch.setattr("torrentlinker.gui.torrent_details.fetch_image", lambda url: png())
-    dialog = TorrentDetailsDialog(
-        Candidate("Example", 1024, "x", 2, "a" * 40),
-        fake_indexer(lambda r: httpx.Response(200, json=DETAILS)),
-        "≈ 0.25",
-        "",
-    )
-    qtbot.addWidget(dialog)
-    dialog.show()
-    qtbot.waitUntil(lambda: dialog.reload.isEnabled() and not dialog.status.text())
-    assert dialog.card.isHidden() and dialog.trust_box.isHidden() and dialog.banner.isHidden()

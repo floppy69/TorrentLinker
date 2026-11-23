@@ -94,6 +94,7 @@ class Repairs:
             "name": meta.name,
             "target_file": name,
             "seeders": candidate.seeders,
+            "size_difference": abs(size - source[2]),
             "eligible": eligible,
             "status": "awaiting-confirmation" if eligible else "ineligible",
             "data": base64.b64encode(data).decode(),

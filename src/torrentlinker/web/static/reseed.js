@@ -36,6 +36,19 @@ const reseedEnvironment = () => {
 async function loadReseed() {
   reseedEnvironment();
 }
+async function waitReseedJob(body) {
+  const client = state.clientId;
+  const created = await api("jobs", { ...body, client_id: client });
+  for (;;) {
+    if (client !== state.clientId)
+      throw new Error("The target client changed. Reopen the Library.");
+    const result = await api(`jobs/${created.id}`);
+    if (result.status === "completed") return result.result;
+    if (!["queued", "running"].includes(result.status))
+      throw new Error(result.error || "Operation cancelled.");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
 async function reseedRequest(action, body) {
   if (body._client !== state.clientId)
     throw new Error("The target client changed. Reopen the Library.");
@@ -69,7 +82,21 @@ async function reseedRequest(action, body) {
       .join("\n");
     return {
       error,
-      activity: jobs.filter(j => j.client_id === client && /^(scan|check|reseed|search-library|library-|unpack|find-compatible|combine-library|.*repair)/.test(j.kind)).map(j => ({at: j.created || 0, kind: j.kind, status: j.status, message: j.error || ""})),
+      jobs: jobs.filter(j => j.client_id === client && jobPage(j.kind) === "library").map(j => ({...j, subject: {...j.subject, path: j.subject?.path || data.repair_sources?.[j.subject?.repair_id]}, display: jobStatus(j), title: jobTitle(j)})),
+      activity: jobs
+        .filter(
+          (j) =>
+            j.client_id === client &&
+            /^(scan|check|reseed|search-library|library-|unpack|find-compatible|combine-library|.*repair)/.test(
+              j.kind,
+            ),
+        )
+        .map((j) => ({
+          at: j.created || 0,
+          kind: j.kind,
+          status: j.status,
+          message: j.error || jobStatus(j),
+        })),
       rows: data.rows,
       folder_errors: data.folder_errors,
       setup,
@@ -86,7 +113,38 @@ async function reseedRequest(action, body) {
         ),
     };
   }
-  if (action === "tab") { reseedUI.tab = body.tab; return {}; }
+  if (action === "cancel-job") {
+    const row = await api(`jobs/${encodeURIComponent(body.id)}`);
+    if (row.client_id !== state.clientId) throw Error("The target client changed.");
+    return api(`jobs/${encodeURIComponent(body.id)}/cancel`, {});
+  }
+  if (action === "inspect")
+    return waitReseedJob({
+      kind: "candidate-inspector",
+      path: body.path,
+      inspector_action: body.action,
+      candidate_key: body.key || "",
+      torrent_data: body.torrent_data || "",
+    });
+  if (action === "combine")
+    return waitReseedJob({
+      kind: "combine-library",
+      paths: body.paths,
+      selection_name: body.name,
+    });
+  if (action === "selection") return {};
+  if (action === "tab") {
+    reseedUI.tab = body.tab;
+    return {};
+  }
+  if (action === "cross-seed" || action.startsWith("cross-seed-")) {
+    const client = `client_id=${encodeURIComponent(state.clientId === "all" ? state.setup?.default_client_id || "" : state.clientId)}`;
+    if (action === "cross-seed") return api(`cross-seed?${client}`);
+    const verb = action.slice("cross-seed-".length);
+    if (!["accept", "reject", "retry", "remove"].includes(verb))
+      throw new Error("Unknown Cross-seed operation.");
+    return api(`cross-seed/${encodeURIComponent(body.id)}/${verb}?${client}`, {});
+  }
   if (action === "preview-folder") return api("setup/preview-folder", body);
   if (action === "remove-folder") return api("setup/remove-folder", body);
   if (action === "run")
@@ -132,12 +190,28 @@ async function reseedRequest(action, body) {
     await openReseedSettings();
     return {};
   }
-  if (action === "review") {
-    await libraryTab("items");
-    await reviewLibraryItem(
-      reseedUI.rows.find((row) => row.path === body.path),
-    );
-    return {};
+  if (action === "recovery-start") {
+    if (
+      ![
+        "preview-unpack",
+        "refresh-unpack",
+        "unpack-reseed",
+        "diagnose-repair",
+        "prepare-repair",
+        "refresh-repair",
+        "start-repair",
+      ].includes(body.kind)
+    )
+      throw new Error("Unknown archive or repair operation.");
+    return api("jobs", { ...body, client_id: state.clientId });
+  }
+  if (action === "recovery-job" || action === "recovery-cancel") {
+    const row = await api(`jobs/${encodeURIComponent(body.id)}`);
+    if (row.client_id !== state.clientId)
+      throw new Error("Select the Torrent Client used for this operation.");
+    if (action === "recovery-cancel")
+      await api(`jobs/${encodeURIComponent(body.id)}/cancel`, {});
+    return row;
   }
   throw new Error("Unknown reseed operation.");
 }
@@ -179,32 +253,6 @@ for (const node of [
     attributes: true,
     attributeFilter: ["hidden", "data-theme"],
   });
-$("reseed-browse").onclick = () =>
-  guard(() => browseLibraryFolder("", "reseed-root"));
-
 async function openReseedSettings() {
   await navigate("setup", "connections");
-  $("reseed-folder-settings").open = true;
-  $("reseed-root").focus();
 }
-
-$("reseed-folder-form").onsubmit = (event) => {
-  event.preventDefault();
-  guard(async () => {
-    const client = state.clientId;
-    const result = await api("setup/reseed-folder", {
-      path: $("reseed-root").value.trim(),
-    });
-    localStorage.removeItem(`reseed-root:${client}`);
-    if (client !== state.clientId) return;
-    state.setup.reseed_link_root = result.reseed_link_root;
-    reseedUI.root = result.reseed_link_root;
-    $("reseed-root").value = result.reseed_link_root;
-    toast(
-      say(
-        "Link folder saved for this client.",
-        "Dossier de liens enregistré pour ce client.",
-      ),
-    );
-  });
-};

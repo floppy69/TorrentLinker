@@ -12,9 +12,21 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS reseed_link_layout (
+    client_id TEXT NOT NULL, hash TEXT NOT NULL, payload TEXT NOT NULL,
+    PRIMARY KEY (client_id, hash)
+);
 CREATE TABLE IF NOT EXISTS reseed_workspace (
     client_id TEXT NOT NULL, item_path TEXT NOT NULL, payload TEXT NOT NULL,
     PRIMARY KEY (client_id, item_path)
+);
+-- Cross-seed (ADR-0024): one row per source and Indexer ('' candidate: its search), and
+-- one per Candidate the search found.
+CREATE TABLE IF NOT EXISTS crossseed (
+    client_id TEXT NOT NULL, source TEXT NOT NULL, indexer_id TEXT NOT NULL,
+    candidate_key TEXT NOT NULL, state TEXT NOT NULL, payload TEXT NOT NULL,
+    updated REAL NOT NULL,
+    PRIMARY KEY (client_id, source, indexer_id, candidate_key)
 );
 CREATE TABLE IF NOT EXISTS local_draft (
     id TEXT PRIMARY KEY,
@@ -338,6 +350,109 @@ class Store:
                 (self.client_id, path, json.dumps(record)),
             )
 
+    # Cross-seed activity -----------------------------------------------------
+
+    def crossseed_rows(
+        self,
+        state: str | None = None,
+        indexer_id: str | None = None,
+        *,
+        limit: int = -1,
+        newest: bool = False,
+    ) -> list[dict]:
+        query = "SELECT source,indexer_id,candidate_key,state,payload,updated FROM crossseed"
+        query += " WHERE client_id=?"
+        args: list = [self.client_id]
+        if state is not None:
+            query += " AND state=?"
+            args.append(state)
+        if indexer_id is not None:
+            query += " AND indexer_id=?"
+            args.append(indexer_id)
+        with self._lock:
+            rows = self._db.execute(
+                query + f" ORDER BY updated {'DESC' if newest else 'ASC'} LIMIT ?", [*args, limit]
+            ).fetchall()
+        return [
+            {
+                **json.loads(payload),
+                "source": source,
+                "indexer_id": indexer,
+                "candidate_key": key,
+                "state": st,
+                "updated": updated,
+            }
+            for source, indexer, key, st, payload, updated in rows
+        ]
+
+    def crossseed_known(self) -> set[tuple[str, str]]:
+        """Every (source, Indexer) already queued or searched."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT source, indexer_id FROM crossseed WHERE client_id=? AND candidate_key=''",
+                (self.client_id,),
+            ).fetchall()
+        return {(str(a), str(b)) for a, b in rows}
+
+    def crossseed_counts(self) -> dict[str, int]:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT state, COUNT(*) FROM crossseed WHERE client_id=? GROUP BY state",
+                (self.client_id,),
+            ).fetchall()
+        return {str(state): int(count) for state, count in rows}
+
+    def queue_crossseed(self, searches: list[tuple[str, str, dict]]) -> None:
+        with self._lock, self._db:
+            self._db.executemany(
+                "INSERT OR IGNORE INTO crossseed VALUES (?,?,?,'','queued',?,?)",
+                [
+                    (self.client_id, source, indexer, json.dumps(payload), time.time())
+                    for source, indexer, payload in searches
+                ],
+            )
+
+    def save_crossseed(
+        self, source: str, indexer_id: str, candidate_key: str, state: str, payload: dict
+    ) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO crossseed VALUES (?,?,?,?,?,?,?)",
+                (
+                    self.client_id,
+                    source,
+                    indexer_id,
+                    candidate_key,
+                    state,
+                    json.dumps(payload),
+                    time.time(),
+                ),
+            )
+
+    def delete_crossseed(self, source: str, indexer_id: str, candidate_key: str) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "DELETE FROM crossseed WHERE client_id=? AND source=? AND indexer_id=?"
+                " AND candidate_key=?",
+                (self.client_id, source, indexer_id, candidate_key),
+            )
+
+    def reseed_link_layout(self, hash: str) -> dict:
+        """An automatic Reseed's layout, independent of board progress."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT payload FROM reseed_link_layout WHERE client_id=? AND hash=?",
+                (self.client_id, hash),
+            ).fetchone()
+        return json.loads(row[0]) if row else {}
+
+    def save_reseed_link_layout(self, hash: str, record: dict) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO reseed_link_layout VALUES (?,?,?)",
+                (self.client_id, hash, json.dumps(record)),
+            )
+
     def local_drafts(self) -> list[dict]:
         with self._lock:
             rows = self._db.execute(
@@ -497,6 +612,38 @@ class Store:
     def remove_downloads(self, keys: list[str]) -> None:
         with self._lock, self._db:
             self._db.executemany("DELETE FROM download_queue WHERE id=?", [(key,) for key in keys])
+
+    def reconcile_downloads(self, keys: list[str], action: str) -> int:
+        """Edit this client's local queue without racing a concurrent sender's claim."""
+        if action not in {"retry", "remove", "clear-sent"}:
+            raise ValueError("Unknown queue operation.")
+        selected = set(keys)
+        changed = 0
+        with self._lock, self._db:
+            self._db.execute("BEGIN IMMEDIATE")
+            for key, payload, status, retry_safe in self._db.execute(
+                "SELECT id,payload,status,retry_safe FROM download_queue"
+            ).fetchall():
+                if json.loads(payload).get("client_id", "default") != self.client_id:
+                    continue
+                if action == "clear-sent":
+                    eligible = status == "sent"
+                else:
+                    eligible = key in selected and status != "sending"
+                if not eligible:
+                    continue
+                if action == "retry":
+                    if status != "refused" and not (status == "failed" and retry_safe):
+                        continue
+                    self._db.execute(
+                        "UPDATE download_queue SET status='queued',reason='',retry_safe=0 "
+                        "WHERE id=?",
+                        (key,),
+                    )
+                else:
+                    self._db.execute("DELETE FROM download_queue WHERE id=?", (key,))
+                changed += 1
+        return changed
 
     def edit_downloads(self, expected: list[dict], action: str, priority: int = 0) -> None:
         """Atomically edit only unchanged, definitively unsent queue rows."""
@@ -660,11 +807,19 @@ class Store:
 
     def cached_torrent(self, key: str) -> bytes | None:
         f = self.torrent_dir / f"{key}.torrent"
-        return f.read_bytes() if f.exists() else None
+        try:
+            return f.read_bytes()
+        except FileNotFoundError:
+            return None
 
     def cache_torrent(self, key: str, data: bytes) -> None:
         self.torrent_dir.mkdir(parents=True, exist_ok=True)
-        (self.torrent_dir / f"{key}.torrent").write_bytes(data)
+        temporary = self.torrent_dir / f".{key}.{uuid.uuid4().hex}.tmp"
+        try:
+            temporary.write_bytes(data)
+            temporary.replace(self.torrent_dir / f"{key}.torrent")
+        finally:
+            temporary.unlink(missing_ok=True)
 
     # Layouts of cached .torrent files ----------------------------------------
 
@@ -768,6 +923,13 @@ class Store:
             self._db.execute(
                 "INSERT OR REPLACE INTO rejection VALUES (?, ?, ?)",
                 (str(item_path), candidate_key, reason),
+            )
+
+    def unreject(self, item_path: Path, candidate_key: str) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "DELETE FROM rejection WHERE item_path = ? AND candidate_key = ?",
+                (str(item_path), candidate_key),
             )
 
     def rejections(self, item_path: Path) -> dict[str, str]:

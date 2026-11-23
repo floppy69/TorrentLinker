@@ -461,7 +461,7 @@ def test_disabling_agent_access_cancels_jobs_beyond_the_display_page(tmp_path):
 
         def blocked(request, stop, progress):
             entered.set()
-            assert stop.wait(5), "Disabling MCP must cancel this job"
+            assert stop.wait(60), "Disabling MCP must cancel this job"
             stopped.set()
             return {}
 

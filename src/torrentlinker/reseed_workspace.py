@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import threading
 import time
 from collections import deque
@@ -10,10 +11,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from torrentlinker.disk_rename import verify_local_data
-from torrentlinker.paths import PathMapper
 from torrentlinker.qbit import AlreadyInClient
-from torrentlinker.reseed import CHECKING_STATES, TAG
-from torrentlinker.reseed_links import prepare_links, validate_links
+from torrentlinker.reseed import CHECKING_STATES, TAG, start_board_reseed
+from torrentlinker.reseed_layout import (
+    BOARD_CHECKING,
+    BOARD_TAG,
+    ReseedLayout,
+    validate_client_files,
+    validate_layout,
+)
 from torrentlinker.review import candidate_key, check_candidate, remembered_candidates
 
 if TYPE_CHECKING:
@@ -108,6 +114,7 @@ class ReseedWorkspace:
         lock = threading.RLock()
         active: dict[str, dict] = {}
         result: dict = {"done": 0, "total": len(pending), "errors": [], "seeded": 0}
+        discoveries = {}
         self._running = True
         if key and len(paths) == 1:
             self._choices[paths[0]] = key
@@ -125,10 +132,14 @@ class ReseedWorkspace:
                 }
             report(value)
 
+        def admit_discoveries(entries):
+            # The board can pipeline completed folders without exposing a partial
+            # Library to other jobs. Each item worker receives its own snapshot.
+            with self._control_lock:
+                discoveries.update((str(entry.item.path), entry) for entry in entries)
+                self._added_paths.extend(p for p in discoveries if p not in known)
+
         def emit_scan(progress):
-            if progress.get("discovered"):
-                with self._control_lock:
-                    self._added_paths.extend(p for p in progress["discovered"] if p not in known)
             emit({"path": "", "phase": "scan", "scan": progress, "rows": self.rows()})
 
         records = self.setup.store.reseed_records()
@@ -170,6 +181,7 @@ class ReseedWorkspace:
                                 stop,
                                 lambda p: emit_scan(p),
                                 self._scan_folders,
+                                admit_discoveries,
                             )
                             futures[future] = ("", "disk")
                     for _ in range(len(pending)):
@@ -206,8 +218,14 @@ class ReseedWorkspace:
                         used[resource] += 1
                         with self._control_lock:
                             self._active_paths.add(path)
+                            worker = copy.copy(self)
+                            worker.library = self.library.snapshot()
+                            if path in discoveries:
+                                worker.library.entries = [
+                                    e for e in worker.library.entries if str(e.item.path) != path
+                                ] + [discoveries[path]]
                         future = pool.submit(
-                            self._run_item, [path], step, root, stop, emit, choice, resources
+                            worker._run_item, [path], step, root, stop, emit, choice, resources
                         )
                         self._choices.pop(path, None)
                         futures[future] = (path, resource)
@@ -273,6 +291,13 @@ class ReseedWorkspace:
         return {**result, "rows": self.rows()}
 
     def _run_item(self, paths, action, root, stop, report, key, resources) -> dict:
+        if action == "refresh":
+            return self.refresh_client()
+        # Worker threads do not inherit the caller's Indexer request context.
+        with self.setup.indexer().background(stop):
+            return self._execute_item(paths, action, root, stop, report, key, resources)
+
+    def _execute_item(self, paths, action, root, stop, report, key, resources) -> dict:
         if action not in {"all", "find", "compare", "prepare", "verify", "seed", "refresh"}:
             raise ValueError("Unknown reseed action.")
         if action == "refresh":
@@ -372,21 +397,21 @@ class ReseedWorkspace:
                                 record.update(stage="links", key=eligible[0]["key"])
                                 # Old link folders remain untouched; a new comparison can
                                 # select a different torrent after the previous one is removed.
-                                for old in ("destination", "files", "hash", "status"):
+                                for old in ("destination", "files", "hash", "status", "layout"):
                                     record.pop(old, None)
                             elif step == "prepare":
                                 if record.get("stage") != "links":
                                     raise ValueError("Compare and choose a full Candidate first.")
                                 entry, checked = self._checked(path, record, stop)
-                                destination = self.setup.path_under_root(root)
+                                policy = ReseedLayout.for_settings(self.setup.settings)
+                                destination = ""
+                                if policy.mode == "links":
+                                    destination = str(
+                                        self.setup.path_under_root(root or policy.root)
+                                    )
                                 assert checked.meta and checked.match
-                                layout = prepare_links(
-                                    destination,
-                                    entry,
-                                    checked.meta,
-                                    checked.match,
-                                    PathMapper(self.setup.settings.path_mappings),
-                                    [f.path for f in self.setup.settings.library_folders],
+                                layout = policy.prepare(
+                                    entry, checked.meta, checked.match, destination
                                 )
                                 record.update(layout, stage="verify", status="prepared")
                             elif step == "verify":
@@ -394,7 +419,7 @@ class ReseedWorkspace:
                             elif step == "seed":
                                 if record.get("status") != "verified":
                                     raise ValueError("Verify every file before seeding.")
-                                validate_links(record)
+                                validate_layout(record)
                                 client = self.library.client()
                                 torrent = self._owned(client, record)
                                 if torrent.progress < 1 or torrent.state in CHECKING_STATES:
@@ -403,8 +428,18 @@ class ReseedWorkspace:
                                         "Verify again."
                                     )
                                 checkpoint(stop)
-                                client.remove_tags(record["hash"], ["torrentlinker:link-checking"])
+                                client.remove_tags(
+                                    record["hash"], ["torrentlinker:link-checking", BOARD_CHECKING]
+                                )
                                 client.start(record["hash"])
+                                if record.get("achievement_verified_at"):
+                                    from torrentlinker.achievements import await_seeding
+
+                                    await_seeding(
+                                        self.setup.path.parent,
+                                        self.setup.store.client_id,
+                                        record["hash"],
+                                    )
                                 record.update(stage="seeding", status="seeding")
                                 result["seeded"] += 1
                             save()
@@ -434,18 +469,20 @@ class ReseedWorkspace:
                     continue
                 torrent = torrents.get(record.get("hash", ""))
                 try:
-                    validate_links(record)
+                    validate_layout(record)
                     if torrent is None:
                         raise ValueError(
                             "Torrent removed from the client. Verify again to continue."
                         )
                     if (
-                        LINK_TAG not in torrent.tags
+                        self._tag(record) not in torrent.tags
                         or str(torrent.save_path) != record["destination"]
                     ):
                         raise ValueError(
                             "The torrent uses another location. Review it in the client."
                         )
+                    if record.get("layout") == "client":
+                        torrent = self._owned(client, record)
                     if torrent.progress < 1:
                         raise ValueError(
                             "The client no longer reports complete data. Verify again."
@@ -486,28 +523,35 @@ class ReseedWorkspace:
             raise ValueError("The Candidate changed. Search and compare this item again.")
         checked = check_candidate(indexer, entry, candidate, self.setup.settings.matching.rules())
         if not checked.meta or not checked.match or checked.match.unwanted or checked.unpack:
-            raise ValueError("Every torrent file must be present before preparing links.")
+            raise ValueError(
+                "Every torrent file must be present before preparing the Reseed layout."
+            )
         if record.get("hash") and record["hash"] != checked.meta.infohash:
             raise ValueError("The torrent metadata changed. Compare this item again.")
         return entry, checked
+
+    @staticmethod
+    def _tag(record):
+        return BOARD_TAG if record.get("layout") == "client" else LINK_TAG
 
     @staticmethod
     def _owned(client, record):
         torrent = client.torrent(record["hash"])
         if (
             torrent is None
-            or LINK_TAG not in torrent.tags
+            or ReseedWorkspace._tag(record) not in torrent.tags
             or torrent.save_path != Path(record["destination"])
         ):
             raise ValueError(
                 "This torrent is absent or uses another location. Check the Torrent Client."
             )
+        validate_client_files(record, torrent.files)
         return torrent
 
     def _verify(self, path, record, stop, progress, save):
         if record.get("stage") != "verify":
-            raise ValueError("Prepare links before verification.")
-        validate_links(record)
+            raise ValueError("Prepare the Reseed layout before verification.")
+        validate_layout(record)
         item, checked = self._checked(path, record, stop)
         assert checked.meta and checked.match
         last_report = [0.0]
@@ -524,7 +568,7 @@ class ReseedWorkspace:
             checkpoint=lambda: checkpoint(stop),
             progress=local_progress,
         )
-        validate_links(record)
+        validate_layout(record)
         checkpoint(stop)
         client = self.library.client()
         resume_check = record.get("status") == "checking"
@@ -533,11 +577,17 @@ class ReseedWorkspace:
             record["status"] = "adding"
             save()  # interruption never loses the chosen destination
             try:
-                client.add(
-                    checked.meta.data,
-                    record["destination"],
-                    [TAG, LINK_TAG, "torrentlinker:link-checking"],
-                )
+                if record.get("layout") == "client":
+                    start_board_reseed(
+                        client, self.setup.store, item, checked.meta, checked.match, record["key"]
+                    )
+                    resume_check = True
+                else:
+                    client.add(
+                        checked.meta.data,
+                        record["destination"],
+                        [TAG, LINK_TAG, "torrentlinker:link-checking"],
+                    )
             except AlreadyInClient:
                 self._owned(client, record)  # refuse adopting an unrelated torrent
         start = time.monotonic()
@@ -572,10 +622,11 @@ class ReseedWorkspace:
                     record.update(stage="incomplete", status="failed")
                     raise ValueError(
                         "Client verification failed. Check Path Mappings "
-                        "and client access to the link targets."
+                        "and client access to the prepared files."
                     )
-                validate_links(record)
+                validate_layout(record)
                 record["status"] = "verified"
+                record["achievement_verified_at"] = time.time()
                 return
             if time.monotonic() - start > 3600:
                 raise ValueError(

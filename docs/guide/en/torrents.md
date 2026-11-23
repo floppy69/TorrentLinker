@@ -1,5 +1,7 @@
 # Manage torrents
 
+Compare [supported clients and available features](clients.md#client-compatibility) before choosing a connection.
+
 ![Torrent management, trackers and categories](../images/en/torrents.png)
 
 *Desktop application, English interface, example data.*
@@ -44,7 +46,7 @@ New downloads require **Don't start the download automatically** in µTorrent an
 
 Full Reseeds and Upload seeding add the torrent stopped, request a hash check and start it only after every file is verified. They use the same default-folder restriction. Disable µTorrent's incomplete-file suffix, completed-download moves, label-based folder suffix and Run Program commands first. TorrentLinker refuses those settings rather than changing them.
 
-**When names differ, µTorrent requires renaming the files on disk.** A confirmation lists every current and new path, warns that other torrents or applications using the old paths can break, and defaults to Cancel. Approval applies only to that torrent, including in batches and Plans. TorrentLinker checks the local data against the torrent before renaming, never overwrites a destination, and then requests µTorrent's own verification. File contents are unchanged. On failure or interruption, a recovery journal restores original names if the files are unchanged and the old names remain available. Conflicts stop recovery and keep the journal. qBittorrent, Transmission and Deluge continue to rename inside the torrent instead.
+**Configured Reseeds use a persistent Link Folder.** Choose it in the client's connection settings and keep it outside Library Folders. The linked layout preserves the original file names and paths. Keep the Link Folder while its torrents seed. Existing recovery journals for older disk-rename workflows remain recoverable; they are not the current setup procedure. See [client compatibility](clients.md#client-compatibility).
 
 Partial Matches, including matches missing ignored files, remain unsupported because this WebUI does not expose verified pieces. Zen seeding-age estimates cannot use a client-reported seeding duration from this adapter yet.
 
@@ -56,11 +58,21 @@ Choose **rTorrent** in Settings → Connections. Enter the XML-RPC address your 
 
 TorrentLinker keeps its own tags in a separate rTorrent field, so your ruTorrent label stays as it is. Downloads, Plans, the Seeding view, start/stop, recheck, file priorities and removal work as with the other clients. Before a download starts, rTorrent is asked to create its folder on its own machine, because a started torrent whose folder is missing stays inactive without saying why.
 
-rTorrent has limits of its own (see [ADR-0017](../../adr/0017-rtorrent-through-xml-rpc-with-disk-renames.md)):
+rTorrent has these limits; the current Link Folder behavior is described in [client compatibility](clients.md#client-compatibility):
 
-- **It cannot rename files inside a torrent.** When names differ, a Reseed needs the same disk-rename confirmation as µTorrent: every path is listed, the local data is checked first, and the original names come back if anything fails.
+- **It cannot rename files inside a torrent.** Configure a persistent Link Folder so the torrent sees its expected paths while the original files stay in place.
 - **Partial Matches are refused**, because rTorrent's check creates every missing file of the torrent in your folder.
 - **No sequential download**: films and series download in rTorrent's normal order.
 - **Removing a torrent never deletes its files**; remove them yourself if you want them gone.
 
 For development, `tests/test_rtorrent_integration.py` runs against a throwaway rTorrent in Docker: see `scripts/rtorrent_sandbox.py`.
+
+## Transfer to or from a seedbox
+
+Select torrents, then open **Transfer to another client**. Choose the destination client. Its category folders fill the destinations automatically; you can change a folder for this transfer without changing saved category settings.
+
+For files which are not mounted locally, choose **Configure file access** for the source or destination. Enter the SFTP host, port, username and password or unencrypted SSH private key. Map the folder seen by the torrent client to the folder seen by SFTP. Check access, compare the displayed server fingerprint with your provider's value, then confirm it and check again. Credentials use the existing secret store and stay separate from the torrent client's login.
+
+TorrentLinker copies the data from the desktop computer or Web server. Transfers between two seedboxes pass through that machine. The browser does not carry the files. The server must report free space, and folders containing symbolic links are not supported. The entire plan must pass its checks before Start is enabled.
+
+Each torrent shows copied bytes, speed and remaining time. After an interruption, reopen its transfer history and resume after review. TorrentLinker checks existing partial data before continuing. Source cleanup remains a separate confirmation, available only after the destination's content and seeding are verified.

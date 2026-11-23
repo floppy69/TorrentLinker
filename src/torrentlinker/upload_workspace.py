@@ -55,8 +55,58 @@ class UploadWorkspace:
             "categories": [{"id": k, "name": category_name(k)} for k in PROFILES],
         }
 
-    def request(self, action: str, body: dict):
-        stop = threading.Event()
+    def request(self, action: str, body: dict, stop=None, report=lambda _: None):
+        stop = stop or threading.Event()
+        if action in {
+            "model-inspect",
+            "model-render",
+            "model-geometry",
+            "seed-upload",
+            "archive-preview",
+            "archive-extract",
+        }:
+            from torrentlinker.upload_preparation import prepare_tool
+
+            return prepare_tool(self.uploads, action, body, stop, report)
+        if action == "refresh-options":
+            from torrentlinker.options import category_options
+
+            form = UploadForm.model_validate(body["form"])
+            if form.category not in PROFILES or form.subcategory not in {
+                sub.id for sub in PROFILES[form.category].subcategories
+            }:
+                raise ValueError("Choose an Upload subcategory first.")
+            category_options(
+                self.setup.store,
+                self.setup.indexer().category_options,
+                form.subcategory,
+                refresh=True,
+            )
+            return self.uploads.prepare(body["path"], form, stop, stored=True)[1]
+        if action == "asset-read":
+            from torrentlinker.upload_assets import Assets
+
+            record = self.setup.store.local_draft(body["id"])
+            return {
+                "src": Assets(self.setup.store.torrent_dir.parent).inline(
+                    body["asset"], record["path"]
+                )
+            }
+        if action == "presentation-preview":
+            from torrentlinker.bbcode import bbcode_to_html
+
+            return {"html": bbcode_to_html(UploadForm.model_validate(body["form"]).description)}
+        if action == "image-preview":
+            import base64
+
+            from torrentlinker.torrent_details import fetch_image
+            from torrentlinker.upload_assets import image_mime
+
+            data = fetch_image(body["url"])
+            mime = image_mime(data)
+            if mime not in {"image/png", "image/jpeg", "image/gif", "image/webp"}:
+                raise ValueError("Unsupported image format.")
+            return {"src": f"data:{mime};base64," + base64.b64encode(data).decode()}
         if action == "state":
             return self.state()
         if action == "browse":

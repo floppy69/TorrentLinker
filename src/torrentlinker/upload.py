@@ -627,6 +627,8 @@ def make_torrent(
     report: Callable[[int, int], None] = lambda done, total: None,
     stopped: Callable[[], bool] = lambda: False,
     now: Callable[[], float] = time.time,
+    *,
+    announce_hosts: list[str] | None = None,
 ) -> bytes:
     """A private v1 torrent of `files`, hashed from the Local Item's own files."""
     total = sum(f.size for f in files)
@@ -660,9 +662,13 @@ def make_torrent(
     info["private"] = 1
     # c411 adds this on publication. Include it before seeding so the hash stays valid.
     info["source"] = "C411"
+    from torrentlinker.tracker_updates import upload_announces
+
+    urls = upload_announces(announce, announce_hosts or [])
     return bencode(
         {
-            "announce": announce,
+            "announce": urls[0],
+            **({"announce-list": [[url] for url in urls]} if len(urls) > 1 else {}),
             "created by": "TorrentLinker",
             "creation date": int(now()),
             "info": info,
@@ -854,6 +860,8 @@ def create_upload(
     report: Callable[[int, int], None] = lambda done, total: None,
     stopped: Callable[[], bool] = lambda: False,
     now: Callable[[], float] = time.time,
+    *,
+    announce_hosts: list[str] | None = None,
 ) -> PreparedUpload:
     """Make the torrent, keep it and the NFO in `folder`, then save the c411 Draft."""
     if not announce:
@@ -862,7 +870,9 @@ def create_upload(
 
     require_complete(request_form(request), file_evidence(request))
     item, title, files, nfo = request.item, request.title, request.files, request.nfo
-    torrent = make_torrent(item, files, announce, report, stopped, now)
+    torrent = make_torrent(
+        item, files, announce, report, stopped, now, announce_hosts=announce_hosts
+    )
     save_upload_files(folder, title, torrent, nfo)
     meta = read_torrent(torrent)
     body = draft_body(

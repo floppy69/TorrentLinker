@@ -11,11 +11,15 @@ from PySide6.QtWidgets import QMessageBox, QWidget
 from torrentlinker.gui.tasks import run_in_background
 from torrentlinker.indexer import KeyRefused, RateLimited, SessionRefused
 from torrentlinker.library import LibraryReadTimeout
+from torrentlinker.login_guard import LoginRefused
 from torrentlinker.qbit import AlreadyInClient
 from torrentlinker.transmission import PartialNamesOn
 
 
 def error_text(error: Exception) -> str:
+    if isinstance(error, LoginRefused):
+        app = QCoreApplication.instance()
+        return error.text(str(app.property("language") or "auto") if app else "auto")
     if isinstance(error, AlreadyInClient):
         message = QCoreApplication.translate(
             "Errors", "This torrent is already in the Torrent Client."

@@ -80,3 +80,32 @@ Disabling a type cancels its unsent automatic slots and preserves manual entries
 Changing selected chat messages/channels removes obsolete slots; comment-template
 changes update unsent automatic comments. Explicitly cancelled operations stay
 cancelled. Automatic mode and its selected content survive restart.
+
+## Where the Community controls are
+
+In Assistant and ReleaseScore, **Share** and **Browse** sit under one **Community** menu. In RSS, **Community rules** is under the rule list. Browse says what it lists, shows loading, empty and unavailable states, and points to Settings when the app is not linked.
+
+## App achievements on torrentlinker.fr
+
+Open **Settings → Join the community** to view local app achievements and their
+tracking start. Full reseeds count only after a complete recheck and a later seeding
+observation. **Check retained history** recovers supported evidence and recognises
+current complete seeds separately; it does not estimate lifetime totals.
+
+Enable badge sharing in your site account, then choose **Share future achievements**
+in the app. **Share earned achievements too** is a separate choice. **Pause on this
+installation** clears its queue. Use **Consent and badge visibility** on the site to
+stop sharing for the whole account and choose whether published badges remain visible.
+Only badge IDs are uploaded, never torrent names, hashes or other source evidence.
+
+Under **My installations**, enable pairing on both installations of the same Site
+Account. Enter each installation's private LAN/VPN HTTPS address and port, exchange
+invitations, review the identity and fingerprint, and confirm on both sides. Invitations
+expire after five minutes. Paired installations merge their private ledgers over mutual
+TLS when reachable, without opening router ports. Removing a pairing stops future
+exchanges while preserving evidence already merged.
+
+**Backup and reset** saves private ledger evidence. Restoring a reviewed backup requires
+the same Site Account and stops sharing and pairings; credentials and consent are never
+restored. Changing accounts keeps their histories separate. App badges do not provide
+community contribution credit or moderation rights.

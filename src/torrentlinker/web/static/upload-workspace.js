@@ -1,24 +1,23 @@
 "use strict";
-// Keep existing specialised preparation tools reachable behind the shared workspace.
-const uploadLegacy = document.createElement("div");
-while ($("view-upload").firstChild)
-  uploadLegacy.append($("view-upload").firstChild);
-uploadLegacy.hidden = true;
+$("view-upload").replaceChildren();
 const uploadFrame = document.createElement("iframe");
 uploadFrame.id = "upload-frame";
 uploadFrame.title = "Upload";
 uploadFrame.src = "static/upload/view.html";
 uploadFrame.style.cssText =
   "width:100%;height:calc(100vh - 160px);min-height:240px;border:0;display:block";
-$("view-upload").append(uploadFrame, uploadLegacy);
-function uploadEnvironment() {
+$("view-upload").append(uploadFrame);
+let uploadNavigation = null;
+function uploadEnvironment(section) {
+  if (typeof section === "string") uploadNavigation = {tab: section, id: (uploadNavigation?.id || 0) + 1};
   if (!$("view-upload").hidden)
-    uploadFrame.style.height = `${Math.max(240, innerHeight - uploadFrame.getBoundingClientRect().top - 40)}px`;
+    uploadFrame.style.height = `${Math.max(240, innerHeight - uploadFrame.getBoundingClientRect().top - $("shell-band-host").getBoundingClientRect().height - 16)}px`;
   uploadFrame.contentWindow?.postMessage(
     {
       type: "upload-environment",
       value: {
         mode: "web",
+        navigation: uploadNavigation,
         language,
         client: state.clientId,
         active: !$("view-upload").hidden && !$("workspace").hidden,
@@ -32,6 +31,13 @@ window.addEventListener("message", async (e) => {
   if (e.source !== uploadFrame.contentWindow || e.origin !== location.origin)
     return;
   const m = e.data;
+  if (m?.type === "upload-tab" && ["sources", "local", "remote"].includes(m.tab)) {
+    // A render acknowledgement can arrive after a newer URL navigation.
+    // Only the currently requested route may update browser history.
+    if (m.navigationId !== uploadNavigation?.id || location.hash !== activeRoute) return;
+    rememberTab("upload", m.tab);
+    return;
+  }
   if (m?.type === "upload-ready") {
     uploadEnvironment();
     return;
@@ -43,40 +49,13 @@ window.addEventListener("message", async (e) => {
     if (body._client !== state.clientId)
       throw Error("The target client changed. Reopen Upload.");
     delete body._client;
-    let value;
-    if (m.path === "advanced") {
-      uploadLegacy.hidden = false;
-      uploadFrame.hidden = true;
-      const drafts = await api("upload/queue");
-      const record = drafts.find((r) => r.id === body.id);
-      await prepareUpload(
-        {
-          path: body.path,
-          name: record?.form.title || body.path.split("/").pop(),
-        },
-        record,
-      );
-      let back = $("upload-guided-back");
-      if (!back) {
-        back = document.createElement("button");
-        back.id = "upload-guided-back";
-        back.textContent = "← Revenir au parcours";
-        back.onclick = () => {
-          uploadLegacy.hidden = true;
-          uploadFrame.hidden = false;
-          uploadEnvironment();
-        };
-        uploadLegacy.prepend(back);
-      }
-      value = { ok: true };
-    } else
-      value = await api(
-        "upload/workspace/" +
-          encodeURIComponent(m.path) +
-          "?client_id=" +
-          encodeURIComponent(state.clientId),
-        body,
-      );
+    const value = await api(
+      "upload/workspace/" +
+        encodeURIComponent(m.path) +
+        "?client_id=" +
+        encodeURIComponent(state.clientId),
+      body,
+    );
     uploadFrame.contentWindow?.postMessage(
       { type: "upload-response", id: m.id, value },
       location.origin,
@@ -104,3 +83,5 @@ new MutationObserver(uploadEnvironment).observe(document.documentElement, {
 });
 
 document.addEventListener("tl-language-changed", uploadEnvironment);
+
+new ResizeObserver(uploadEnvironment).observe($("shell-band-host"));

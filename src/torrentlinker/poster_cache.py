@@ -7,6 +7,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlsplit
+from weakref import WeakValueDictionary
 
 import httpx
 
@@ -93,3 +94,18 @@ class PosterCache:
                     old.unlink(missing_ok=True)
             except OSError:
                 pass  # a full or read-only disk only costs the cache
+
+
+_cache_lock = threading.Lock()
+_cache_owners: WeakValueDictionary[Path, PosterCache] = WeakValueDictionary()
+
+
+def shared_poster_cache(folder: Path) -> PosterCache:
+    """One writer per cache directory across Search, details and client profiles."""
+    folder = folder.resolve()
+    with _cache_lock:
+        cache = _cache_owners.get(folder)
+        if cache is None:
+            cache = PosterCache(folder)
+            _cache_owners[folder] = cache
+        return cache

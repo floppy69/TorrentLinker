@@ -12,6 +12,14 @@ Le sélecteur **Client cible** concerne les vérifications et reseeds de la bibl
 
 Dans **Torrents**, cochez **Tous les clients** pour afficher une vue commune. Filtrez par nom et utilisez le menu contextuel sur les lignes sélectionnées pour agir sur les clients correspondants. Retirer un torrent conserve les fichiers ; leur suppression demande une confirmation. L'estimation Zen globale ne compte chaque hash qu'une fois.
 
+## Adresses, secrets et connexions refusées
+
+Une adresse sans `http://`, comme `192.168.0.50:8080`, est acceptée. Une adresse erronée nomme le champ et ce qu’il faut saisir.
+
+Les mots de passe, clés d’API et jetons enregistrés s’affichent sous la forme `••••••••`. L’œil permet d’en révéler un. Les quatre clés d’API c411 supplémentaires se modifient une par une.
+
+Si un client refuse votre connexion, TorrentLinker cesse de s’y reconnecter automatiquement jusqu’à ce que vous modifiiez ses réglages ou appuyiez sur **Tester**. Cela évite un bannissement : qBittorrent bannit une IP après plusieurs échecs de connexion. Quand qBittorrent a banni l’adresse, le message le dit. Une clé d’API ne sert jamais à se connecter.
+
 ## Plans
 
 Ouvrez **Destinations du Plan…**. Sélectionnez un seul client pour lui réserver le Plan, ou plusieurs pour une répartition automatique. Indiquez le budget de chaque client en Gio. La valeur zéro utilise l'espace disponible après votre marge de sécurité.
@@ -53,3 +61,19 @@ Limites à prévoir :
 - Un montage FTP ne peut pas indiquer l'espace libre de la seedbox : rclone affiche une taille inventée. Fixez le budget de ce client dans **Destinations du Plan** au lieu de zéro. SFTP indique l'espace libre si l'hébergeur le permet.
 - Un montage en lecture seule ne peut pas être vérifié avec un fichier temporaire. La vérification utilise alors un fichier d'un torrent existant : gardez au moins un torrent dans le dossier relié.
 - Si le montage s'arrête, son dossier devient vide ou indisponible, et une analyse n'y trouve alors rien. Vérifiez que le montage tourne avant d'analyser.
+
+
+## Compatibilité des clients
+
+Ce tableau décrit les fonctions accessibles dans TorrentLinker. L’accès aux fichiers et les correspondances de chemins restent nécessaires pour les opérations sur les données.
+
+| Client | Gestion / téléchargements / Plans | Reseed complet | Reseed partiel | Vidéo séquentielle | Aperçu pendant le téléchargement |
+| --- | --- | --- | --- | --- | --- |
+| qBittorrent | Oui | Oui | Oui | Oui | Oui, vidéo unique et pièces vérifiées |
+| Transmission | Oui | Selon disposition et réglage `.part` | Selon disposition | 4.1+ | Non |
+| Deluge | Oui | Oui | Oui | Demandée dans les options | Non |
+| rTorrent | Oui ; retrait sans suppression des fichiers | Dossier de liens requis | Non | Non | Non |
+| µTorrent Classic | Expérimental ; dossier par défaut et sous-dossiers | Dossier de liens et réglages compatibles requis | Non | Non via cette API | Non |
+| BitTorrent Classic | Même adaptateur expérimental que µTorrent | Dossier de liens et réglages compatibles requis | Non | Non via cette API | Non |
+
+Le tableau de reseed exige une correspondance complète pour tous les clients ; la colonne partielle concerne les parcours proposant des correspondances partielles. Le dossier de liens doit rester hors des dossiers de bibliothèque et être conservé tant que les torrents l’utilisent. La lecture de fichiers complets dépend de l’accès aux fichiers et des codecs du lecteur, pas du client torrent. Voir aussi le [tableau détaillé en anglais](../en/clients.md#client-compatibility).

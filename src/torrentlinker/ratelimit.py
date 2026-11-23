@@ -33,6 +33,21 @@ SHORT_WINDOW = 600.0  # a refusal's window up to this is a pace to adopt, not th
 REFUSAL_MARGIN = 1.05  # adopted paces stay a little under the reported limit
 
 
+def cancellable_sleep(seconds: float, stop: threading.Event | None, sleep=time.sleep) -> None:
+    """Honor the configured clock's sleeper while checking cancellation during long waits."""
+    if stop is None:
+        sleep(seconds)
+        return
+    while seconds > 0:
+        if stop.is_set():
+            raise InterruptedError("Request cancelled while waiting for quota.")
+        interval = min(seconds, 0.1)
+        sleep(interval)
+        seconds -= interval
+    if stop.is_set():
+        raise InterruptedError("Request cancelled while waiting for quota.")
+
+
 class Queue:
     """One request at a time, at least `interval` seconds apart.
 
@@ -63,9 +78,9 @@ class Queue:
         return max(0.0, self._last + self._interval() - self._clock())
 
     @contextmanager
-    def turn(self, background: bool = False) -> Iterator[None]:
+    def turn(self, background: bool = False, stop: threading.Event | None = None) -> Iterator[None]:
         """Wait for this request's turn, then hold the queue while it is sent."""
-        self._claim(background)
+        self._claim(background, stop)
         try:
             yield
         finally:
@@ -78,7 +93,7 @@ class Queue:
         with self.turn(background):
             pass
 
-    def _claim(self, background: bool) -> None:
+    def _claim(self, background: bool, stop: threading.Event | None = None) -> None:
         with self._state:
             if not background:
                 self._foreground += 1
@@ -86,14 +101,18 @@ class Queue:
             while True:
                 with self._state:
                     while self._busy or (background and self._foreground > 0):
-                        self._state.wait()
+                        if stop is not None and stop.is_set():
+                            raise InterruptedError("Request stopped before sending.")
+                        self._state.wait(0.1 if stop is not None else None)
+                    if stop is not None and stop.is_set():
+                        raise InterruptedError("Request stopped before sending.")
                     wait = self.next_in()
                     if wait <= 0:
                         self._busy = True
                         self._last = self._clock()
                         self._sent()
                         return
-                self._sleep(wait)  # outside: others may still claim their turn
+                cancellable_sleep(wait, stop, self._sleep)  # outside the queue lock
         finally:
             if not background:
                 with self._state:
@@ -237,3 +256,34 @@ class BudgetQueue(Queue):
                 pass
         self._reported, self._since_report = remaining, 0
         self._reset = self._clock() + max(0.0, reset - self._wall())
+
+
+class Pacer(Queue):
+    """An Indexer's pace: no limit of ours, only what that Indexer asks for.
+
+    Requests go one at a time with no pause until the Indexer refuses one with 429; then
+    the pacer rests as long as `Retry-After` says and keeps to any limit the refusal
+    reports (`x-ratelimit-limit` per `x-ratelimit-window`). A response that reports no
+    request left (`x-ratelimit-remaining: 0`) rests until `x-ratelimit-reset`.
+    """
+
+    def __init__(
+        self,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        super().__init__(0.0, clock, sleep)
+        self._until = 0.0
+
+    def rest(self, seconds: float) -> None:
+        self._until = max(self._until, self._clock() + max(seconds, 0.0))
+
+    def next_in(self) -> float:
+        return max(super().next_in(), self._until - self._clock(), 0.0)
+
+    def observe(self, headers: Mapping[str, str]) -> None:
+        try:
+            if int(headers["x-ratelimit-remaining"]) <= 0:
+                self.rest(float(headers["x-ratelimit-reset"]))
+        except (KeyError, ValueError):
+            pass

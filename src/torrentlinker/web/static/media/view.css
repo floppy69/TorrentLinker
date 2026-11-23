@@ -1,0 +1,1055 @@
+* {
+  box-sizing:border-box}
+html,body {
+  margin:0;
+  min-width:0;
+  background:var(--bg);
+  color:var(--text);
+  font:14px system-ui,sans-serif}
+button,input,select {
+  font:inherit;
+  padding:8px 12px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  color:var(--text);
+  background:var(--panel)}
+button {
+  cursor:pointer}
+button:disabled {
+  opacity:.5;
+  cursor:default}
+[hidden] {
+  display:none!important}
+button:focus-visible,input:focus-visible,select:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:2px}
+#view-media {
+  background:var(--bg);
+  color:var(--text);
+  --media-muted:var(--muted);
+  min-height:100vh}
+#view-media button,#view-media input,#view-media select,#media-details button {
+  color:var(--text);
+  background:var(--panel);
+  border-color:var(--line)}
+#view-media .media-primary,#media-details .media-primary {
+  background:var(--accent);
+  color:var(--accent-text);
+  border-color:var(--accent)}
+#view-media .media-card,#view-media .media-options-panel {
+  background:var(--panel);
+  color:var(--text);
+  border-color:var(--line)}
+#view-media h2,#view-media h3,#view-media strong {
+  color:var(--text)}
+#media-details {
+  background:var(--panel);
+  color:var(--text);
+  border:1px solid var(--line);
+  border-radius:10px;
+  max-height:90vh;
+  overflow:auto;
+  width:min(760px,94vw)}
+#media-details::backdrop {
+  background:#0009}
+#media-details .muted,.muted {
+  color:var(--muted)}
+#view-media .media-feature {
+  background:var(--raised)}
+#view-media .media-art-title {
+  color:#eef3f1}
+#view-media .media-row-card,#view-media .media-focus-choice {
+  background:transparent;
+  border:0;
+  padding:0}
+#view-media .media-row-card[aria-pressed=true] .media-art {
+  outline:2px solid var(--accent)}
+/* Override legacy Media colors at the same specificity in both themes. */
+html[data-theme] #view-media  {
+   background:var(--bg);
+  color:var(--text);
+   }
+html[data-theme] #view-media button,
+html[data-theme] #view-media input,
+html[data-theme] #view-media select  {
+   color:var(--text);
+  background:var(--panel);
+  border-color:var(--line);
+   }
+html[data-theme] #view-media .media-tabs button,
+html[data-theme] #view-media .media-browse-nav button  {
+   color:var(--muted)!important;
+   }
+html[data-theme] #view-media .media-tabs [aria-selected=true],
+html[data-theme] #view-media .media-browse-nav button.active  {
+   color:var(--accent)!important;
+  border-color:var(--accent)!important;
+   }
+html[data-theme] #view-media .media-music-nav button  {
+   background:none;
+   color:var(--muted);
+   }
+html[data-theme] #view-media .media-music-nav button.active  {
+   color:var(--text);
+   }
+html[data-theme] #view-media .media-feature  {
+   color:var(--text);
+   }
+html[data-theme] #view-media .media-feature::before  {
+   background:linear-gradient(90deg,var(--bg),color-mix(in srgb,var(--bg) 85%,transparent) 35%,transparent),linear-gradient(0deg,var(--bg),transparent 80%);
+   }
+html[data-theme] #view-media .media-feature-art  {
+   background:linear-gradient(135deg,var(--tint),var(--bg))!important;
+   }
+html[data-theme] #view-media .media-feature-copy  {
+   background:transparent;
+   }
+html[data-theme] #view-media .media-feature .media-primary  {
+   background:var(--accent);
+  color:var(--accent-text);
+  border-color:var(--accent);
+   }
+html[data-theme] #view-media .media-feature .media-secondary  {
+   background:var(--panel);
+  color:var(--text);
+  border-color:var(--line);
+   }
+html[data-theme] #view-media .media-row-card,
+html[data-theme] #view-media .media-focus-choice  {
+   background:transparent;
+  border:0;
+  color:var(--text)!important;
+   }
+html[data-theme] #view-media .media-metadata-source,
+html[data-theme] #view-media .media-card-meta,
+html[data-theme] #view-media .media-inventory-status  {
+   color:var(--muted);
+   }
+html[data-theme] #view-media .media-eyebrow  {
+   color:var(--accent);
+   }
+html[data-theme] #view-media .media-episodes-header button[aria-pressed=true]  {
+   border-color:var(--accent);
+   }
+html[data-theme] #media-details  {
+   background:var(--panel);
+  color:var(--text);
+  border-color:var(--line);
+   }
+html[data-theme] #media-details > button:first-of-type  {
+   color:var(--text);
+  background:var(--panel)!important;
+   }
+html[data-theme] #view-media .media-feature-meta, html[data-theme] #view-media .media-feature-description  {
+   color:var(--muted);
+   }
+
+#view-media .media-shelves { padding-bottom:calc(100px + var(--media-player-clearance,0px)); }
+
+/* Keep navigation at the shared panel text size, including on narrow windows. */
+#view-media .media-tabs button,
+#view-media .media-browse-nav button,
+#view-media .media-music-nav button {
+  font-size: 14px;
+  min-height: 40px;
+  padding: 9px 4px;
+}
+#view-media .media-browse-nav {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.media-resume-item { position: relative; min-width: 0; }
+#view-media .media-resume-card { width: 100%; }
+#view-media .media-resume-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* Horizon, inspired by Kodi's Aeon Nox: the featured title's artwork, blurred, fills the
+   screen behind frosted panels. Settings choose its view: home, showcase or wall. */
+.media-clock {
+  display:none}
+#view-media[data-layout="horizon"][data-kind="video"] {
+  background:#05080b}
+#view-media[data-layout="horizon"] .media-clock {
+  display:block;
+  font-size:24px;
+  font-weight:300;
+  letter-spacing:.02em;
+  color:#eef3f6;
+  font-variant-numeric:tabular-nums}
+#view-media[data-layout="horizon"][data-kind="video"] .media-topbar {
+  z-index:5; /* its Options panel opens over the Wall's band */
+  background:linear-gradient(#05080bd9,transparent)}
+#view-media[data-layout="horizon"][data-kind="video"] .media-browse-nav {
+  gap:clamp(14px,2.6vw,38px)}
+#view-media[data-layout="horizon"][data-kind="video"] .media-browse-nav button {
+  font-size:12px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:#7f909c!important}
+#view-media[data-layout="horizon"][data-kind="video"] .media-browse-nav button.active {
+  color:#f4f7f9!important;
+  text-shadow:0 0 16px #80d6c580}
+/* The backdrop belongs to the page, behind everything: the Wall's band can then stay above
+   the posters without its artwork covering them. browser.js sets --horizon-art. */
+#view-media[data-layout="horizon"][data-kind="video"] {
+  isolation:isolate}
+#view-media[data-layout="horizon"][data-kind="video"]::before,#view-media[data-layout="horizon"][data-kind="video"]::after {
+  content:"";
+  position:fixed;
+  z-index:-1;
+  pointer-events:none}
+#view-media[data-layout="horizon"][data-kind="video"]::before {
+  inset:-60px;
+  background:var(--horizon-art,none) center 30%/cover no-repeat,#05080b;
+  filter:blur(24px) saturate(1.15) brightness(.5)}
+#view-media[data-layout="horizon"][data-kind="video"]::after {
+  inset:0;
+  background:linear-gradient(90deg,#05080be0 0,#05080b59 60%,#05080b26 100%),linear-gradient(0deg,#05080bf2 0,transparent 55%)}
+#view-media[data-layout="horizon"][data-kind="video"] .media-feature {
+  background:transparent}
+/* The feature keeps its artwork element only to load the image for the backdrop. */
+#view-media[data-layout="horizon"][data-kind="video"] .media-feature-art {
+  opacity:0;
+  pointer-events:none}
+#view-media[data-layout="horizon"][data-kind="video"] .media-feature::before {
+  display:none}
+/* Panels stay readable on any artwork. */
+#view-media[data-layout="horizon"][data-kind="video"] .media-feature-copy {
+  background:#0d151cb8;
+  backdrop-filter:blur(14px);
+  border:1px solid #ffffff1f;
+  border-radius:12px}
+#view-media[data-layout="horizon"][data-kind="video"] .media-feature h2 {
+  text-transform:uppercase;
+  letter-spacing:-.5px}
+.media-feature-flags {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:12px 0 0;
+  padding:0;
+  list-style:none}
+.media-feature-flags li {
+  padding:3px 6px;
+  border:1px solid #ffffff2e;
+  border-radius:4px;
+  background:#ffffff14;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.06em}
+.media-feature-flags li.strong {
+  color:#05080b;
+  background:#80d6c5;
+  border-color:#80d6c5}
+
+/* Home, as Kodi's Aeon Nox home: one screen, no scrolling. The title sits on the artwork,
+   a row of posters above the main menu, which runs across the foot of the screen. A column,
+   so the title and the row never overlap whatever the screen's height. */
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] {
+  height:100vh;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature {
+  flex:none;
+  margin:4px 40px 0;
+  width:min(640px,52%);
+  min-height:0}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature-copy {
+  padding:0;
+  margin:0;
+  max-width:none;
+  background:none;
+  backdrop-filter:none;
+  border:0;
+  text-shadow:0 2px 14px #000c}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature-copy.has-poster {
+  display:block}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature-copy.has-poster > .media-feature-poster,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature .media-eyebrow,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-metadata-source {
+  display:none}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature h2 {
+  font-size:clamp(30px,4vw,58px);
+  line-height:.98;
+  margin:0 0 12px}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature-description {
+  -webkit-line-clamp:3;
+  color:#d3dde3;
+  margin:12px 0 16px}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-shelves {
+  flex:1;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+  margin:0 40px;
+  padding:0 0 calc(var(--media-nav-height,66px) + 26px);
+  container-type:size}
+/* The posters take the room the title leaves. Unlike Showcase's carousel, nothing grows:
+   the chosen poster lifts into a soft light while the others step back. */
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-home-rows {
+  --poster:clamp(90px,calc((100cqh - 200px) * 2 / 3),200px)}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-track {
+  padding-top:84px;
+  padding-bottom:28px}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card[aria-pressed="true"] {
+  position:relative;
+  transform-origin:50% 100%;
+  flex-basis:var(--poster);
+  transition:transform .35s cubic-bezier(.2,.8,.2,1),margin .35s cubic-bezier(.2,.8,.2,1),opacity .35s,filter .35s}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card:not([aria-pressed="true"]) {
+  opacity:.4;
+  filter:saturate(.5) brightness(.8)}
+/* A wave: the neighbours rise a little with the chosen poster, and the light fades outwards. */
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card[aria-pressed="true"] + .media-row-card,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card:has(+ .media-row-card[aria-pressed="true"]) {
+  opacity:.66;
+  filter:saturate(.75) brightness(.92);
+  transform:translateY(-5px) scale(1.02)}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card[aria-pressed="true"] + .media-row-card + .media-row-card,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card:has(+ .media-row-card + .media-row-card[aria-pressed="true"]) {
+  opacity:.5;
+  filter:saturate(.6) brightness(.86);
+  transform:translateY(-1px)}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-track .media-row-card:not([aria-pressed="true"]):hover {
+  opacity:.8;
+  filter:none}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card[aria-pressed="true"] {
+  z-index:1;
+  margin-inline:calc(var(--poster) * .08);
+  transform:translateY(-24px) scale(1.15)}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card[aria-pressed="true"] .media-art {
+  outline-color:transparent;
+  box-shadow:0 0 0 1px #ffffff4d,0 24px 70px -14px #5fd0c3d9,0 34px 80px -24px #000}
+/* A diffuse light under the chosen poster, rather than an outline. */
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card[aria-pressed="true"]::before {
+  content:"";
+  position:absolute;
+  inset:18% -22% -10%;
+  z-index:-1;
+  background:radial-gradient(closest-side,#5fd0c385,#5fd0c32e 55%,transparent);
+  filter:blur(26px);
+  pointer-events:none}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card[aria-pressed="true"] strong {
+  color:#f4f7f9}
+/* The category's title is its menu: a small arrow, then the name. */
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-category {
+  appearance:none;
+  width:auto;
+  margin:0;
+  padding:2px 6px 2px 20px;
+  border:0;
+  border-radius:4px;
+  background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23a3b2bd'/%3E%3C/svg%3E") no-repeat 4px center;
+  color:#a3b2bd;
+  font:600 12px/1.4 inherit;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  cursor:pointer}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-category:hover,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-category:focus-visible {
+  color:#eef3f6;
+  background-color:#ffffff14}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-category option {
+  color:#eef3f6;
+  background:#0d151c;
+  text-transform:none;
+  letter-spacing:0}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] #media-status,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] #media-continue,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-home-row:not(:first-child) {
+  display:none}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-home-rows {
+  margin:0}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-browse-nav {
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:18px;
+  z-index:4;
+  justify-content:center;
+  gap:clamp(18px,4vw,54px);
+  padding:14px 20px;
+  background:linear-gradient(90deg,transparent,#0d151cd9 15%,#0d151cd9 85%,transparent);
+  border-top:1px solid #ffffff1f;
+  border-bottom:1px solid #ffffff1f}
+#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-browse-nav button {
+  font-size:clamp(14px,1.5vw,20px)}
+/* A short screen keeps the title, flags and posters; the plot is in Details. */
+@media (max-height:760px) {
+  #view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature h2 {
+    font-size:clamp(26px,3.2vw,44px)}
+  #view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature-description,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card strong,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-row-card span {
+    display:none}
+  #view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature-flags {
+    margin-bottom:14px}
+}
+/* A phone keeps the same order in a page that scrolls. */
+@media (max-width:850px) {
+  #view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] {
+    height:auto;
+    overflow:visible}
+  #view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-shelves {
+    position:static;
+    width:auto;
+    margin:16px}
+  #view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-browse-nav {
+    position:static;
+    justify-content:flex-start;
+    overflow-x:auto}
+  /* The page scrolls here, so the row cannot size its posters from a fixed height. */
+  #view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-shelves {
+    container-type:normal;
+    padding-bottom:0}
+  #view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-home-rows {
+    --poster:150px}}
+#view-media[data-layout="horizon"] .media-home-row-header h2,#view-media[data-layout="horizon"] .media-continue > h2 {
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:#a3b2bd}
+#view-media[data-layout="horizon"] .media-row-track {
+  align-items:flex-end;
+  padding:14px 4px 8px}
+#view-media[data-layout="horizon"] .media-row-card {
+  flex:0 0 132px;
+  transition:flex-basis .22s ease}
+#view-media[data-layout="horizon"] .media-row-card .media-art {
+  width:100%;
+  transition:outline-color .15s,box-shadow .22s}
+#view-media[data-layout="horizon"] .media-row-card[aria-pressed="true"] {
+  flex-basis:184px}
+#view-media[data-layout="horizon"] .media-row-card[aria-pressed="true"] .media-art {
+  outline-color:#5fd0c3;
+  box-shadow:0 14px 34px #000c}
+
+/* Showcase: the whole screen for one title; the carousel grows the chosen poster. */
+/* The panel on top, the carousel at the foot: stacked, so neither covers the other. */
+#view-media[data-layout="horizon"][data-horizon="showcase"][data-kind="video"] {
+  height:100vh;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column}
+#view-media[data-layout="horizon"][data-horizon="showcase"][data-kind="video"] .media-feature {
+  flex:1;
+  min-height:0;
+  display:flex;
+  flex-direction:column}
+#view-media[data-layout="horizon"][data-horizon="showcase"][data-kind="video"] .media-shelves {
+  flex:none;
+  max-height:38vh;
+  overflow:auto;
+  padding-bottom:0}
+#view-media[data-layout="horizon"][data-horizon="showcase"][data-kind="video"] #media-status {
+  display:none}
+#view-media[data-layout="horizon"][data-horizon="showcase"][data-kind="video"] .media-feature-copy {
+  margin:24px 36px 0;
+  padding:24px 28px;
+  max-width:560px}
+#view-media[data-layout="horizon"][data-horizon="showcase"] .media-feature-copy.has-poster {
+  display:block}
+#view-media[data-layout="horizon"][data-horizon="showcase"] .media-feature-copy.has-poster > .media-feature-poster {
+  display:none}
+#view-media[data-layout="horizon"][data-horizon="showcase"] .media-feature h2 {
+  font-size:clamp(28px,3.4vw,52px)}
+#view-media[data-layout="horizon"][data-horizon="showcase"][data-kind="video"] .media-focus-strip {
+  display:flex;
+  align-items:flex-end;
+  gap:16px;
+  margin-top:auto;
+  padding:24px 36px 20px;
+  overflow-x:auto;
+  scrollbar-width:none}
+#view-media[data-layout="horizon"][data-horizon="showcase"] .media-focus-choice {
+  flex:0 0 clamp(84px,12vh,140px);
+  width:auto;
+  min-width:0;
+  transition:flex-basis .22s ease}
+#view-media[data-layout="horizon"][data-horizon="showcase"] .media-focus-choice .media-art {
+  height:auto;
+  aspect-ratio:2/3}
+#view-media[data-layout="horizon"][data-horizon="showcase"] .media-focus-choice > span {
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis}
+#view-media[data-layout="horizon"][data-horizon="showcase"] .media-focus-choice[aria-pressed="true"] {
+  flex-basis:clamp(124px,19vh,210px)}
+#view-media[data-layout="horizon"][data-horizon="showcase"] .media-focus-choice[aria-pressed="true"] .media-art {
+  outline-color:#5fd0c3;
+  box-shadow:0 14px 34px #000c}
+#view-media[data-layout="horizon"][data-horizon="showcase"][data-kind="video"][data-empty="false"] .media-library-layout,#view-media[data-layout="horizon"][data-horizon="showcase"][data-kind="video"] #media-continue {
+  display:none}
+
+/* Wall: Collection's density. A poster selects its title into the band, which stays in
+   view while the wall scrolls; the chosen poster grows in place. */
+#view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"] .media-feature {
+  position:sticky;
+  top:0;
+  z-index:3;
+  min-height:0}
+#view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"] .media-feature-copy {
+  margin:8px 36px 14px;
+  padding:14px 18px;
+  max-width:none}
+#view-media[data-layout="horizon"][data-horizon="wall"] .media-feature-copy.has-poster {
+  grid-template-columns:84px minmax(0,1fr);
+  column-gap:20px;
+  max-width:none}
+#view-media[data-layout="horizon"][data-horizon="wall"] .media-feature-copy.has-poster > .media-feature-poster {
+  width:84px}
+#view-media[data-layout="horizon"][data-horizon="wall"] .media-feature h2 {
+  font-size:clamp(20px,2.2vw,30px);
+  margin:0 0 6px}
+#view-media[data-layout="horizon"][data-horizon="wall"] .media-feature .media-eyebrow,#view-media[data-layout="horizon"][data-horizon="wall"] .media-metadata-source,#view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"] #media-continue {
+  display:none}
+#view-media[data-layout="horizon"][data-horizon="wall"] .media-feature-description {
+  -webkit-line-clamp:2;
+  max-width:90ch;
+  margin:8px 0 10px}
+#view-media[data-layout="horizon"][data-horizon="wall"] .media-feature-actions button {
+  padding:6px 14px}
+#view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"] .media-grid {
+  grid-template-columns:repeat(auto-fill,minmax(118px,1fr));
+  gap:22px 14px}
+#view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"] .media-card-actions,#view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"] .media-card-source,#view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"] .media-poster-badge {
+  display:none}
+#view-media[data-layout="horizon"][data-horizon="wall"] .media-poster-button {
+  transition:transform .22s ease}
+#view-media[data-layout="horizon"][data-horizon="wall"] .media-poster-button[aria-pressed="true"] {
+  transform:scale(1.1);
+  z-index:2}
+#view-media[data-layout="horizon"][data-horizon="wall"] .media-poster-button[aria-pressed="true"] .media-art {
+  outline:2px solid #5fd0c3;
+  outline-offset:2px;
+  box-shadow:0 14px 34px #000c}
+@media (max-width:850px) {
+  #view-media[data-layout="horizon"][data-kind="video"] .media-feature-copy,#view-media[data-layout="horizon"][data-horizon="home"][data-kind="video"] .media-feature-copy,#view-media[data-layout="horizon"][data-horizon="showcase"][data-kind="video"] .media-feature-copy,#view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"] .media-feature-copy {
+    margin-left:16px;
+    margin-right:16px;
+    padding:16px}
+  #view-media[data-layout="horizon"][data-horizon="showcase"][data-kind="video"] .media-focus-strip {
+    padding:16px}
+  #view-media[data-layout="horizon"][data-horizon="showcase"] .media-focus-choice {
+    flex-basis:84px!important;
+    width:auto!important}
+  #view-media[data-layout="horizon"][data-horizon="showcase"] .media-focus-choice[aria-pressed="true"] {
+    flex-basis:124px!important}
+  #view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"] .media-grid {
+    grid-template-columns:repeat(3,minmax(0,1fr))}
+  /* A phone has no room to keep the band in view; it scrolls with the wall. */
+  #view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"] .media-feature {
+    position:relative}
+  #view-media[data-layout="horizon"] .media-clock {
+    display:none}}
+/* What scrolls into view, by keyboard or link, stays clear of the Wall's band. */
+html:has(#view-media[data-layout="horizon"][data-horizon="wall"][data-kind="video"]) {
+  scroll-padding-top:190px}
+
+/* The page of a film (docs/specs/media-watch-page, layout A). The top bar sits over the film instead of pushing
+   the page, leaves while the page scrolls down and returns on any scroll up; the title behind it does not move. */
+#view-media[data-kind="video"]:not([data-layout="horizon"]) .media-topbar,#view-media[data-watch="true"] .media-topbar {
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  z-index:20;
+  padding-bottom:22px;
+  background:linear-gradient(color-mix(in srgb,var(--bg) 92%,transparent),transparent);
+  transition:transform .25s ease,opacity .25s ease}
+/* Between its controls the bar lets taps through to the picture under it. */
+#view-media[data-kind="video"]:not([data-layout="horizon"]) .media-topbar > *,#view-media[data-watch="true"] .media-topbar > * {
+  pointer-events:none}
+#view-media[data-kind="video"]:not([data-layout="horizon"]) .media-topbar :is(button,input,select,summary,a,.media-options-panel),#view-media[data-watch="true"] .media-topbar :is(button,input,select,summary,a,.media-options-panel) {
+  pointer-events:auto}
+@media (max-width:850px) {
+  #view-media[data-watch="true"] .media-topbar {
+    gap:6px 10px;
+    padding:8px 12px 18px}}
+/* On a phone the preview's bar has no browsing tabs over a film: they come back with the title. */
+@media (max-width:600px),(orientation:landscape) and (max-height:500px) {
+  #view-media[data-watch="true"] .media-topbar .media-browse-nav {
+    display:none}
+  /* Over a film the bar keeps one row, as in the preview: menu, tabs, search, Assistant and client; the rest waits for the title. */
+  #view-media[data-watch="true"] .media-topbar {
+    flex-wrap:nowrap;
+    gap:8px;
+    padding-top:4px}
+  #view-media[data-watch="true"] .media-topbar :is(button,input,select) {
+    height:30px;
+    min-height:0;
+    padding-top:0;
+    padding-bottom:0}
+  #view-media[data-watch="true"] .media-topbar #media-search {
+    flex:1 1 60px;
+    min-width:0;
+    width:auto}}
+#view-media[data-bar="hidden"][data-kind="video"] .media-topbar {
+  transform:translateY(-100%);
+  opacity:0;
+  pointer-events:none}
+/* Over the film the bar is dark whatever the theme. */
+html[data-theme] #view-media[data-watch="true"] .media-topbar {
+  background:linear-gradient(#0b1015e6,#0b101500)}
+html[data-theme] #view-media[data-watch="true"] .media-topbar .media-tabs button,
+html[data-theme] #view-media[data-watch="true"] .media-topbar .media-browse-nav button {
+  color:#cfd8dc!important}
+html[data-theme] #view-media[data-watch="true"] .media-topbar .media-tabs [aria-selected=true],
+html[data-theme] #view-media[data-watch="true"] .media-topbar .media-browse-nav button.active {
+  color:#fff!important}
+html[data-theme] #view-media[data-watch="true"] .media-topbar summary {
+  color:#fff}
+html[data-theme] #view-media[data-watch="true"] .media-topbar input,
+html[data-theme] #view-media[data-watch="true"] .media-topbar #media-client {
+  color:#dfe7ea;
+  background:#0006;
+  border-color:#ffffff30}
+#media-navigation {
+  flex:none;
+  font-size:18px;
+  line-height:1;
+  padding:6px 12px}
+/* The title starts under the bar; nothing under it scrolls away from the bar's height. */
+#view-media[data-kind="video"]:not([data-layout="horizon"]) .media-feature {
+  padding-top:var(--media-topbar-height,0px)}
+#view-media[data-kind="video"]:not([data-layout="horizon"])[data-feature="hidden"] .media-shelves,
+#view-media[data-kind="video"]:not([data-layout="horizon"])[data-page="ratings"] .media-ratings-page {
+  padding-top:calc(var(--media-topbar-height,0px) + 24px)}
+/* Another film fades in behind its title. */
+.media-feature.fade .media-feature-art,.media-feature.fade .media-feature-copy {
+  animation:media-fade .35s ease}
+@keyframes media-fade {
+  from {
+    opacity:0}
+  to {
+    opacity:1}}
+@media (prefers-reduced-motion:reduce) {
+  .media-feature.fade .media-feature-art,.media-feature.fade .media-feature-copy {
+    animation:none}
+  #view-media[data-kind="video"] .media-topbar {
+    transition:none}}
+
+/* A single scroll surface holds the theatre player, pinned library banner and rows. */
+html:has(#view-media[data-watch="true"]),html:has(#view-media[data-watch="true"]) body {
+  height:100%;
+  overflow:hidden;
+  background:transparent}
+html[data-theme] #view-media[data-watch="true"] {
+  position:fixed;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  background:transparent}
+.media-scroll {
+  display:contents}
+#view-media[data-watch="true"] .media-scroll {
+  display:block;
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  background:transparent;
+  scrollbar-width:thin}
+.media-watch-slot {
+  flex:none;
+  display:flex;
+  justify-content:center;
+  background:transparent}
+.media-screen {
+  position:relative;
+  width:100%;
+  height:calc(100dvh - 148px);
+  min-height:240px;
+  overflow:hidden;
+  color:#fff;
+  cursor:pointer}
+@media (max-width:600px) {
+  .media-screen {
+    height:auto;min-height:0;aspect-ratio:16 / 9}}
+.media-overlay {
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+  background:linear-gradient(transparent 55%,#000c);
+  transition:opacity .2s}
+.media-screen[data-controls="off"] .media-overlay {
+  opacity:0;
+  pointer-events:none}
+.media-overlay-transport {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:4px}
+#view-media .media-round {
+  display:grid;
+  place-items:center;
+  width:44px;
+  height:44px;
+  padding:0;
+  border:0;
+  border-radius:50%;
+  background:#0007;
+  color:#fff}
+#view-media .media-round.big {
+  width:40px;
+  height:40px}
+.media-round svg {
+  width:22px;
+  height:22px}
+.media-round.big svg {
+  width:30px;
+  height:30px}
+.media-overlay svg,.media-watch svg {
+  fill:none;
+  stroke:currentColor;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  flex:none}
+.media-overlay-bottom {
+  grid-row:4;
+  display:grid;
+  gap:6px;
+  padding:0 14px 10px}
+.media-overlay-tools {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:12px}
+.media-overlay-time {
+  flex:1;
+  font-variant-numeric:tabular-nums}
+#view-media .media-overlay-tool {
+  display:inline-flex;
+  align-items:center;
+  padding:4px 6px;
+  border:0;
+  background:transparent;
+  color:#fff}
+.media-overlay-tool svg {
+  width:20px;
+  height:20px}
+#view-media .media-scrub {
+  appearance:none;
+  width:100%;
+  height:14px;
+  margin:0;
+  padding:0;
+  border:0;
+  background:transparent;
+  cursor:pointer}
+.media-scrub::-webkit-slider-runnable-track {
+  height:4px;
+  border-radius:4px;
+  background:linear-gradient(90deg,var(--accent) var(--progress,0%),transparent var(--progress,0%)),var(--buffered-track,linear-gradient(transparent,transparent)),linear-gradient(#ffffff30,#ffffff30)}
+.media-scrub::-webkit-slider-thumb {
+  appearance:none;
+  width:12px;
+  height:12px;
+  margin-top:-4px;
+  border-radius:50%;
+  border:0;
+  background:#fff}
+.media-scrub::-moz-range-track {
+  height:4px;
+  border-radius:4px;
+  background:var(--buffered-track,linear-gradient(transparent,transparent)),linear-gradient(#ffffff30,#ffffff30)}
+.media-scrub::-moz-range-progress {
+  height:4px;
+  border-radius:4px;
+  background:var(--accent)}
+.media-scrub::-moz-range-thumb {
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  border:0;
+  background:#fff}
+.media-screen-note {
+  position:absolute;
+  left:12px;
+  right:12px;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:2;
+  padding:10px 12px;
+  border-radius:8px;
+  background:#000c;
+  color:#fff;
+  font-size:13px;
+  text-align:center}
+.media-screen-note a {
+  color:var(--link)}
+
+.media-watch {
+  padding:14px 18px 4px;
+  color:var(--text)}
+.media-watch h2 {
+  margin:0 0 4px;
+  font-size:22px}
+.media-watch-meta {
+  margin:0;
+  color:var(--muted);
+  font-size:13px}
+.media-watch .media-feature-actions {
+  margin-top:10px}
+#view-media .media-watch .media-secondary {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:7px 12px;
+  font-size:13px}
+.media-watch .media-secondary svg {
+  width:18px;
+  height:18px}
+.media-watch-synopsis {
+  margin:10px 0 0;
+  max-width:60ch;
+  color:#c3cfd5;
+  font-size:14px;
+  line-height:1.6}
+html[data-theme="light"] .media-watch-synopsis {
+  color:var(--muted)}
+.media-watch-note {
+  margin:10px 0 0;
+  padding:.6rem;
+  border:1px solid var(--accent);
+  border-radius:8px;
+  background:var(--tint);
+  font-size:12px}
+@media (min-width:700px) {
+  .media-watch {
+    padding:14px 28px 4px}}
+/* Full screen: the film alone. */
+#view-media[data-full="true"] .media-topbar,#view-media[data-full="true"] .media-scroll > :not(.media-watch-slot) {
+  display:none!important}
+#view-media[data-full="true"] .media-watch-slot {
+  position:fixed;
+  inset:0;
+  z-index:30;
+  align-items:center}
+#view-media[data-full="true"] .media-screen {
+  width:100%;
+  height:100%;
+  aspect-ratio:auto}
+.media-watch-tracks .media-detail-choices button[aria-pressed="true"] {
+  border-color:var(--accent);
+  color:var(--accent)}
+
+/* Approved fixed banner: changing films never moves the rows or the bottom actions. */
+#view-media[data-kind="video"][data-layout="cinematic"] {
+  --media-banner-height:380px;--media-poster-width:192px;
+}
+#view-media[data-kind="video"][data-layout="cinematic"] #media-feature {
+  position:sticky;top:0;z-index:10;isolation:isolate;overflow:visible;padding:0;
+  height:var(--media-banner-height);min-height:var(--media-banner-height);max-height:var(--media-banner-height);
+}
+.media-feature-content {display:contents}
+.media-feature-content > * {grid-column:2}
+#view-media[data-kind="video"][data-layout="cinematic"] .media-feature-copy.has-poster {
+  display:grid;grid-template-columns:var(--media-poster-width) minmax(0,1fr);grid-template-rows:minmax(0,1fr);
+  height:100%;padding:76px 28px 16px;gap:28px;align-items:stretch;max-width:none;
+}
+#view-media[data-layout="cinematic"] .media-feature-copy.has-poster > .media-feature-poster {
+  grid-column:1;grid-row:1;width:100%;height:100%;min-height:0;min-width:0;align-self:stretch;
+  aspect-ratio:2/3;border-radius:8px;box-shadow:none;
+}
+#view-media[data-layout="cinematic"] .media-feature-content {
+  display:grid;grid-column:2;grid-row:1;grid-template-rows:72px 18px minmax(0,1fr) 44px 40px;
+  gap:6px;min-height:0;min-width:0;max-width:1040px;
+}
+#view-media[data-layout="cinematic"] .media-feature-content > * {grid-column:1;min-width:0}
+#view-media[data-layout="cinematic"] .media-feature h2 {
+  grid-row:1;font-size:36px;line-height:1;letter-spacing:-.035em;margin:0;min-height:0;
+  max-width:none;overflow:auto;scrollbar-width:thin;
+}
+#view-media[data-layout="cinematic"] .media-feature-meta {
+  grid-row:2;font-size:12px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#view-media[data-layout="cinematic"] .media-feature-description {
+  grid-row:3;display:block;-webkit-line-clamp:unset;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  scrollbar-gutter:stable;scrollbar-width:thin;max-width:90ch;margin:0;padding:0 12px 0 0;
+  line-height:1.65;font-size:13px;
+}
+.media-feature-description > p {margin:0}
+.media-feature-tags {display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+.media-feature-tag {display:flex;flex-direction:column;justify-content:center;gap:3px;border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:color-mix(in srgb,var(--panel) 80%,transparent)}
+.media-feature-tag dt {font-size:10px;color:var(--muted)}
+.media-feature-tag dd {font-size:12px;font-weight:600;margin:0}
+#view-media[data-layout="cinematic"] .media-feature-tags {
+  grid-row:4;flex-wrap:nowrap;min-width:0;overflow-x:auto;overflow-y:hidden;margin:0;scrollbar-width:none;
+}
+#view-media[data-layout="cinematic"] .media-feature-tag {flex-shrink:0}
+#view-media[data-layout="cinematic"] .media-feature-actions {
+  grid-row:5;display:flex;align-items:stretch;gap:8px;margin:0;padding:0;flex-wrap:nowrap;
+}
+#view-media[data-layout="cinematic"] .media-feature-actions > button {font-size:13px;padding:8px 18px}
+#view-media[data-kind="video"][data-layout="cinematic"] .media-shelves {position:relative;background:var(--bg);padding-left:28px;padding-right:28px}
+#view-media[data-watch="true"] .media-watch-slot {min-height:0}
+#view-media[data-full="true"] .media-scroll {overflow:visible}
+#view-media[data-full="true"] .media-screen {min-height:0}
+/* Keep the navigation in its own fixed-height row above the selected film. */
+#view-media[data-kind="video"][data-layout="cinematic"] .media-topbar {
+  height:64px;min-height:64px;flex-wrap:nowrap;gap:12px;padding:10px 24px;
+}
+#view-media[data-layout="cinematic"] .media-browse-nav {order:0;width:auto;flex:1;min-width:0;white-space:nowrap;scrollbar-width:none}
+#view-media[data-layout="cinematic"] .media-browse-nav button {flex:none}
+#view-media[data-layout="cinematic"] .media-library-options {margin:0}
+#view-media[data-layout="cinematic"] .media-feature .media-eyebrow {display:none}
+/* The same transparent TL mark appears in missing covers and broken artwork. */
+.media-art .media-art-logo {display:none}
+.media-art.missing-art:has(.media-art-logo) {
+  display:flex;align-items:center;justify-content:center;background:linear-gradient(150deg,#23343b,#152026);border:1px solid #ffffff12;
+}
+.media-art.missing-art:has(.media-art-logo) .media-art-title {display:none}
+.media-art.missing-art .media-art-logo {
+  display:block;position:static;width:52%;height:auto;max-width:112px;object-fit:contain;
+}
+html[data-theme] #view-media .media-feature-actions > .media-seen {
+  display:grid;place-items:center;width:40px;padding:8px;color:var(--muted);flex:none;
+}
+.media-seen svg {width:20px;height:20px;display:block}
+html[data-theme] #view-media .media-feature-actions > .media-seen[aria-pressed="true"] {
+  color:#6ed59a;border-color:#6ed59a66;background:#6ed59a14;
+}
+/* Seamless row arrows, with the small See all link before them. */
+html[data-theme] #view-media .media-home-row-header .icon-button {
+  display:grid;place-items:center;width:40px;height:40px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted);font-size:28px;line-height:1;flex:none;
+}
+html[data-theme] #view-media .media-home-row-header .icon-button:hover {color:var(--accent);background:#ffffff08}
+html[data-theme] #view-media .media-home-row-header .icon-button:active {background:#ffffff10;transform:scale(.94)}
+html[data-theme] #view-media .media-see-all {
+  width:auto;height:36px;padding:6px 4px;border:0;border-radius:0;font-size:12px;white-space:nowrap;background:transparent;color:var(--muted);
+}
+html[data-theme] #view-media .media-see-all:hover {color:var(--accent);text-decoration:underline;text-underline-offset:4px}
+.media-home-row-header {align-items:center}
+.media-row-track,.media-feature-tags {scrollbar-width:none}
+.media-row-track::-webkit-scrollbar,.media-feature-tags::-webkit-scrollbar,.media-browse-nav::-webkit-scrollbar {display:none}
+@media(max-width:800px) {
+  #view-media[data-kind="video"][data-layout="cinematic"] {--media-poster-width:110px}
+  #view-media[data-kind="video"][data-layout="cinematic"] .media-feature-copy.has-poster {padding:76px 12px 16px;gap:16px}
+  #view-media[data-layout="cinematic"] .media-feature-copy.has-poster > .media-feature-poster {display:block;height:165px;align-self:start}
+  #view-media[data-layout="cinematic"] .media-feature-copy.has-poster > .media-feature-poster.missing-art {display:flex}
+  #view-media[data-layout="cinematic"] .media-feature-content {grid-template-rows:56px 18px minmax(0,1fr) 44px 36px}
+  #view-media[data-layout="cinematic"] .media-feature h2 {font-size:25px;line-height:1.1}
+  #view-media[data-layout="cinematic"] .media-feature-description {font-size:12px}
+  #view-media[data-layout="cinematic"] .media-feature-actions {gap:5px}
+  #view-media[data-layout="cinematic"] .media-feature-actions > button {padding:6px 10px}
+  .media-feature-tag {padding:4px 8px}
+  #view-media[data-kind="video"][data-layout="cinematic"] .media-topbar {padding:8px;gap:7px}
+  #view-media[data-layout="cinematic"] .media-topbar :is(#media-search,#media-client,#media-toolbar-refresh,#media-prerolls) {display:none}
+}
+@media(max-height:600px) {
+  #view-media[data-kind="video"][data-layout="cinematic"] {--media-banner-height:300px;--media-poster-width:139px}
+  #view-media[data-layout="cinematic"] .media-feature-content {grid-template-rows:48px 16px minmax(0,1fr) 38px 32px;gap:4px}
+  #view-media[data-layout="cinematic"] .media-feature h2 {font-size:24px}
+  #view-media[data-layout="cinematic"] .media-feature-description {font-size:12px;line-height:1.45}
+  #view-media[data-layout="cinematic"] .media-feature-actions > button {padding:4px 12px}
+  #view-media[data-layout="cinematic"] .media-feature-copy.has-poster > .media-feature-poster {height:100%}
+  .media-feature-tag {padding:3px 8px}
+  .media-feature-tag dd {font-size:11px}
+}
+@media(max-width:600px),(orientation:landscape) and (max-height:500px) {
+  .media-overlay-bottom {padding:0 8px 8px}
+  #view-media .media-round,#view-media .media-round.big {width:30px;height:30px}
+  .media-round svg,.media-round.big svg {width:18px;height:18px}
+  .media-overlay-tools {gap:2px;font-size:11px}
+}
+
+#view-media .media-volume {width:70px;padding:0;accent-color:var(--accent);min-width:32px}
+@media(max-width:600px) {#view-media .media-volume {width:38px}}
+
+/* Keep keyboard focus and browser scroll-into-view below the pinned banner. */
+html:has(#view-media[data-layout="cinematic"][data-kind="video"]) {scroll-padding-top:var(--media-feature-height,0px)}
+#view-media[data-layout="cinematic"][data-kind="video"] .media-scroll {scroll-padding-top:var(--media-feature-height,0px)}
+.media-selection-info {position:relative;align-self:center}
+.media-selection-info summary {cursor:pointer;padding:8px;list-style:none}
+.media-selection-info-body {position:absolute;bottom:100%;right:0;width:min(320px,65vw);padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 25px #0005;z-index:3;font-size:13px;line-height:1.6}
+.media-selection-info-body p {margin:0 0 10px}
+
+/* Compact theatre navigation, matching the approved preview. Extra tools live in Options. */
+html[data-theme] #view-media[data-layout="cinematic"] .media-topbar {
+  height:64px;min-height:64px;gap:14px;padding:10px 24px;flex-wrap:nowrap;
+  background:#11191eec;color:var(--text);border-bottom:1px solid #ffffff08;
+}
+html[data-theme="light"] #view-media[data-layout="cinematic"]:not([data-watch="true"]) .media-topbar {background:#f3f6faee;border-bottom-color:var(--line)}
+.media-brand {font-size:16px;flex:none}
+#view-media .media-topbar > #media-toolbar-refresh {display:none}
+html[data-theme] #view-media[data-layout="cinematic"] .media-browse-nav {gap:6px;flex:1;min-width:0;order:0;width:auto}
+html[data-theme] #view-media[data-layout="cinematic"] .media-browse-nav button {
+  color:var(--text)!important;font-size:16px;padding:9px 14px;border:0;border-radius:7px;background:transparent!important;
+}
+html[data-theme] #view-media[data-layout="cinematic"] .media-browse-nav button.active {
+  color:var(--accent)!important;box-shadow:inset 0 -2px var(--accent);
+}
+#view-media[data-layout="cinematic"] .media-topbar > #media-search {
+  flex:0 1 200px;width:200px;max-width:200px;min-width:100px;height:40px;font-size:14px;padding:9px;
+}
+#view-media[data-layout="cinematic"] :is(#media-navigation,#media-center-mode) {width:44px;height:42px;flex:none;font-size:18px;padding:8px}
+#view-media .media-options-panel {max-height:calc(100dvh - 90px);overflow:auto;scrollbar-width:thin}
+#view-media .media-options-panel .media-tabs {gap:14px;margin-bottom:10px}
+#view-media .media-extra-views,#view-media .media-extra-tools {display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+#view-media .media-extra-tools label {display:grid;gap:4px;flex:1;min-width:140px;font-size:12px;color:var(--muted)}
+#view-media .media-extra-tools :is(button,select) {font-size:13px}
+#view-media .media-options-panel :is(#media-toolbar-chat,#media-client,#media-prerolls) {display:revert}
+@media(max-width:800px) {
+  html[data-theme] #view-media[data-layout="cinematic"] .media-topbar {padding:8px;gap:7px}
+  #view-media .media-brand {display:none}
+  html[data-theme] #view-media[data-layout="cinematic"] .media-browse-nav button {font-size:14px;padding:9px}
+  #view-media[data-layout="cinematic"] .media-topbar > #media-search {display:none}
+  #view-media .media-options-panel {position:fixed;top:64px;right:8px;width:min(370px,calc(100vw - 16px))}
+}
+html[data-theme] #view-media[data-watch="true"] .media-topbar > .app-wordmark,
+html[data-theme] #view-media[data-watch="true"] .media-topbar .media-browse-nav button {color:#e4ecef!important}
+html[data-theme] #view-media[data-watch="true"] .media-topbar > .app-wordmark > span,
+html[data-theme] #view-media[data-watch="true"] .media-topbar .media-browse-nav button.active {color:#80bbb5!important}
+
+/* Isolated YouTube-style menu preview. */
+.watch-settings-menu{position:absolute;z-index:20;right:14px;bottom:70px;width:350px;max-width:calc(100% - 28px);max-height:calc(100% - 82px);overflow-y:auto;padding:8px 0;background:#182024b8;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid #ffffff12;border-radius:12px;box-shadow:0 8px 32px #0007;cursor:default;color:#fff;scrollbar-width:thin}
+.watch-settings-menu[hidden]{display:none}
+html[data-theme] #view-media .watch-setting-row{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:9px 16px;border:0;border-radius:0;background:transparent;color:#fff;text-align:left;font:13px system-ui;cursor:pointer}
+html[data-theme] #view-media .watch-setting-row:hover,html[data-theme] #view-media .watch-setting-row:focus-visible,.watch-setting-external:hover{background:#ffffff18;outline:none}
+html[data-theme] #view-media .watch-setting-row:active{background:#ffffff2a}
+.watch-setting-icon{width:20px;font-size:20px;text-align:center;flex:none}
+.watch-setting-label{flex:1}.watch-setting-value{color:#c3c9cd;font-size:12px;text-align:right}
+.watch-setting-value:not(:empty)::after{content:' ›';margin-left:8px;font-size:18px}
+[role=menuitemradio] .watch-setting-value::after{content:none}
+html[data-theme] #view-media .watch-settings-back{border-bottom:1px solid #ffffff22;margin-bottom:5px;font-weight:600}
+.watch-setting-note{font:12px/1.5 system-ui;color:#b8c4ca;padding:5px 18px;margin:4px 0}
+.watch-setting-external{display:block;padding:12px 18px;border-top:1px solid #ffffff20;color:#c4e6e1;text-decoration:none;font:12px system-ui}
+#watch-settings[aria-expanded=true]{color:var(--accent)}
+@media(max-width:600px){.watch-settings-menu{right:8px;bottom:55px;max-height:calc(100% - 60px);max-width:calc(100% - 16px)}html[data-theme] #view-media .watch-setting-row{min-height:38px;padding:6px 12px}}
+
+/* Clean playback controls: icons on the picture, without button cards. */
+html[data-theme] #view-media .media-overlay-tools button {
+  background:transparent;border:0;box-shadow:none;color:#fff;border-radius:4px;
+  min-width:36px;min-height:40px;justify-content:center;
+  transition:color .15s,transform .1s;
+}
+html[data-theme] #view-media .media-overlay-tools button:hover:not(:disabled),
+html[data-theme] #view-media .media-overlay-tools #watch-settings[aria-expanded="true"] {color:var(--accent)}
+html[data-theme] #view-media .media-overlay-tools button:active:not(:disabled) {transform:scale(.92)}
+html[data-theme] #view-media .media-overlay-tools button:focus:not(:focus-visible) {outline:none}
+html[data-theme] #view-media .media-overlay-tools button:focus-visible {outline:2px solid var(--accent);outline-offset:2px}
+html[data-theme] #view-media .media-overlay-tools button:disabled {opacity:.35}
+html[data-theme] #view-media .media-scrub,
+html[data-theme] #view-media .media-volume {background:transparent;border:0;box-shadow:none}
+
+/* Keep the button itself as the pointer target while its icon changes. */
+#view-media .media-overlay-tools button svg {pointer-events:none}
+
+.media-timeline {position:relative;display:flex;align-items:center;height:22px}
+.media-timeline-track {position:absolute;left:6px;right:6px;top:9px;height:5px;border-radius:3px;pointer-events:none;
+  background:linear-gradient(90deg,var(--accent) var(--progress,0%),transparent var(--progress,0%)),var(--buffered-track,linear-gradient(transparent,transparent)),linear-gradient(#ffffff30,#ffffff30)}
+#view-media .media-timeline .media-scrub {position:relative;z-index:1;height:22px}
+.media-timeline .media-scrub::-webkit-slider-runnable-track {background:transparent}
+.media-timeline .media-scrub::-moz-range-track,
+.media-timeline .media-scrub::-moz-range-progress {background:transparent}

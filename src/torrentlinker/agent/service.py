@@ -28,6 +28,7 @@ READ_JOBS = {
     "refine-selection",
     "search",
     "scan",
+    "tracker-preview",
     "check",
     "check-all",
     "catalogue",
@@ -45,6 +46,7 @@ PERMISSIONS = {
     "edit-queue-selection": "queue",
     "send-queue": "downloads",
     "manage": "controls",
+    "tracker-update": "controls",
     "reseed": "reseed",
     "reseed-all": "reseed",
     "upload-queue": "uploads",
@@ -95,6 +97,7 @@ class AgentRequest(JobRequest):
     def requires_owner_approval(self) -> bool:
         return (
             (self.kind == "manage" and self.action in {"delete", "remove"})
+            or (self.kind == "tracker-update" and self.tracker_action != "add-backup")
             or (self.kind == "edit-queue-selection" and self.queue_action == "remove")
             or self.kind in {"upload-send", "upload-reset", "configure-download-folder"}
             or (
@@ -146,6 +149,9 @@ class AgentService:
         from torrentlinker.feed_control import FeedControl
 
         self.feed_control = FeedControl(self)
+        from torrentlinker.torrents_workspace import TorrentWorkspace
+
+        self.torrents_workspace = TorrentWorkspace(setup, for_client, jobs=self.jobs)
         with self.access.lock, self.access.db:
             self.access.db.execute(
                 "CREATE TABLE IF NOT EXISTS managed_targets ("
@@ -180,6 +186,11 @@ class AgentService:
         if body.confirmation or body.kind not in READ_JOBS | PERMISSIONS.keys():
             raise ValueError("This operation is not available through MCP.")
         target = self.target(actor, body.client_id)
+        if (
+            body.kind == "tracker-preview"
+            and "controls" not in self.access.grant(actor).permissions
+        ):
+            raise ValueError("Tracker previews require controls permission.")
         for identifier in body.client_ids:
             self.target(actor, identifier)
         if set(body.client_budgets) - set(body.client_ids):
@@ -757,6 +768,24 @@ class AgentService:
                     target.setup.download_guard = guarded_download
                 try:
                     self.validate_selection(actor, body)
+                    if body.kind in {"tracker-preview", "tracker-update"}:
+                        for client_id in body.client_ids:
+                            self.target(actor, client_id)
+                        current_grant = self.access.grant(actor)
+                        if (
+                            body.kind == "tracker-preview"
+                            and "controls" not in current_grant.permissions
+                        ):
+                            raise ValueError("Tracker previews require controls permission.")
+                        if (
+                            body.kind == "tracker-update"
+                            and not approved
+                            and (
+                                current_grant.mode != "execute"
+                                or "controls" not in current_grant.permissions
+                            )
+                        ):
+                            raise ValueError("Owner approval is required.")
                     if body.kind == "feed-action":
                         return self.feed_action(actor, body, approved=approved)
                     if body.kind == "refine-selection":
@@ -848,13 +877,23 @@ class AgentService:
                         )
                     raise
                 finally:
-                    target.setup.download_guard = None
+                    if (
+                        body.kind == "send-queue"
+                        and target.setup.download_guard is guarded_download
+                    ):
+                        target.setup.download_guard = None
                     with self.access.lock, self.access.db:
                         self.access.db.execute(
                             "UPDATE proposals SET status='finished' WHERE id=?", (identifier,)
                         )
 
-            job_id = self.jobs.submit(body.kind, work, client_id=body.client_id, deduplicate=False)
+            job_id = self.jobs.submit(
+                body.kind,
+                work,
+                client_id=body.client_id,
+                parameters=body.model_dump(),
+                deduplicate=False,
+            )
             with self.access.db:
                 self.access.db.execute(
                     "UPDATE proposals SET status='submitted',job_id=? WHERE id=?",

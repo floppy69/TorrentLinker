@@ -6,6 +6,7 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QDialog, QLabel, QPushButton
 
 from tests import test_catalogue_selection
+from tests.shell_support import shell_navigate
 from tests.test_tool_activity import narrative_run
 from torrentlinker.gui.chat_transcript import ChatTranscript, MessageText
 
@@ -295,7 +296,7 @@ def test_browser_cards_open_modal_and_keep_exact_pagination(tmp_path, root_path,
             time.sleep(0.02)
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
-            page = browser.new_page(viewport={"width": 1050, "height": 980}, color_scheme="dark")
+            page = browser.new_page(viewport={"width": 1280, "height": 720}, color_scheme="dark")
 
             def respond(route):
                 url = urlsplit(route.request.url)
@@ -345,121 +346,61 @@ def test_browser_cards_open_modal_and_keep_exact_pagination(tmp_path, root_path,
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
             expect(page.locator("#workspace")).to_be_visible()
-            page.evaluate(
-                """run => {
-                document.querySelectorAll('body > :not(script)').forEach(e => e.remove());
-                const container = document.createElement('main');
-                container.style.cssText = 'max-width:900px;margin:32px auto;padding:20px';
-                container.append(aRunCard(run)); document.body.append(container);
-            }""",
-                run,
-            )
-            page.evaluate(
-                """run => {
-                run.events = run.events.map(e => ({...e, tool: "get_presentation"}));
-                document.querySelector('main').append(aRunCard(run));
-            }""",
-                run,
-            )
-            expect(page.locator(".selection-presentation")).to_have_count(1)
-            assert page.evaluate("""() => {
+            page.route("**/api/assistant/jobs*", lambda route: route.fulfill(json=[run]))
+            shell_navigate(page, "assistant")
+            panel = page.frame_locator("#assistant-frame")
+            panel.get_by_role("tab", name="History", exact=True).click()
+            expect(panel.locator(".selection-presentation")).to_have_count(1)
+            assert panel.locator("body").evaluate("""() => {
                 const run = document.querySelector('.assistant-run');
                 const summary = [...run.querySelectorAll('.assistant-message.assistant')].at(-1);
                 const cards = run.querySelector('.selection-presentation');
                 return !!(summary.compareDocumentPosition(cards)
                     & Node.DOCUMENT_POSITION_FOLLOWING);
             }""")
-            expect(page.locator(".selection-card")).to_have_count(2)
+            expect(panel.locator(".selection-card")).to_have_count(2)
             if upload:
-                expect(page.locator(".selection-scores")).to_have_count(0)
-                expect(page.locator(".selection-card").first).to_contain_text("Draft changed")
+                expect(panel.locator(".selection-scores")).to_have_count(0)
+                expect(panel.locator(".selection-card").first).to_contain_text("Draft changed")
             else:
                 expect(
-                    page.locator(".selection-card").first.locator(".selection-scores")
+                    panel.locator(".selection-card").first.locator(".selection-scores")
                 ).to_have_text("Note 1.35 · ≈ 0.128 Zen/day")
                 expect(
-                    page.locator(".selection-card").last.locator(".selection-scores")
+                    panel.locator(".selection-card").last.locator(".selection-scores")
                 ).to_contain_text("—")
-            page.wait_for_function(
+            page.frame(url=lambda u: "/static/assistant/view.html" in u).wait_for_function(
                 "() => Array.from(document.querySelectorAll('.selection-card img'))"
                 ".every(i => i.complete && i.naturalWidth > 0)"
             )
             page.screenshot(path=str(tmp_path / "selection-cards-web.png"))
-            page.get_by_role("button", name="The Lunar Archive", exact=True).click()
-            expect(page.locator("dialog .selection-description")).to_contain_text("lunar library")
+            panel.get_by_role("button", name="The Lunar Archive", exact=True).click()
+            expect(panel.locator("dialog .selection-description")).to_contain_text("lunar library")
             if upload:
-                page.get_by_role("tab", name="NFO", exact=True).click()
-                expect(page.locator("dialog pre", has_text="Saved upload NFO")).to_be_visible()
-                page.get_by_role("tab", name="Review", exact=True).click()
-                expect(page.locator("dialog pre", has_text="Missing option")).to_be_visible()
-            assert not page.evaluate("window.bad || false")
-            assert page.locator("dialog script, dialog .selection-description img").count() == 0
-            assert page.locator("dialog a[href^='javascript:']").count() == 0
+                panel.get_by_role("tab", name="NFO", exact=True).click()
+                expect(panel.locator("dialog pre", has_text="Saved upload NFO")).to_be_visible()
+                panel.get_by_role("tab", name="Review", exact=True).click()
+                expect(panel.locator("dialog pre", has_text="Missing option")).to_be_visible()
+            assert not panel.locator("body").evaluate("window.bad || false")
+            assert panel.locator("dialog script, dialog .selection-description img").count() == 0
+            assert panel.locator("dialog a[href^='javascript:']").count() == 0
             assert root_path + "/api/assistant/presentations/demo/items/0" in calls
             page.screenshot(path=str(tmp_path / "selection-card-modal-web.png"))
-            page.get_by_role("button", name="Close", exact=True).click()
-            page.get_by_role("button", name="Next", exact=True).click()
-            expect(page.locator(".selection-card")).to_have_count(1)
-            expect(page.locator(".selection-card")).to_contain_text("Another release")
-            page.evaluate(
-                """run => {
-                document.querySelector('main').replaceChildren(aRunCard(run));
-            }""",
-                run,
-            )
-            expect(page.locator(".selection-card")).to_have_count(1)
+            panel.get_by_role("button", name="Close", exact=True).click()
+            panel.get_by_role("button", name="Next", exact=True).click()
+            expect(panel.locator(".selection-card")).to_have_count(1)
+            expect(panel.locator(".selection-card")).to_contain_text("Another release")
+            panel.get_by_role("tab", name="Discussion", exact=True).click()
+            if upload:
+                with page.expect_response(
+                    lambda response: "/assistant/presentations/demo?" in response.url
+                ):
+                    panel.get_by_role("tab", name="History", exact=True).click()
+            else:
+                panel.get_by_role("tab", name="History", exact=True).click()
+            expect(panel.locator(".selection-card")).to_have_count(1)
             assert not remote
             assert len([c for c in calls if "/items/" not in c]) == (3 if upload else 2)
-            if upload:
-                page.route(
-                    "**/api/upload/queue?**",
-                    lambda route: route.fulfill(
-                        json=[
-                            {
-                                "id": "demo-draft",
-                                "revision": 1,
-                                "status": "queued",
-                                "form": {"title": "The Lunar Archive"},
-                                "path": "/saved/release.epub",
-                                "files": [{"path": "release.epub", "size": 1234}],
-                            }
-                        ]
-                    ),
-                )
-                preview_calls = []
-
-                def preview_response(route):
-                    preview_calls.append(route.request.url)
-                    route.fulfill(json=dict(saved["items"][0], description="Saved description"))
-
-                page.route("**/api/upload/queue/demo-draft/preview?**", preview_response)
-                # Reload the production workspace after the isolated chat-card view.
-                # The queue and selected-draft actions now share the full editor.
-                page.reload()
-                expect(page.locator("#workspace")).to_be_visible()
-                page.evaluate("""async () => {
-                    state.clientId = 'default';
-                    await navigate('upload');
-                    uploadLegacy.hidden = false;
-                    uploadFrame.hidden = true;
-                    state.uploadDraft = uploadUI.rows[0];
-                    $('upload-editor').hidden = false;
-                    $('upload-help').hidden = true;
-                    uploadEditorState();
-                }""")
-                expect(page.locator("#upload-local-queue")).to_contain_text("The Lunar Archive")
-                page.locator("[data-upload-section=description]").click()
-                page.get_by_role("button", name="Preview saved draft", exact=True).click()
-                expect(page.locator("dialog h2")).to_have_text("Upload draft review")
-                expect(page.locator("dialog .selection-description")).to_have_text(
-                    "Saved description"
-                )
-                assert parse_qs(urlsplit(preview_calls[0]).query) == {
-                    "revision": ["1"],
-                    "client_id": ["default"],
-                }
-                page.screenshot(path=str(tmp_path / "upload-queue-preview-web.png"))
-                page.get_by_role("button", name="Close", exact=True).click()
             browser.close()
     finally:
         server.should_exit = True

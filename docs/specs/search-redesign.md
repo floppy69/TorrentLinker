@@ -114,3 +114,13 @@ Screenshots of c411's compact mode and its torrent page were supplied after the 
 - **Compact** now has c411's columns: type badge, release name with EXCLU / language / quality tags, comments, age, size, completed, seeders, leechers, then our Zen columns and the download button. Headers sort the whole search through the same sort state as the chips (`HEADER_SORTS`). `ListingRow` gained `language` and `quality`, the wording c411 prints in its tags.
 - **Detail tab** (`gui/torrent_details.py`, web `details()` in `app.js`): type badge and flags, title, byline (sender, team, date), the not-tested banner, size and live swarm chips, hash and files, c411's facts as chips, NFO and files as disclosures, the TMDB card with IDs, read-only community trust, the description, and a bar that keeps the download actions in view. `parse_details` now reads uploader, team, date, exclusivity, low-bitrate, swarm, facts, trust and the TMDB media block; the web `details` job returns them as `info`.
 - **Left out on purpose:** the **Versions** list needs c411's grouped listing (`/api/torrents/group-children` with a release ID that flat rows do not carry), and trust **voting**, favourites and reports need a website session, not the API key. The detail tab keeps an Open on website / Vote on the website button for them. The previous and next episode link (S10E53) is not in the detail response.
+
+## Shared detail implementation (#101, 2026-11-18)
+
+The existing detail layout now lives in `web/static/search/details.js` and `details.css`, loaded by both hosts. The readonly RSS dialog uses the same assets. Native BrowserTabs and the former Web detail dialog renderer were removed.
+
+Details retain their tabs when returning to Search. Tabs support drag reordering, arrow navigation, closing and queue/download-all actions. Inline images use bounded anonymous requests, per-host cooldowns and explicit retry. Changing language rerenders cached details; responses from closed/replaced tabs are ignored. Desktop links open in the external browser.
+
+Download now queues and starts only the chosen torrents, using configured category destinations and prompting only when a destination is missing. Browser Ctrl+W and Ctrl+Tab remain browser shortcuts; equivalent visible controls and arrow-key navigation are shared.
+
+Validation covers the details/image service, Chromium workflows and real Wayland Search/RSS rendering with simulated network responses and temporary storage. No live tracker downloads are used.

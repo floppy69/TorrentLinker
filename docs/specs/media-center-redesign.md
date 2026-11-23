@@ -1,6 +1,6 @@
 # Media Center redesign: chat panel, controls and browsing
 
-Status: proposal, 2026-10-27. Planning only; nothing below is implemented.
+Status: approved design, implemented in stages. Updated 2026-11-19 for #108: video sections, layouts and details now use one bundled desktop/Web view. The native video hero, shelves and episode widgets are removed. Updated for #109: albums, artists, tracks and playlists use the same bundled view; the native music browser is removed. Updated for #111: compact Media chat uses the shared Assistant view, with host-owned session context and width persistence. Updated for #110: player controls, options, tracks, queues and saved-playlist actions use `static/player/view.html` in both hosts. The native transport/menu widgets and separate Web controls are removed. Native decoding remains the #89 decision; this port does not change codec support.
 
 This plan covers the desktop Media Center first. Its button rules then extend to the rest of the app, as stage 3 of the [polish plan](../releases/polish-plan.md).
 
@@ -144,3 +144,12 @@ Each release keeps the full test suite and CI green and adds tests for its accep
 2. Should the Media Center follow the light theme when the app is light, or stay dark like most media players?
 3. Which rows matter most to you, and should genre rows use c411's French genre names as they come?
 4. Should music get the same row treatment (by artist, album, genre) in the same release, or later?
+
+
+## Shared player implementation (#110)
+
+`PlayerView` and the Web `player_host.js` adapt the same bundled controls to their existing playback session. Source tokens guard track changes, and queue revisions guard actions on rows captured before a queue changes. Playlist caches belong to the playback client. Video keeps seek, play/pause, ±10 seconds, volume and fullscreen in its overlay; music keeps the compact transport bar. Options contain tracks, repeat/shuffle, chat, Media Center, preview refresh, queue and playlists. Menus scroll within the frame so an expanded queue cannot hide the transport.
+
+Deliberate platform differences remain: desktop uses `QMediaPlayer`, verified-piece streaming and the OS external-player launcher. Web uses HTML audio/video, fixed verified-prefix previews, browser track support and the Fullscreen API. Its external-player action opens or downloads the current original file or fixed preview. Expand/compact remains Web-only because desktop already gives video its workspace. Watched state, Continue watching and playlist editing remain in the shared Media browser.
+
+Validation uses temporary libraries and simulated clients. Native tests decode audio/video and captions, switch embedded tracks and reject stale selections. Browser tests cover fullscreen, chat, queues, playlist ownership, preview refresh/stop and source changes. The bundled controls also render on Wayland in English/dark and French/light, including a narrow transport and a long fullscreen queue.

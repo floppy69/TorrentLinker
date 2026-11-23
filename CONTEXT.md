@@ -39,7 +39,7 @@ A Local Item that no Indexer torrent in the Torrent Client covers, even if a tor
 _Avoid_: Missing, unseeded
 
 **Indexer**:
-A Torznab endpoint (URL + API key) where Candidates are searched; c411 is the first one.
+A Torznab endpoint (URL + API key) where Candidates are searched, added by hand or imported from Prowlarr or Jackett; c411 is one of them.
 _Avoid_: Tracker (when meaning the search API), site
 
 **Candidate**:
@@ -61,9 +61,13 @@ The program that seeds, qBittorrent, Deluge, Transmission, rTorrent, µTorrent C
 _Avoid_: Client (alone, when the Indexer's API client could be meant), qBit (outside code)
 
 **Reseed**:
-Adding a Match to the Torrent Client pointed at existing data, then verifying by hash check before seeding. The Reseed board prepares a Link Folder with the torrent's expected filenames and preserves original names. It requires every torrent file and verifies locally before the client's own check (ADR-0020).
-The older Local Items flow renames paths inside the torrent. For µTorrent Classic, BitTorrent Classic and rTorrent, that flow requires per-torrent confirmation to rename differing filenames on disk (ADR-0013/0017).
-_Avoid_: Inject, cross-seed, relink
+Adding a Match to the Torrent Client pointed at existing data, then verifying by hash check before seeding. The board and Local Items share a per-client layout choice: rename paths inside the torrent where supported, or preserve torrent paths with a persistent Link Folder. Clients that would rename original files on disk require links. Existing prepared layouts retain their choice (ADR-0021).
+The board requires every torrent file and verifies locally before the client's own check. Original files remain at their existing names and paths.
+_Avoid_: Inject, relink
+
+**Cross-seed**:
+A Reseed of a torrent's data, or a Library Item's, onto another Indexer, found and added automatically: Full Matches and Partial Matches above a coverage threshold go in after Verification, the rest waits for review. Tagged `cross-seed` and the Indexer's name; independent of the original torrent.
+_Avoid_: Inject, hardlink seeding
 
 **Link Folder**:
 A dedicated folder outside Library Folders holding persistent symlink layouts for Reseeds. Each link points to an original file using the Torrent Client's path namespace. Keep these layouts for as long as their torrents remain in use; they are not temporary verification files.
@@ -153,3 +157,63 @@ _Avoid_: Portfolio, selection
 **Download Folder**:
 Where a Plan's torrents are downloaded, set per Indexer category or subcategory (falling back to the category's, then a default); it may lie inside a Library Folder.
 _Avoid_: Save path (qBittorrent's term), download location (Deluge's), destination
+
+### Sharing
+
+**Owner**:
+The person whose c411 account, passkey and Torrent Clients TorrentLinker works for; they hold every Permission and cannot be restricted.
+_Avoid_: Admin, main user, user (when this person is meant)
+
+**Member**:
+A person the Owner gives access to, with an account of their own and only the Permissions granted to them.
+_Avoid_: User, guest, friend, family account
+
+**Permission**:
+One thing a Member may see or do, granted per Member: a feature, a Library Folder, a Content Kind, adult content, making or accepting Requests, managing Members.
+_Avoid_: Role, right, access level
+
+**Viewer**:
+A person who watches under the Owner's or a Member's account without signing in, chosen on a Shared Screen; they have their own watch progress and playlists, only Media Permissions, never broader than the account's, and never make Requests.
+_Avoid_: Profile (Zen Profile and ReleaseScore profiles), home user, sub-account
+
+**Shared Screen**:
+A browser an account holder marked as shared when signing in, named ("Télé du salon") and remembered for 90 days of disuse; it asks who watches, and opening a less restricted Viewer there takes that Viewer's PIN.
+_Avoid_: Device (a browser is all the server can tell apart), TV
+
+**Request**:
+A Member's ask to download a tracker release, waiting for an Approver; once accepted it is sent to the Torrent Client at once.
+_Avoid_: Proposal (an agent's), order, download request
+
+**Wish**:
+A Request for a title with no release chosen yet; the Approver picks the release.
+_Avoid_: Free-text request, suggestion
+
+**Approver**:
+The Owner, or a Member holding the Permission to accept or refuse Requests.
+_Avoid_: Admin, moderator
+
+**Age Rating**:
+The minimum viewing age of a film or series on the French scale (Tous publics, −10, −12, −16, −18), from its metadata or set by the Owner or a Member allowed to edit it; a rating from another country is mapped to this scale. A Member's or Viewer's limit hides what is rated above it, and what has no rating yet.
+_Avoid_: Certification, PEGI, parental rating
+
+### Community Site
+
+**Community Site**:
+The project's own site on `torrentlinker.fr`, run by the project's maintainer: a public showcase that never names the tracker, and, for Site Accounts, Community Items and a forum.
+_Avoid_: Community (the tracker's community page in the app), website, portal
+
+**Site Account**:
+A person's account on the Community Site, created only from a Linked App that is signed in to the tracker; one per tracker account.
+_Avoid_: Member (a person on one TorrentLinker server), user
+
+**Linked App**:
+A TorrentLinker installation its Owner linked to their Site Account with a device code; it shares and imports Community Items and vouches for tracker membership.
+_Avoid_: Paired app (the companion extension pairs), client
+
+**Community Item**:
+Something a Site Account shares for others to import: a Pre-roll, an RSS preset, a ReleaseScore profile or an Assistant prompt; reviewed before publishing, versioned, rated and commented.
+_Avoid_: Upload (a tracker Upload), plugin, asset
+
+**Pre-roll**:
+A short video Médias plays before a film or episode, chosen from local and community clips by sequences, schedules and rules.
+_Avoid_: Intro (a film's own opening), trailer (one kind of Pre-roll)

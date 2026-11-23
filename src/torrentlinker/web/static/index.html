@@ -1,511 +1,99 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-members="{{ members_enabled }}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TorrentLinker {{ app_version }}</title>
     <link rel="icon" href="static/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="static/panel/base.css" />
+    <link rel="stylesheet" href="static/panel/toast.css" />
     <link rel="stylesheet" href="static/app.css" />
     <link rel="stylesheet" href="static/media.css" />
     <link rel="stylesheet" href="static/library.css" />
     <link rel="stylesheet" href="static/reseed.css" />
+    <script src="static/panel/toast.js" defer></script>
     <script src="static/app.js" defer></script>
+    <script src="static/shell_host.js" defer></script>
+    <script src="static/who.js" defer></script>
     <script src="static/categories.js" defer></script>
+    <script src="static/documentation.js" defer></script>
     <script src="static/library.js" defer></script>
     <script src="static/reseed.js" defer></script>
     <script src="static/zen.js" defer></script>
+    <script src="static/seeding.js" defer></script>
+    <script src="static/settings.js" defer></script>
     <script src="static/profile.js" defer></script>
     <script src="static/community.js" defer></script>
     <script src="static/plan.js" defer></script>
+    <script src="static/catalogue.js" defer></script>
     <script src="static/feeds.js" defer></script>
-    <script src="static/search.js" defer></script>
-    <script src="static/assistant.js" defer></script>
-    <script src="static/assistant_cards.js" defer></script>
-    <script src="static/media.js" defer></script>
-    <script src="static/uploads.js" defer></script>
+    <script src="static/torrents.js" defer></script>
+    <script src="static/search-workspace.js" defer></script>
+    <script src="static/assistant_panel.js" defer></script>
+    <script src="static/media/common.js" defer></script>
+    <script src="static/player_host.js" defer></script>
+    <script src="static/preroll-playback.js" defer></script><script src="static/media_stream.js" defer></script><script src="static/media.js" defer></script>
+    <script src="static/requests.js" defer></script>
+    <script src="static/member-workspace.js" defer></script>
+    <script src="static/member-assistant.js" defer></script>
+    <script src="static/notifications.js" defer></script>
+    <link rel="stylesheet" href="static/requests.css" />
+    <script src="static/media_panel.js" defer></script>
     <script src="static/upload-workspace.js" defer></script>
   </head>
   <body>
     <section id="login-screen" class="welcome">
       <img class="brandmark" src="static/favicon.svg" alt="" width="64" height="64" />
-      <h1>TorrentLinker</h1>
+      <h1 class="app-wordmark">Torrent<span>Linker</span></h1>
       <p data-i18n="welcome">Your torrents, wherever they live.</p>
       <form id="login-form" class="card">
-        <label for="login-password" data-i18n="webPassword"
-          >Web UI password</label
+        <label for="login-name" id="login-name-label" data-en="Sign-in name" data-fr="Identifiant"
+          >Sign-in name</label
+        ><input id="login-name" autocomplete="username" maxlength="100" />
+        <label for="login-password" id="login-password-label" data-en="Password" data-fr="Mot de passe"
+          >Password</label
         ><input
           id="login-password"
           type="password"
           autocomplete="current-password"
           required
-        /><button class="primary" data-i18n="signIn">Sign in</button>
-        <p class="muted" data-i18n="passwordHelp">
-          Use the password chosen when starting the server.
+        />
+        <label class="login-shared"><input type="checkbox" id="login-shared" /> <span data-en="This screen is shared" data-fr="Cet écran est partagé">This screen is shared</span></label>
+        <label for="login-screen-name" id="login-screen-name-label" data-en="Name of this screen" data-fr="Nom de cet écran" hidden>Name of this screen</label><input id="login-screen-name" maxlength="60" hidden />
+        <small id="login-screen-help" class="muted" hidden data-en="It asks who watches, and stays signed in for 90 days of disuse. You can forget it from your account." data-fr="On y demandera qui regarde ; il reste connecté 90 jours sans usage. Vous pourrez l’oublier depuis votre compte.">It asks who watches, and stays signed in for 90 days of disuse. You can forget it from your account.</small>
+        <p id="login-error" class="field-error" role="alert"></p>
+        <button class="primary" data-i18n="signIn">Sign in</button>
+        <p class="muted" id="login-help" data-en="Forgot your password? Ask the owner for a new link." data-fr="Mot de passe oublié ? Demandez un nouveau lien au propriétaire.">
+          Forgot your password? Ask the owner for a new link.
         </p>
       </form>
+      <button type="button" class="linkish" id="login-owner" data-en="I am the owner" data-fr="Je suis le propriétaire">I am the owner</button>
     </section>
+    <section id="who-screen" class="welcome who" aria-live="polite" hidden></section>
+    <dialog id="who-pin" class="who-pin"></dialog>
     <div id="workspace" hidden>
-      <aside class="sidebar" id="app-sidebar">
-        <button id="navigation-close" class="quiet" type="button" data-i18n="closeNavigation">Close navigation</button>
-        <a class="brand" href="#torrents"
-          ><img class="brandmark small" src="static/favicon.svg" alt="" width="32" height="32" /> TorrentLinker</a
-        >
-        <nav aria-label="Main navigation">
-          <button data-view="torrents" data-i18n="torrents">Torrents</button
-          ><button data-view="zen">Zen</button
-          ><button data-view="search" data-i18n="search">Search</button
-          ><button data-view="feeds">RSS</button
-          ><button data-view="queue" data-i18n="queue">Download queue</button
-          ><button data-view="media">Media</button
-          ><button data-view="library" data-i18n="library">Library</button
-          ><button data-view="upload">Upload</button
-          ><button data-view="assistant">Assistant</button><button data-view="jobs" data-i18n="activity">Activity</button>
-        </nav>
-        <div class="sidebar-bottom">
-          <button data-view="documentation">Documentation</button>
-          <button data-view="setup" data-i18n="settings">Settings</button
-          ><label
-            ><span data-i18n="theme">Theme</span
-            ><select id="theme">
-              <option value="auto" data-i18n="system">System</option>
-              <option value="light" data-i18n="light">Light</option>
-              <option value="dark" data-i18n="dark">Dark</option>
-            </select></label
-          ><label
-            >Language<select id="language">
-              <option value="en">English</option>
-              <option value="fr">Français</option>
-            </select></label
-          ><button id="logout" data-i18n="signOut">Sign out</button>
-        </div>
-      </aside>
+      <div id="navigation-backdrop" aria-hidden="true"></div><aside class="sidebar" id="app-sidebar"><iframe id="shell-navigation-frame" title="Navigation" src="static/shell/view.html"></iframe></aside>
       <main>
-        <header>
-          <button id="navigation-toggle" type="button" aria-controls="app-sidebar" aria-expanded="true" data-i18n="navigation">Navigation</button>
-          <div>
-            <p class="eyebrow" id="connection-status">TORRENTLINKER WEB</p>
-            <h1 id="page-title">Torrents</h1>
-          </div>
-          <label><span data-i18n="targetClient">Target client</span>
-            <select id="target-client" aria-label="Target client"></select></label>
-          <span id="work-status" class="badge" role="status"></span>
-        </header>
+        <header><button id="navigation-toggle" type="button" aria-controls="app-sidebar" aria-expanded="true"><span aria-hidden="true">☰</span><span class="sr-only" data-i18n="navigation">Navigation</span></button><iframe id="shell-header-frame" title="Workspace" src="static/shell/view.html"></iframe><button id="notice-count" type="button" hidden>Notifications</button><button id="work-status" class="badge" type="button" aria-label="Jobs" aria-live="polite"></button></header>
+        <div id="shell-update-host" hidden><iframe id="shell-update-frame" title="Update notice" src="static/shell/view.html"></iframe></div>
         <section id="media-player-shell" aria-label="Media player" hidden>
-          <div class="toolbar media-player-heading"><h2 id="media-now-playing">Now playing</h2><button id="media-chat" data-i18n="mediaChat">Chat about this</button></div>
+          <div class="toolbar media-player-heading"><h2 id="media-now-playing">Now playing</h2></div>
           <p id="media-preview-state" class="media-preview-state" role="status" hidden></p>
-          <div class="toolbar media-player-actions"><button id="media-refresh-preview" class="quiet" data-i18n="mediaRefreshPreview" hidden>Refresh preview</button><button id="media-stop" data-i18n="mediaStop">Stop</button><button id="media-player-expand" data-i18n="mediaExpandPlayer">Expand player</button><button id="media-fullscreen" data-i18n="mediaFullscreen" aria-pressed="false">Fullscreen</button></div>
-          <div id="media-video-stage" class="media-video-stage" tabindex="0" aria-label="Video playback"><video id="media-video" controls controlslist="nofullscreen" playsinline preload="metadata" hidden></video><div class="media-video-overlay"><button id="media-player-menu-toggle" aria-label="Player options" aria-controls="media-player-menu" aria-expanded="false" title="Player options">⋮</button></div><div id="media-player-menu" class="media-player-menu" role="dialog" aria-label="Player options" hidden><div class="media-player-menu-heading"><strong data-en="Playback options" data-fr="Options de lecture">Playback options</strong><button id="media-player-menu-close" class="quiet" data-en="Close" data-fr="Fermer">Close</button></div><div id="media-player-tracks"><label id="media-player-audio-control" hidden><span data-en="Audio track" data-fr="Piste audio">Audio track</span><select id="media-player-audio-track" aria-label="Audio track"></select></label><label id="media-player-subtitle-control" hidden><span data-en="Subtitle track" data-fr="Piste de sous-titres">Subtitle track</span><select id="media-player-subtitle-track" aria-label="Subtitle track"></select></label></div></div></div><audio id="media-audio" controls preload="metadata" hidden></audio>
-          <p id="media-playing-description" class="media-playing-description" hidden></p>
+          <div id="media-video-stage" class="media-video-stage" tabindex="0" aria-label="Video playback"><video id="media-video" playsinline preload="metadata" hidden></video><iframe id="player-frame" title="Media player controls" src="static/player/view.html" allow="fullscreen"></iframe></div><audio id="media-audio" preload="metadata" hidden></audio>
+          <iframe id="player-details-frame" title="Now playing" src="static/player-details/view.html" hidden></iframe>
           <p id="media-codec-error" role="alert" hidden><span id="media-codec-message"></span> <a id="media-external" data-i18n="mediaExternal" target="_blank" rel="noopener" download>Open / download for an external player</a></p>
-          <p id="media-track-support" class="media-track-support" hidden><span data-en="Embedded audio and subtitle selection depends on the browser's built-in player. If sound or a track is missing, use an external player." data-fr="La sélection des pistes audio et des sous-titres intégrés dépend du lecteur du navigateur. Si le son ou une piste manque, utilisez un lecteur externe.">Embedded audio and subtitle selection depends on the browser's built-in player. If sound or a track is missing, use an external player.</span> <a id="media-track-external" data-en="Open / download the original" data-fr="Ouvrir / télécharger l’original" target="_blank" rel="noopener" download>Open / download the original</a></p>
-          <div class="toolbar media-player-transport"><button id="media-previous" data-i18n="mediaPrevious">Previous</button><button id="media-next" data-i18n="mediaNext">Next</button><button id="media-shuffle" data-i18n="mediaShuffle" aria-pressed="false">Shuffle</button><label>Repeat <select id="media-repeat"><option value="off">Off</option><option value="all">All</option><option value="one">One</option></select></label></div>
-          <details id="media-queue-details"><summary>Playback queue</summary><ol id="media-player-queue"></ol></details>
         </section>
-        <section id="view-media" class="view" data-layout="cinematic" data-kind="video" hidden>
-          <div class="media-topbar">
-            <div class="media-tabs" role="tablist" aria-label="Media kind"><button id="media-video-tab" data-i18n="mediaVideo" role="tab" aria-selected="true">Video</button><button id="media-music-tab" data-i18n="mediaMusic" role="tab" aria-selected="false">Music</button></div>
-            <nav class="media-browse-nav" aria-label="Video browsing"><button data-media-view="recent" data-i18n="mediaHome">Home</button><button data-media-view="films" data-i18n="mediaFilms">Films</button><button data-media-view="series" data-i18n="mediaSeries">Series</button><button data-media-view="anime" data-en="Anime" data-fr="Animés">Anime</button><button data-media-view="adult" data-adult hidden>XXX</button><button data-media-view="continue" data-i18n="mediaContinue">Continue watching</button></nav>
-            <nav id="media-music-nav" class="media-music-nav" aria-label="Music browsing" hidden><button data-media-music-view="albums">Albums</button><button data-media-music-view="artists">Artists</button><button data-media-music-view="tracks">Tracks</button></nav>
-            <input id="media-search" type="search" aria-label="Search media" placeholder="Search your media" />
-            <details id="media-library-options" class="media-library-options"><summary data-en="Options" data-fr="Options">Options</summary><div class="media-options-panel"><label class="media-layout-control"><span data-i18n="mediaLayoutShort">Layout</span><select id="media-layout-switch" aria-label="Media layout"><option value="cinematic" data-i18n="mediaLayoutCinematic">Cinematic home</option><option value="focus" data-i18n="mediaLayoutFocus">Focus</option><option value="collection" data-i18n="mediaLayoutCollection">Collection</option></select></label><div class="toolbar media-filters"><select id="media-view" aria-label="Media view"></select><select id="media-genre" aria-label="Genre"></select><select id="media-year" aria-label="Year"></select><select id="media-language" aria-label="Language"></select><select id="media-availability" aria-label="Availability"></select><button id="media-refresh" data-i18n="mediaRefresh">Refresh inventory</button><button id="media-cancel-scan" class="quiet" data-i18n="mediaCancelScan" hidden>Cancel scan</button><button data-view="setup" data-i18n="mediaAddFolder">Add Library Folder</button></div></div></details>
-            <button id="media-toolbar-refresh" class="icon-button" type="button" aria-pressed="false">⟳</button><button id="media-toolbar-chat" class="icon-button" type="button" aria-pressed="false">✦</button><button id="media-center-mode" class="icon-button" type="button" aria-pressed="false">⤢</button>
-          </div>
-          <section id="media-feature" class="media-feature" aria-label="Featured title" hidden></section>
-          <div class="media-shelves">
-            <div class="media-collection-heading"><p class="media-eyebrow" data-i18n="mediaYourLibrary">Your library</p><h2 data-i18n="mediaYourCollection">Your collection</h2></div>
-            <p id="media-status" role="status" class="media-inventory-status"></p>
-            <section id="media-continue" class="media-continue" aria-label="Continue watching" hidden><h2 data-i18n="mediaContinue">Continue watching</h2><div id="media-continue-items" class="media-continue-row"></div></section>
-            <section id="media-episodes" class="media-episodes" aria-label="Episodes" hidden></section>
-            <div id="media-home-rows" class="media-home-rows" hidden></div>
-            <div class="media-library-layout"><div class="media-library-content"><div class="media-section-heading"><h2 id="media-shelf-title">Recently added</h2><span id="media-shelf-count"></span></div>
-            <div id="media-results" class="media-grid"></div><button id="media-more" data-i18n="mediaMore" hidden>Load more</button>
-            </div><aside id="media-playlists" hidden><p class="media-eyebrow" data-en="Your listening" data-fr="Votre écoute">Your listening</p><h2 data-en="Playlists" data-fr="Playlists">Playlists</h2><button id="media-show-queue" class="media-queue-link">Playback queue · 0</button><div id="media-playlist-list"></div><form id="media-save-playlist"><label for="media-playlist-name" data-en="Save the current queue" data-fr="Enregistrer la file actuelle">Save the current queue</label><input id="media-playlist-name" aria-label="Playlist name" placeholder="Playlist name" required maxlength="100"/><button data-en="Save playlist" data-fr="Enregistrer la playlist">Save playlist</button></form><p class="media-playlist-note" data-en="Music playlists are separate from Download Queues." data-fr="Les playlists musicales sont distinctes des files de téléchargement.">Music playlists are separate from Download Queues.</p></aside></div>
-          </div>
-          <dialog id="media-details" class="media-detail-dialog" aria-label="Media details"></dialog>
-        </section>
+        <section id="page-jobs" class="card" hidden aria-label="Page jobs"></section>
+        <section id="view-media" class="view" data-layout="cinematic" data-kind="video" hidden></section>
+        <section id="view-notifications" class="view" hidden></section>
+        <section id="view-member-assistant" class="view" hidden></section>
+        <section id="view-member-search" class="view" hidden></section>
+        <section id="view-member-queue" class="view" hidden></section>
+        <section id="view-member-torrents" class="view" hidden></section>
+        <section id="view-requests" class="view" hidden></section>
         <section id="view-assistant" class="view" hidden></section>
-        <section id="view-setup" class="view settings-layout" hidden>
-          <nav class="settings-navigation" aria-label="Settings sections">
-            <button data-settings-section="connections" aria-current="page" data-en="Connections and folders" data-fr="Connexions et dossiers">Connections and folders</button>
-            <button data-settings-section="interface" data-i18n="interfaceSettings">Interface</button>
-            <button data-settings-section="companion" data-en="Companion" data-fr="Extension">Companion</button>
-            <button data-settings-section="assistant">Assistant</button>
-            <button data-settings-section="agents" data-i18n="agentAccess">Agent access (MCP)</button>
-          </nav>
-          <div class="settings-content">
-          <section data-settings-panel="connections">
-          <p class="intro" data-i18n="setupIntro">
-            Connect your client, check its folders, then add c411. You can
-            change each connection later.
-          </p>
-          <div class="steps" role="group" aria-label="Setup steps">
-            <button data-step="client" data-i18n="stepClient">
-              1 · Torrent client</button
-            ><button data-step="storage" data-i18n="stepStorage">
-              2 · Folders</button
-            ><button data-step="indexer" data-i18n="stepIndexer">
-              3 · c411</button
-            ><button data-step="ready" data-i18n="stepReady">4 · Ready</button>
-          </div>
-          <section id="step-client" class="card setup-step">
-            <h2 data-i18n="connectClient">Connect your Torrent Client</h2>
-            <p class="muted" data-i18n="addressHelp">
-              Use an address reachable from this server. For a seedbox, paste
-              the Web UI address supplied by your provider.
-            </p>
-            <div class="toolbar">
-              <button id="add-client" type="button" data-i18n="addClient">Add client</button>
-              <button id="default-client" type="button" data-i18n="defaultClient">Make default</button>
-              <button id="remove-client" type="button" data-i18n="removeClient">Remove client</button>
-            </div>
-            <form id="client-form">
-              <label><span data-i18n="clientName">Client name</span>
-              <input id="client-name" maxlength="100" required /></label>
-              <div class="form-grid">
-                <label
-                  ><span data-i18n="client">Torrent client</span
-                  ><select id="client-kind">
-                    <option value="qbittorrent">qBittorrent</option>
-                    <option value="deluge">Deluge</option>
-                    <option value="transmission">Transmission</option>
-                    <option value="utorrent">µTorrent Classic</option>
-                    <option value="bittorrent">BitTorrent Classic</option>
-                    <option value="rtorrent">rTorrent</option>
-                  </select></label
-                ><label
-                  ><span data-i18n="address">Server address</span
-                  ><input
-                    id="client-host"
-                    type="url"
-                    placeholder="https://seedbox.example/qbittorrent/"
-                    required /></label
-                ><label id="username-label"
-                  ><span data-i18n="username">Username</span
-                  ><input id="client-username" autocomplete="username" /></label
-                ><label
-                  ><span data-i18n="password">Password</span
-                  ><input
-                    id="client-password"
-                    type="password"
-                    autocomplete="new-password"
-                    placeholder="Not saved"
-                /></label>
-              </div>
-              <details>
-                <summary data-i18n="advanced">Advanced settings</summary>
-                <label
-                  >qBittorrent API key<input
-                    id="client-key"
-                    type="password"
-                    autocomplete="off"
-                /></label>
-                <div class="form-grid">
-                  <label
-                    >Proxy address<input
-                      id="proxy-address"
-                      placeholder="socks5://proxy.example:1080" /></label
-                  ><label
-                    >Proxy username<input
-                      id="proxy-username"
-                      autocomplete="off" /></label
-                  ><label
-                    >Proxy password<input
-                      id="proxy-password"
-                      type="password"
-                      autocomplete="off" /></label
-                  ><label
-                    ><input id="proxy-client" type="checkbox" />Also use proxy
-                    for the Torrent Client</label
-                  >
-                </div>
-                <button id="save-proxy" type="button">
-                  Save proxy settings
-                </button>
-                <p class="muted" data-i18n="dockerAddress">
-                  In Docker, localhost means this container. Use the client
-                  service name on a shared Docker network, or your seedbox's
-                  HTTPS address.
-                </p>
-              </details>
-              <div class="actions">
-                <button type="button" id="test-client" data-i18n="test">
-                  Test connection</button
-                ><button class="primary" data-i18n="saveContinue">
-                  Save and continue
-                </button>
-              </div>
-            </form>
-            <details id="reseed-folder-settings">
-              <summary data-en="Reseed link folder (optional)" data-fr="Dossier de liens pour la remise en seed (facultatif)">Reseed link folder (optional)</summary>
-              <p data-en="Used by the Reseed board for all clients. Choose a folder outside the Library, accessible to this client, and keep the links while seeding. qBittorrent can also reseed from Local Items without this folder." data-fr="Utilisé par le tableau de remise en seed pour tous les clients. Choisissez un dossier hors bibliothèque, accessible à ce client, et conservez les liens pendant le seed. qBittorrent peut aussi remettre en seed depuis les éléments locaux sans ce dossier.">Used by the Reseed board for all clients. Choose a folder outside the Library, accessible to this client, and keep the links while seeding. qBittorrent can also reseed from Local Items without this folder.</p>
-              <form id="reseed-folder-form">
-                <label><span data-en="Link folder" data-fr="Dossier de liens">Link folder</span><div class="actions"><input id="reseed-root" placeholder="/media/reseed-links" autocomplete="off"><button id="reseed-browse" type="button" data-en="Browse…" data-fr="Parcourir…">Browse…</button></div></label>
-                <button type="submit" data-en="Save link folder" data-fr="Enregistrer le dossier de liens">Save link folder</button>
-              </form>
-            </details>
-            <div id="client-result" class="result" role="status"></div>
-            <button id="client-partial-names" type="button" class="primary" data-i18n="turnOffPartialNames" hidden>Turn it off in Transmission and try again</button>
-          </section>
-          <section id="step-storage" class="card setup-step" hidden>
-            <h2 data-i18n="checkFolders">Find your files</h2>
-            <p data-i18n="storageIntro">
-              Torrent management works without mounted files. Scanning,
-              reseeding, upload preparation and safe downloads need storage
-              visible to this server.
-            </p>
-            <button type="button" id="suggest-mappings">
-              Detect matching folders
-            </button>
-            <div id="mapping-suggestions"></div>
-            <div id="import-folders" class="folder-list"></div>
-            <p><button type="button" id="settings-library-folders" data-en="Manage Library Folders" data-fr="Gérer les dossiers de bibliothèque">Manage Library Folders</button></p>
-            <p class="muted" data-en="Library Folders can be registered without a client mapping. Mapping checks and download destinations apply to the selected Torrent Client." data-fr="Les dossiers de bibliothèque peuvent être enregistrés sans correspondance de chemins. Les vérifications des chemins et destinations de téléchargement concernent le client sélectionné.">Library Folders can be registered without a client mapping. Mapping checks and download destinations apply to the selected Torrent Client.</p>
-            <h3 data-en="Path Mappings" data-fr="Correspondances de chemins">Path Mappings</h3>
-            <p class="muted" data-en="Match a folder visible to TorrentLinker with the same folder in the selected Torrent Client. Empty folders are checked with a temporary file. The test file and stopped torrent are then removed." data-fr="Associez un dossier visible par TorrentLinker au même dossier dans le client torrent. Les dossiers vides sont vérifiés avec un fichier temporaire. Le fichier et le torrent de test, gardé à l’arrêt, sont ensuite supprimés.">Match a folder visible to TorrentLinker with the same folder in the selected Torrent Client. Empty folders are checked with a temporary file. The test file and stopped torrent are then removed.</p>
-            <form id="folder-form">
-              <div class="form-grid">
-                <label
-                  ><span data-i18n="serverFolder"
-                    >Folder visible to TorrentLinker</span
-                  >
-                  <div class="inline">
-                    <input
-                      id="folder-local"
-                      placeholder="/data/media"
-                      required
-                    /><button type="button" id="browse" data-i18n="browse">
-                      Browse
-                    </button>
-                  </div></label
-                ><label
-                  ><span data-i18n="clientFolder"
-                    >Same folder in the Torrent Client</span
-                  ><input
-                    id="folder-client"
-                    placeholder="/downloads"
-                    required /></label
-                ><label
-                  ><span data-i18n="purpose">Use this folder for</span
-                  ><select id="folder-purpose">
-                    <option value="library" data-i18n="library">Library</option>
-                    <option value="download" data-i18n="downloads">
-                      Downloads
-                    </option>
-                  </select></label
-                ><label
-                  ><span data-i18n="kind">Content kind</span
-                  ><select id="folder-kind">
-                    <option value="other" data-en="Other" data-fr="Autre">Other</option>
-                    <option value="movie">Films</option>
-                    <option value="series">Series</option>
-                    <option value="ebook" data-en="Ebook" data-fr="Livres numériques">Ebook</option>
-                    <option value="music" data-en="Music" data-fr="Musique">Music</option>
-                    <option value="game">Games</option>
-                    <option value="3d-model" data-en="3D models" data-fr="Modèles 3D">3D models</option><option value="adult" data-adult hidden>XXX</option>
-                  </select></label
-                ><label
-                  ><span data-i18n="depth">Scan grouping</span
-                  ><select id="folder-depth">
-                    <option value="auto" selected data-en="Automatic" data-fr="Automatique">Automatic</option>
-                    <option value="1" data-en="Depth 1" data-fr="Profondeur 1">Depth 1</option>
-                    <option value="2" data-en="Depth 2" data-fr="Profondeur 2">Depth 2</option>
-                    <option value="3" data-en="Depth 3" data-fr="Profondeur 3">Depth 3</option>
-                  </select></label>
-              </div>
-              <div class="actions">
-                <button type="button" id="test-folder" data-i18n="checkMapping">
-                  Check mapping</button
-                ><button class="primary" data-i18n="addFolder">
-                  Add folder
-                </button>
-              </div>
-            </form>
-            <div id="folder-result" class="result" role="status"></div>
-            <div id="saved-folders"></div>
-            <h3 data-en="Download Folders" data-fr="Dossiers de téléchargement">Download Folders</h3>
-            <p class="muted" data-en="A subcategory uses its own folder, then its parent category’s folder, then the default. These destinations belong to the selected Torrent Client." data-fr="Une sous-catégorie utilise son dossier, puis celui de sa catégorie, puis le dossier par défaut. Ces destinations appartiennent au client torrent sélectionné.">A subcategory uses its own folder, then its parent category’s folder, then the default. These destinations belong to the selected Torrent Client.</p>
-            <div id="library-download-destinations"></div>
-            <form id="library-download-form"><div class="form-grid"><label><span data-en="Category" data-fr="Catégorie">Category</span><select id="library-download-category"></select></label><label><span data-en="Folder on the server" data-fr="Dossier sur le serveur">Folder on the server</span><input id="library-download-path" required placeholder="/media/Downloads" /></label></div><button class="primary" data-en="Verify and save destination" data-fr="Vérifier et enregistrer la destination">Verify and save destination</button><p id="library-download-feedback" role="status"></p></form><label class="check"><input type="checkbox" id="library-sequential-video" /> <span data-en="Download films and series in order, so they play while downloading" data-fr="Télécharger films et séries dans l’ordre, pour les lire pendant le téléchargement">Download films and series in order, so they play while downloading</span></label><label class="check"><input type="checkbox" id="library-adult-content" /> <span data-en="Show XXX content: c411's XXX category in searches, Plans and folder kinds, and an XXX panel in Media" data-fr="Afficher le contenu XXX : la catégorie XXX de c411 dans les recherches, les Plans et les types de dossier, et un panneau XXX dans Médias">Show XXX content: c411's XXX category in searches, Plans and folder kinds, and an XXX panel in Media</span></label>
-            <div class="actions">
-              <button data-step="indexer" data-i18n="continue">Continue</button
-              ><button data-step="indexer" data-i18n="skipStorage">
-                Continue without file access
-              </button>
-            </div>
-          </section>
-          <section id="step-indexer" class="card setup-step" hidden>
-            <h2 data-i18n="connectIndexer">Connect c411</h2>
-            <p class="muted" data-i18n="keyHelp">
-              Your API key stays on this server. You can manage your client
-              without configuring c411.
-            </p>
-            <form id="indexer-form">
-              <label
-                >API key<input
-                  id="indexer-key"
-                  type="password"
-                  autocomplete="off"
-              /></label>
-              <details>
-                <summary data-i18n="advanced">Advanced settings</summary>
-                <p id="indexer-key-count" role="status"></p>
-                <label><input id="indexer-replace-keys" type="checkbox" /><span data-en="Replace additional API keys (leave unchecked to keep saved keys)" data-fr="Remplacer les clés API supplémentaires (décoché : conserver les clés enregistrées)">Replace additional API keys (leave unchecked to keep saved keys)</span></label>
-                <div class="form-grid">
-                  <label>API key 2<input id="indexer-extra-1" type="password" autocomplete="off" /></label>
-                  <label>API key 3<input id="indexer-extra-2" type="password" autocomplete="off" /></label>
-                  <label>API key 4<input id="indexer-extra-3" type="password" autocomplete="off" /></label>
-                  <label>API key 5<input id="indexer-extra-4" type="password" autocomplete="off" /></label>
-                </div>
-                <label
-                  >Torznab URL<input
-                    id="indexer-url"
-                    type="url"
-                    value="https://c411.org/api/torznab" /></label
-                ><label
-                  >Private Announce URL · Upload<input
-                    id="announce-url"
-                    type="password"
-                    autocomplete="off" /></label
-                ><button id="save-announce" type="button">
-                  Save Announce URL
-                </button>
-              </details>
-              <div class="actions">
-                <button type="button" id="test-indexer" data-i18n="test">
-                  Test connection</button
-                ><button class="primary" data-i18n="saveContinue">
-                  Save and continue</button
-                ><button type="button" data-step="ready" data-i18n="skip">
-                  Set up later
-                </button>
-              </div>
-            </form>
-            <div id="indexer-result" class="result" role="status"></div>
-          </section>
-          <section id="step-ready" class="card setup-step" hidden>
-            <h2 data-i18n="ready">Your workspace is ready</h2>
-            <div id="capabilities"></div>
-            <p class="muted" data-i18n="revisit">
-              Come back to Settings to add folders or change a connection. Jobs
-              continue when you close this browser.
-            </p>
-            <button class="primary" id="finish-setup" data-i18n="openTorrents">
-              Open Torrents
-            </button>
-          </section>
-        </section>
-          <section data-settings-panel="interface" hidden class="card interface-settings" aria-labelledby="interface-settings-title"><h2 id="interface-settings-title" data-i18n="interfaceSettings">Interface</h2><label><span data-i18n="mediaLayout">Media layout</span><select id="settings-media-layout" aria-label="Settings Media layout"><option value="cinematic" data-i18n="mediaLayoutCinematic">Cinematic home</option><option value="focus" data-i18n="mediaLayoutFocus">Focus</option><option value="collection" data-i18n="mediaLayoutCollection">Collection</option></select></label><p class="muted" data-i18n="mediaLayoutHelp">Choose how your media library opens in this browser. Playback continues when you change layouts.</p>
-            <h3 data-en="Support report" data-fr="Rapport de diagnostic">Support report</h3>
-            <p class="muted" data-en="Export versions, configuration counts and recent job outcomes. Credentials, addresses, paths, torrent names and conversations are excluded. Nothing is sent automatically." data-fr="Exporte les versions, les compteurs de configuration et les résultats des tâches récentes. Les identifiants de connexion, adresses, chemins, noms de torrents et conversations sont exclus. Rien n’est envoyé automatiquement.">Export versions, configuration counts and recent job outcomes. Credentials, addresses, paths, torrent names and conversations are excluded. Nothing is sent automatically.</p>
-            <a id="export-diagnostics" class="button" href="api/diagnostics" download="torrentlinker-diagnostics.json" data-en="Export support report…" data-fr="Exporter le rapport de diagnostic…">Export support report…</a>
-          </section>
-          <section data-settings-panel="companion" hidden class="card" aria-labelledby="companion-heading">
-            <h2 id="companion-heading">Browser companion</h2>
-            <p id="companion-status" role="status"></p>
-            <p id="companion-privacy" class="muted"></p>
-            <div class="toolbar">
-              <a id="profile-extension" class="button" href="api/zen/profile/extension" download>Download extension</a>
-              <button id="profile-pair" class="primary">Connect companion</button>
-              <button id="profile-disconnect" class="quiet">Disconnect &amp; clear</button>
-            </div>
-            <div id="profile-pairing" hidden>
-              <p id="profile-instructions"></p>
-            </div>
-            <label><input type="checkbox" id="session-downloads" /> <span id="session-downloads-label">Download .torrent files with my c411 session</span></label>
-            <p id="session-downloads-note" class="muted"></p>
-          </section>
-          <section data-settings-panel="assistant" hidden id="assistant-connections" class="card" aria-labelledby="assistant-connections-title"><h2 id="assistant-connections-title" data-en="Assistant: model connections" data-fr="Assistant : connexions aux modèles">Assistant: model connections</h2><div id="assistant-connections-body"></div></section>
-        <section id="view-agents" data-settings-panel="agents" hidden>
-          <div class="toolbar"><label><input type="checkbox" id="agents-enabled" />
-            <span data-i18n="enableAgents">Enable agent access</span></label>
-            <button id="agents-refresh" class="quiet" data-i18n="refresh">Refresh</button></div>
-          <p data-i18n="agentHelp">New connections only propose changes. Approve them below or explicitly allow selected actions within daily limits. Removal and file deletion always need approval.</p>
-          <p><span data-i18n="agentEndpoint">MCP endpoint</span>: <code id="agents-endpoint"></code></p>
-          <nav class="agent-tabs" aria-label="Agent access sections">
-            <button data-agent-tab="connections" aria-current="page" data-i18n="agentConnections">Connections</button>
-            <button data-agent-tab="new" data-en="New connection" data-fr="Nouvelle connexion">New connection</button>
-            <button data-agent-tab="activity" data-en="Proposals and activity" data-fr="Propositions et activité">Proposals and activity</button>
-          </nav>
-          <section data-agent-panel="connections"><div id="agent-connections"></div></section>
-          <section data-agent-panel="new" hidden>
-          <form id="agent-form" class="card">
-            <label><span data-en="Connection name" data-fr="Nom de la connexion">Connection name</span><input id="agent-name" required maxlength="100" /></label>
-            <fieldset><legend data-i18n="agentClients">Allowed clients</legend><div id="agent-clients"></div></fieldset>
-            <label><span data-i18n="agentMode">Mode</span><select id="agent-mode">
-              <option value="propose" data-i18n="agentPropose">Proposals only</option>
-              <option value="execute" data-i18n="agentExecute">Execute permitted actions</option></select></label>
-            <fieldset id="agent-permissions"><legend data-i18n="agentPermissions">Automatic actions</legend>
-              <label><input type="checkbox" value="controls" /><span data-i18n="agentControls">Pause, recheck and resume completed torrents</span></label>
-              <label><input type="checkbox" value="queue" /><span data-i18n="agentQueue">Prepare and edit download queue</span></label>
-              <label><input type="checkbox" value="downloads" /><span data-i18n="agentStartDownloads">Start downloads</span></label>
-              <label><input type="checkbox" value="reseed" />Reseed</label>
-              <label><input type="checkbox" value="media" /><span data-i18n="agentMedia">Media playback and playlists</span></label>
-              <label><input type="checkbox" value="uploads" /><span data-i18n="agentUploads">Upload drafts and seeding</span></label>
-            </fieldset>
-            <div class="toolbar">
-              <label><span data-i18n="agentDailyGiB">Daily download budget (GiB)</span><input id="agent-bytes" type="number" min="0" max="100000" value="10" required /></label>
-              <label><span data-i18n="agentDailyCount">Torrents per day</span><input id="agent-count" type="number" min="0" max="1000" value="20" required /></label>
-              <label><span data-i18n="agentReserve">Keep free, GiB (0 = off)</span><input id="agent-reserve" type="number" min="0" max="100000" value="0" required /></label>
-            </div>
-            <button class="primary" data-i18n="agentCreate">Create connection</button>
-          </form>
-          <div id="agent-token-box" class="card" hidden>
-            <p data-i18n="agentTokenHelp">Copy this token now. It is shown only once. Use it as the Bearer token or TL_MCP_TOKEN for the stdio bridge. Keep it private.</p>
-            <textarea id="agent-token" readonly aria-label="Agent token"></textarea>
-            <button id="agent-token-save" data-en="Save token to file…" data-fr="Enregistrer le jeton dans un fichier…">Save token to file…</button>
-            <button id="agent-token-hide" data-i18n="agentHide">Hide token</button>
-          </div>
-          </section>
-          <section data-agent-panel="activity" hidden>
-          <h2 data-i18n="agentProposals">Proposals and jobs</h2><div id="agent-proposals"></div>
-          <h2 data-i18n="agentGoals">Saved goals</h2><div id="agent-goals"></div>
-          <h2 data-i18n="activity">Activity</h2><div id="agent-activity"></div>
-          </section>
-          <p class="muted" data-en="Connection changes apply immediately." data-fr="Les modifications des connexions s’appliquent immédiatement.">Connection changes apply immediately.</p>
-          </section>
-          </div>
-        </section>
-        <section id="view-torrents" class="view">
-          <div class="torrent-bar">
-            <span class="torrent-actions" role="toolbar" aria-label="Actions">
-              <button class="icon-button" data-action="resume" data-title="start" type="button">▶</button
-              ><button class="icon-button" data-action="pause" data-title="pause" type="button">⏸</button
-              ><button class="icon-button" data-action="recheck" data-title="recheck" type="button">⟳</button
-              ><button class="icon-button" data-action="remove" data-title="remove" type="button">✕</button
-              ><button class="icon-button danger" data-action="delete" data-title="deleteFiles" type="button">🗑</button
-              ><button id="refresh" class="icon-button" data-title="refresh" type="button">↻</button>
-            </span>
-            <span class="spacer"></span>
-            <input
-              id="torrent-query"
-              placeholder="Find a torrent…"
-              aria-label="Find a torrent"
-            /><select id="torrent-state" hidden aria-label="State">
-              <option value="" data-i18n="allStates">All states</option>
-              <option value="seeding" data-i18n="seedingState">seeding</option>
-              <option value="downloading" data-i18n="downloadingState">downloading</option>
-              <option value="paused" data-i18n="pausedState">paused</option>
-              <option value="checking" data-i18n="checkingState">checking</option>
-              <option value="error" data-i18n="errorState">error</option></select
-            ><select id="torrent-tracker" hidden aria-label="Tracker">
-              <option value="">All trackers</option></select
-            ><select id="torrent-category" hidden aria-label="Category">
-              <option value="">All categories</option></select
-            ><select id="torrent-tag" hidden aria-label="Tag"><option value="">All tags</option></select>
-          </div>
-          <div class="torrent-layout">
-            <aside id="torrent-side" aria-label="Filters"></aside>
-            <div class="torrent-main">
-              <div id="torrent-table" class="table-wrap dense"></div>
-              <div class="pager">
-                <button id="torrent-prev">←</button><span id="torrent-count"></span
-                ><button id="torrent-next">→</button>
-              </div>
-              <div id="torrent-details" class="card" hidden></div>
-            </div>
-          </div>
-        </section>
+        <section id="view-setup" class="view" hidden></section>
+        <section id="view-torrents" class="view"></section>
         <section id="view-zen" class="view" hidden>
           <div class="stats" id="zen-overview">
             <div class="card">
@@ -527,206 +115,16 @@
           <section id="zen-community-panel" role="tabpanel" aria-labelledby="zen-community-tab" hidden></section>
           <section id="zen-profile-panel" role="tabpanel" aria-labelledby="zen-profile-tab"></section>
           <section id="zen-catalogue-panel" class="card" role="tabpanel" aria-labelledby="zen-catalogue-tab" hidden>
-            <h2 data-i18n="catalogueTab">Catalogue</h2>
-            <p id="catalogue-status" role="status"></p>
-            <button id="catalogue" data-i18n="updateCatalogue">Update catalogue</button>
-            <button id="catalogue-pause" hidden data-i18n="pauseCatalogue">Pause after current page</button>
           </section>
-          <section id="zen-seeding-panel" role="tabpanel" aria-labelledby="zen-seeding-tab">
-            <div class="toolbar">
-              <input id="seeding-query" aria-label="Filter torrents or categories" placeholder="Filter torrents or categories…" />
-              <button id="seeding-expand" data-i18n="expandAll">Expand all</button>
-              <button id="seeding-collapse" data-i18n="collapseAll">Collapse all</button>
-              <button id="seeding-refresh" class="quiet" data-i18n="refresh">Refresh</button>
-            </div>
-            <div class="toolbar">
-              <label><span data-i18n="seedingSort">Sort torrents by</span><select id="seeding-sort">
-                <option value="zen" data-i18n="zenPerDay">≈ Zen/day</option><option value="name" data-i18n="torrentName">Torrent</option>
-                <option value="size" data-i18n="torrentSize">Size</option><option value="seeders">Seeders</option>
-                <option value="seed_days" data-i18n="seedAge">Seed age (days)</option><option value="note">≈ Note</option>
-              </select></label>
-              <label><span data-i18n="seedingOrder">Order</span><select id="seeding-order">
-                <option value="desc" data-i18n="descending">Descending</option><option value="asc" data-i18n="ascending">Ascending</option>
-              </select></label>
-            </div>
-            <p id="seeding-status" role="status"></p>
-            <div id="seeding-groups"></div>
-            <p id="seeding-total"></p>
-            <section class="card"><h2 data-i18n="classComparison">Class comparison</h2><div id="seeding-classes" class="toolbar"></div>
-              <label><span data-i18n="yourUploads">Your uploads</span><input id="seeding-uploads" type="number" min="0" max="1000000" /></label>
-              <button id="seeding-save-uploads" data-i18n="saveComparison">Save comparison input</button>
-            </section>
-          </section>
+          <section id="zen-seeding-panel" role="tabpanel" aria-labelledby="zen-seeding-tab"></section>
           <section class="card" id="zen-plan-panel" role="tabpanel" aria-labelledby="zen-plan-tab" hidden>
-            <h2 data-i18n="planner">Planner</h2>
-            <p data-i18n="planHelp">
-              Build a proposal using the catalogue and verified mounted storage.
-              Cached Zen and note estimates are provisional. Review the plan
-              before adding torrents to the queue.
-            </p>
-            <details open><summary data-i18n="planDestinations">Plan destinations</summary>
-              <p data-i18n="planDestinationHelp">Choose one client or distribute across selected clients. Budget 0 uses available space.</p>
-              <div id="plan-clients" class="form-grid"></div>
-            </details>
-            <form id="plan-form">
-            <div class="form-grid">
-              <label><span data-i18n="planCategory">Category / subcategory</span><select id="plan-category" multiple size="5"><option value="" data-i18n="allCategories">All categories</option></select></label>
-              <label><span data-i18n="optimizeFor">Optimize for</span><select id="plan-goal"><option value="note">Note</option><option value="zen" data-i18n="zenPerDay">≈ Zen/day</option></select></label>
-              <label><span data-i18n="maxGiB">Download budget, GiB</span><input id="plan-budget" type="number" value="10" min="0" step="any" required /></label>
-              <label><span><input id="plan-limit-count" type="checkbox" checked /><span data-i18n="maxTorrents">Maximum torrents</span></span><input id="plan-count" type="number" value="100" min="1" max="1000000" required /></label>
-              <label><span><input id="plan-limit-seeders" type="checkbox" /><span data-i18n="maxSeeders">Maximum seeders</span></span><input id="plan-seeders" type="number" value="10" min="0" required disabled /></label>
-              <label><span data-i18n="minTorrentGiB">Minimum torrent size, GiB</span><input id="plan-min-size" type="number" value="0" min="0" step="any" required /></label>
-              <label><span data-i18n="maxTorrentGiB">Maximum torrent size, GiB</span><input id="plan-max-size" type="number" value="0" min="0" step="any" required /></label>
-            </div>
-            <p class="muted" data-i18n="planNoteHelp">Note prioritizes each torrent's initial score, without a seed-age bonus. Equal scores prefer smaller downloads. Zen/day maximizes estimated earnings.</p>
-            <p class="muted" data-i18n="planZeroHelp">A budget or maximum size of 0 means no additional limit. Available disk space still applies to the plan.</p>
-            <p class="muted" data-i18n="planReseedHelp">Checked Full Matches from the Library are included as Reseeds for a single destination without a client budget. They use no download budget. Size, seeder and torrent limits still apply.</p>
-            <div class="toolbar"><button id="refresh-profile" class="quiet" type="button" data-i18n="refreshProfile">Refresh profile</button><button id="plan-folders" type="button" data-i18n="planFolders">Category folders…</button><button id="plan" type="submit" class="primary" data-i18n="buildPlan">Build plan</button><button id="plan-now" type="button" hidden data-i18n="planNow">Stop fetching and plan now</button></div>
-            <label
-              ><input id="plan-cached" type="checkbox" /><span
-                data-i18n="cachedPlan"
-                >Use cached catalogue without refreshing</span
-              ></label
-            >
-            </form>
-            <details id="plan-preferences"><summary data-i18n="planPreferences">Zen profile, disk reserve & exclusions</summary>
-              <form id="zen-preferences-form">
-                <div class="form-grid">
-                  <label><span data-i18n="zenClass">Class for estimates</span><select id="plan-zen-class"><option value="tanker">Tanker</option><option value="swarm-keeper">Swarm Keeper</option><option value="reuploader">Reuploader</option></select></label>
-                  <label><span data-i18n="treeBonus">Tree bonus, %</span><input id="plan-tree" type="number" min="0" max="5" step="any" /></label>
-                  <label><span data-i18n="badgeBonus">Badge bonus, %</span><input id="plan-badge" type="number" min="0" max="100" step="any" /></label>
-                  <label><span data-i18n="seedHours">Seed hours per day</span><input id="plan-hours" type="number" min="0" max="24" step="any" /></label>
-                  <label><span data-i18n="torrentCap">Overall torrent cap, 0 = no cap</span><input id="plan-cap" type="number" min="0" max="100000" /></label>
-                  <label><span data-i18n="diskReserve">Keep free on each disk, %</span><input id="plan-reserve" type="number" min="0" max="90" /></label>
-                  <label><span data-i18n="planExcluded">Excluded title words, one per line</span><textarea id="plan-exclusions" rows="3"></textarea></label>
-                </div>
-                <button type="submit" data-i18n="savePlanPreferences">Save planning preferences</button>
-              </form>
-            </details>
-            <details class="plan-timing"><summary data-en="Download speed and timing estimates" data-fr="Débit de téléchargement et estimations de durée">Download speed and timing estimates</summary>
-              <div class="toolbar"><label><span data-i18n="downloadRate">Download rate, Mbit/s</span><input id="plan-speed" type="number" min="0.001" step="any" /></label><button id="plan-speed-save" data-i18n="saveRate">Use this rate</button><button id="plan-speed-test" data-i18n="testServerSpeed">Test server speed</button></div>
-              <p class="muted" data-i18n="serverSpeedHelp">The speed test downloads anonymously from Cloudflare for about 8 seconds on the TorrentLinker host. Enter a rate manually if the Torrent Client uses another connection.</p>
-            </details>
-            <p id="plan-times" role="status"></p>
-            <div id="plan-diagnostics" role="status"></div>
-            <p id="plan-progress" role="status"></p>
-            <p id="plan-summary"></p>
-            <div id="plan-storage" class="table-wrap"></div>
-            <div class="toolbar"><label><span data-i18n="planSort">Sort proposal by</span><select id="plan-sort"><option value="plan" data-i18n="planOrder">Plan order</option><option value="title" data-i18n="torrentName">Torrent</option><option value="download_size" data-i18n="torrentSize">Size</option><option value="seeders">Seeders</option><option value="note">Note</option><option value="zen">Zen/day</option><option value="folder" data-i18n="downloadFolder">Download Folder</option><option value="client_id">Client</option></select></label><select id="plan-sort-order" aria-label="Plan sort order"><option value="asc" data-i18n="ascending">Ascending</option><option value="desc" data-i18n="descending">Descending</option></select><button id="plan-select-all" data-i18n="selectWholePlan">Select whole Plan</button><button id="plan-select-none" data-i18n="clearSelection">Clear selection</button></div>
-            <div id="plan-result" class="table-wrap"></div>
-            <div class="pager"><button id="plan-prev" disabled data-i18n="previous">Previous</button><span id="plan-page"></span><button id="plan-next" disabled data-i18n="next">Next</button></div>
-            <div class="toolbar"><span id="plan-selection"></span><button id="queue-plan" data-i18n="queuePlanDownloads" disabled>Queue selected downloads</button><button id="plan-send" class="primary" data-i18n="sendPlan" disabled>Send selected to clients…</button><button id="plan-stop" hidden data-i18n="stopPlan">Stop after current torrent</button></div>
           </section>
         </section>
-        <section id="view-feeds" class="view" hidden>
-          <div class="feed-layout">
-            <aside>
-              <div id="feeds-side-head" class="feed-side-head"></div>
-              <div id="feeds-sidebar"></div>
-            </aside>
-            <div class="feed-main">
-              <div id="feeds-empty" class="feed-empty" hidden></div>
-              <div id="feeds-body">
-                <div id="feeds-header" class="feed-header"></div>
-                <div id="feeds-filters" class="feed-filters" role="tablist"></div>
-                <div id="feeds-actions" class="feed-selection" hidden></div>
-                <div id="feeds-results" class="table-wrap"></div>
-              </div>
-            </div>
-          </div>
-        </section>
-        <section id="view-search" class="view" hidden>
-          <div class="search-head">
-            <span class="search-tools">
-              <button type="button" id="search-density-compact" class="chip" aria-pressed="false" data-en="Compact" data-fr="Compact">Compact</button>
-              <button type="button" id="search-density-comfortable" class="chip" aria-pressed="true" data-en="Comfortable" data-fr="Confortable">Comfortable</button>
-              <button type="button" id="search-posters" class="chip" aria-pressed="true" data-en="Posters" data-fr="Affiches" title="">Posters</button>
-              <button type="button" id="search-queue-link" class="quiet">Download queue</button>
-            </span>
-          </div>
-          <form id="search-form" class="search-bar">
-            <input
-              id="search-query"
-              placeholder="Title, original title, release name…"
-              aria-label="Search c411"
-              maxlength="200"
-            />
-            <button type="button" id="search-crew" class="chip" aria-pressed="false" hidden data-en="Cast &amp; crew" data-fr="Casting &amp; équipe">Cast &amp; crew</button>
-            <button class="primary" data-i18n="search">Search</button>
-          </form>
-          <div id="search-pills" class="search-pills" role="group" aria-label="Categories"></div>
-          <div class="search-row">
-            <select id="search-category" class="chip" aria-label="Search category">
-              <option value="">All categories</option>
-            </select>
-            <button type="button" id="search-exclusive" class="chip" aria-pressed="false" hidden>☆ Exclusive</button>
-            <button type="button" id="search-palliative" class="chip" aria-pressed="false" hidden>♡ Soins palliatifs</button>
-            <span class="spacer"></span>
-            <button type="button" id="subscribe-search" class="quiet" data-en="Subscribe to RSS" data-fr="S’abonner au RSS">Subscribe to RSS</button>
-            <button type="button" id="search-clear" class="quiet" data-en="Clear all" data-fr="Tout effacer">Clear all</button>
-          </div>
-          <div id="search-facets" class="search-facets"></div>
-          <div id="search-chosen" class="search-facets" hidden></div>
-          <div id="search-pages-top" class="search-pages" aria-label="Pages"></div>
-          <div class="results-card">
-            <div class="results-head">
-              <h2 data-en="Search results" data-fr="Résultats de recherche">Search results</h2>
-              <span id="search-summary" class="muted"></span>
-            </div>
-            <div class="results-sort">
-              <span class="muted" data-en="SORT" data-fr="TRIER">SORT</span>
-              <span id="search-sort" class="search-sort" role="group" aria-label="Sort"></span>
-            </div>
-            <div id="search-table" class="search-results"></div>
-          </div>
-          <div id="search-pages-bottom" class="search-pages" aria-label="Pages"></div>
-          <p id="search-status" class="muted" role="status"></p>
-          <div id="search-selection" class="selection-bar" hidden>
-            <span id="search-selected-count"></span>
-            <span class="spacer"></span>
-            <button type="button" id="search-details" class="quiet" data-en="Details" data-fr="Détails">Details</button>
-            <button type="button" id="queue-search" class="primary" data-i18n="queueSelected">
-              Queue selected
-            </button>
-          </div>
-        </section>
-        <section id="view-queue" class="view" hidden>
-          <p data-i18n="queueHelp">
-            Start sends these torrents to your client. Pausing the job stops
-            further sends; existing downloads continue in the client.
-          </p>
-          <div class="toolbar">
-            <button id="start-queue" class="primary" data-i18n="startQueue">
-              Start queue</button
-            ><button id="remove-queue" data-i18n="removeSelected">
-              Remove selected
-            </button>
-            <button id="retry-queue" data-en="Retry selected" data-fr="Réessayer la sélection">Retry selected</button>
-            <button id="clear-sent-queue" data-en="Clear sent" data-fr="Retirer les envoyés">Clear sent</button>
-          </div>
-          <p id="queue-summary" class="muted" role="status"></p>
-          <div id="queue-table" class="table-wrap"></div>
-          <div id="queue-menu" class="queue-context-menu" role="menu" aria-label="Queue actions" hidden></div>
-        </section>
+        <section id="view-feeds" class="view" hidden></section>
+        <section id="view-search" class="view" hidden></section>
+        <section id="view-queue" class="view" hidden></section>
         <section id="view-library" class="view" hidden>
           <p class="muted" data-en="Explore your folders. Review Candidates. Verify before seeding." data-fr="Parcourir les dossiers. Comparer les candidats. Vérifier avant de seeder.">Explore your folders. Review Candidates. Verify before seeding.</p>
-          <nav class="library-nav" aria-label="Library sections"><button data-library-tab="items" aria-pressed="true" data-en="File inspection" data-fr="Inspection des fichiers">File inspection</button><button data-library-tab="reseed" aria-pressed="false" data-en="Reseed" data-fr="Remise en seed">Reseed</button><button data-library-tab="folders" aria-pressed="false" data-en="Folders" data-fr="Dossiers">Folders</button><button data-library-tab="activity" aria-pressed="false" data-en="Activity" data-fr="Activité">Activity</button></nav>
-          <div id="library-items" class="library-explorer">
-            <aside class="library-rail"><h3 data-en="Library Folders" data-fr="Dossiers de bibliothèque">Library Folders</h3><div id="library-folders"></div><button id="library-manage-folders" data-en="Manage folders" data-fr="Gérer les dossiers">Manage folders</button></aside>
-            <div class="library-main">
-              <div id="library-results">
-                <div class="toolbar"><input id="library-query" placeholder="Filter Local Items…" aria-label="Filter Local Items" /><select id="library-state" aria-label="State"><option value="" data-en="All states" data-fr="Tous les états">All states</option><option value="unknown" data-en="Seeding status unknown" data-fr="État du seed inconnu">Seeding status unknown</option><option value="orphan" data-en="Orphan" data-fr="Orphelin">Orphan</option><option value="seeded" data-en="Seeded" data-fr="Seedé">Seeded</option><option value="partially-seeded" data-en="Partially seeded" data-fr="Partiellement seedé">Partially seeded</option></select><button id="scan" class="primary" data-i18n="scan">Scan folders</button></div>
-                <div class="toolbar"><button id="library-combine" data-en="Combine selected" data-fr="Combiner la sélection">Combine selected</button><button id="library-search-selected" data-en="Search selected" data-fr="Chercher la sélection">Search selected</button><button id="library-search-all" data-en="Search all Orphans" data-fr="Chercher tous les orphelins">Search all Orphans</button><button id="library-check-all" data-i18n="checkAllCandidates">Check all Candidates</button><button id="library-reseed-all" data-i18n="reseedAllMatches">Reseed all Full Matches</button></div>
-                <div id="library-table" class="table-wrap"></div>
-                <div class="pager"><button id="library-prev">←</button><span id="library-count"></span><button id="library-next">→</button><span id="library-selection-count" class="muted"></span></div>
-              </div>
-              <section id="candidates" class="library-review card" hidden>
-                <header class="library-review-heading"><div><h2 data-en="Candidate review" data-fr="Examen des candidats">Candidate review</h2><p id="candidate-title"></p></div><div class="actions"><button id="candidate-compatible" data-en="Find compatible torrents" data-fr="Chercher des torrents compatibles">Find compatible torrents</button><button id="candidate-search" data-en="Search again" data-fr="Relancer la recherche">Search again</button><button id="candidate-expand" data-en="Expand review" data-fr="Agrandir l’examen">Expand review</button></div></header>
-                <div class="library-review-body"><div id="candidate-table" class="table-wrap"></div><div class="library-detail"><nav class="library-nav" aria-label="Candidate details"><button data-candidate-tab="summary" aria-pressed="true" data-en="Summary" data-fr="Résumé">Summary</button><button data-candidate-tab="files" aria-pressed="false" data-en="Files" data-fr="Fichiers">Files</button><button data-candidate-tab="description" aria-pressed="false" data-en="Description" data-fr="Description">Description</button><button data-candidate-tab="evidence" aria-pressed="false" data-en="Evidence" data-fr="Éléments de preuve">Evidence</button><button data-candidate-tab="nfo" aria-pressed="false" data-en="NFO" data-fr="NFO">NFO</button></nav><div id="candidate-summary"></div><div id="candidate-files" class="table-wrap" hidden></div><div id="candidate-description" hidden></div><section id="candidate-evidence" hidden><p data-en="Compare claims with MediaInfo. Imported torrents are inspected offline; media files stay unchanged." data-fr="Comparez les déclarations avec MediaInfo. Les torrents importés sont lus hors ligne ; les médias restent inchangés.">Compare claims with MediaInfo. Imported torrents are inspected offline; media files stay unchanged.</p><div class="actions"><button id="inspect-evidence" data-en="Inspect metadata" data-fr="Inspecter les métadonnées">Inspect metadata</button><label><span data-en="Import old torrents" data-fr="Importer d’anciens torrents">Import old torrents</span><input id="import-provenance" type="file" accept=".torrent" multiple></label></div><div id="evidence-report" role="status"></div></section><pre id="candidate-nfo" hidden></pre><div id="candidate-actions" class="actions"></div></div></div>
-              </section>
-              <p id="library-empty-review" class="muted" data-en="Select a Local Item to review its Candidates." data-fr="Sélectionnez un élément local pour examiner ses candidats.">Select a Local Item to review its Candidates.</p>
-            </div>
-          </div>
           <section id="library-reseed" hidden aria-label="Reseed workspace">
             <div class="reseed-heading"><div><h2 data-en="Reseed" data-fr="Remise en seed">Reseed</h2><p data-en="Find torrents, verify their content and share." data-fr="Retrouvez les torrents, vérifiez leur contenu et partagez.">Find torrents, verify their content and share.</p></div><div class="actions"><button id="reseed-refresh" data-en="Refresh" data-fr="Actualiser">Refresh</button><button id="reseed-scan" data-en="Scan folders" data-fr="Analyser les dossiers">Scan folders</button><button id="reseed-run-all" class="primary" data-en="Run all steps" data-fr="Tout enchaîner">Run all steps</button></div></div>
             <div class="actions"><span id="reseed-root-status" class="muted"></span><button id="reseed-settings" type="button" data-en="Client settings" data-fr="Paramètres du client">Client settings</button></div>
@@ -738,48 +136,20 @@
           <dialog id="reseed-details" aria-label="Reseed details"><div id="reseed-detail-content"></div></dialog>
 
         </section>
-        <section id="view-upload" class="view" hidden>
-          <header class="upload-heading"><div><p class="muted" data-en="Prepare locally. Review. Send to c411." data-fr="Préparer localement. Relire. Envoyer à c411.">Prepare locally. Review. Send to c411.</p></div><button id="upload-new" class="primary" data-en="New draft" data-fr="Nouveau brouillon">New draft</button></header>
-          <nav class="upload-nav" aria-label="Upload"><button data-upload-view="local" aria-pressed="true" data-en="Local drafts" data-fr="Brouillons locaux">Local drafts</button><button data-upload-view="remote" aria-pressed="false" data-en="c411 drafts" data-fr="Brouillons c411">c411 drafts</button></nav>
-          <div id="upload-remote" hidden><div class="upload-heading"><p data-en="Final publication happens on c411. Seeding is a separate action." data-fr="La publication finale se fait sur c411. La mise en seed est une action distincte.">Final publication happens on c411. Seeding is a separate action.</p><button id="upload-remote-refresh" class="icon-button" aria-label="Refresh c411 drafts" title="Refresh c411 drafts">↻</button></div><div id="upload-remote-list"></div><a href="https://c411.org/upload" target="_blank" rel="noopener noreferrer" data-en="Open c411’s upload page" data-fr="Ouvrir la page d’upload c411">Open c411’s upload page</a></div>
-          <div id="upload-sources" hidden><h3 data-en="Start from your Library" data-fr="Choisir dans la Bibliothèque">Start from your Library</h3><div class="actions"><input id="upload-source-search" aria-label="Find a Library item" placeholder="Find a Library item…" /><button id="upload-source-refresh" data-en="Search" data-fr="Chercher">Search</button></div><div id="upload-source-list"></div><button id="upload-source-more" class="quiet" data-en="Load more" data-fr="Afficher la suite">Load more</button></div>
-          <div id="upload-workspace" class="upload-workspace">
-            <aside class="upload-sidebar"><div class="actions"><input id="upload-draft-search" aria-label="Find a draft" placeholder="Find a draft…" /><button id="upload-queue-refresh" class="icon-button" aria-label="Refresh local drafts" title="Refresh">↻</button></div><div id="upload-local-queue"></div></aside>
-            <div class="upload-main"><p id="upload-help" data-en="Choose a local draft, or New draft to prepare a Library item." data-fr="Choisissez un brouillon local, ou Nouveau brouillon pour préparer un élément de la Bibliothèque.">Choose a local draft, or New draft to prepare a Library item.</p>
-              <div id="upload-editor" hidden><header class="upload-heading"><div><h3 id="upload-editor-title"></h3><p id="upload-save-state" class="muted" role="status"></p></div><details class="upload-more"><summary aria-label="Draft actions">⋯</summary><div id="upload-draft-actions"></div></details></header>
-                <form id="upload-form"><nav class="upload-sections" aria-label="Draft sections">
-                  <button type="button" data-upload-section="details" aria-pressed="true" data-en="Details" data-fr="Détails">Details</button><button type="button" data-upload-section="files" aria-pressed="false" data-en="Files & NFO" data-fr="Fichiers et NFO">Files & NFO</button><button type="button" data-upload-section="description" aria-pressed="false" data-en="Description" data-fr="Description">Description</button><button type="button" data-upload-section="artwork" aria-pressed="false" data-en="Artwork" data-fr="Illustration">Artwork</button><button type="button" data-upload-section="review" aria-pressed="false" data-en="Review" data-fr="Relecture">Review</button>
-                </nav>
-                <section data-upload-panel="details"><label><span data-en="Upload name" data-fr="Nom de l’upload">Upload name</span><input id="upload-title" maxlength="200" /></label><div class="form-grid"><label><span data-i18n="categoryLabel">Category</span><select id="upload-category"></select></label><label><span data-i18n="subcategoryLabel">Subcategory</span><select id="upload-subcategory"></select></label><label>Source<input id="upload-source" /></label></div><div id="upload-options" class="form-grid"></div><button id="upload-preview" type="button" class="quiet" data-i18n="updatePreview">Update preview</button></section>
-                <section data-upload-panel="files" hidden><div id="upload-files" class="table-wrap"></div><label>NFO<textarea id="upload-nfo" rows="9"></textarea></label></section>
-                <section data-upload-panel="description" hidden><label>Description · BBCode<textarea id="upload-description" rows="12"></textarea></label><button id="upload-presentation-preview" type="button" class="quiet" data-en="Preview saved draft" data-fr="Aperçu du brouillon enregistré">Preview saved draft</button></section>
-                <section data-upload-panel="artwork" hidden><label><span data-en="Hosted image URL" data-fr="URL de l’image hébergée">Hosted image URL</span><input id="upload-image" type="url" placeholder="https://…" /></label><p data-en="Use a direct image URL. Save locally before reviewing." data-fr="Utilisez un lien direct vers une image. Enregistrez localement avant la relecture.">Use a direct image URL. Save locally before reviewing.</p><a href="https://postimages.org/" target="_blank" rel="noopener noreferrer" data-en="Host an image" data-fr="Héberger une image">Host an image</a><div id="upload-artwork-tools"></div></section>
-                <section data-upload-panel="review" hidden><h3 data-en="Review the saved draft" data-fr="Relire le brouillon enregistré">Review the saved draft</h3><div id="upload-rules"></div><p id="upload-review-state" role="status"></p><label class="check"><input id="upload-reviewed" type="checkbox" /><span data-i18n="reviewUpload">I have reviewed the files, description and category warnings.</span></label><p class="muted" data-en="Sending creates a c411 draft. You publish it on c411." data-fr="L’envoi crée un brouillon c411. Vous le publiez sur c411.">Sending creates a c411 draft. You publish it on c411.</p></section>
-                <footer class="upload-footer"><button id="upload-save-local" type="button" data-en="Save locally" data-fr="Enregistrer localement">Save locally</button><button id="upload-review" type="button" class="primary" data-en="Review draft" data-fr="Relire le brouillon">Review draft</button><button id="upload-send-local" type="button" class="primary" hidden data-en="Send to c411…" data-fr="Envoyer à c411…">Send to c411…</button></footer>
-                </form><div id="upload-result"></div>
-              </div>
-            </div>
-          </div>
-        </section>
-        <section id="view-documentation" class="view" hidden>
-          <div class="guide-toolbar">
-            <button id="guide-back" disabled>←</button>
-            <select id="guide-select" aria-label="Guide"></select>
-            <a id="guide-online" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
-          </div>
-          <article id="guide-content" class="guide-content"></article>
-        </section>
+        <section id="view-upload" class="view" hidden></section>
+        <section id="view-documentation" class="view" hidden></section>
         <section id="view-jobs" class="view" hidden>
           <p data-i18n="jobsHelp">
             Work belongs to the server. You can close this browser and return
             later. Interrupted actions are never replayed automatically.
           </p>
-          <div id="job-list"></div>
+          <button id="jobs-refresh" type="button" data-en="Refresh" data-fr="Actualiser">Refresh</button><div id="job-list"></div>
         </section>
+        <div id="shell-band-host" hidden><iframe id="shell-band-frame" title="Zen overview" src="static/shell/view.html"></iframe></div>
+        <dialog id="shell-help-dialog"><iframe id="shell-help-frame" title="Keyboard shortcuts" src="static/shell/view.html"></iframe></dialog>
       </main>
-      <aside id="media-chat-panel" aria-label="Media Assistant" hidden><div id="media-chat-resize" role="separator" aria-orientation="vertical" tabindex="0"></div><header class="media-chat-header"><h2 id="media-chat-title">Media discussion</h2><button id="media-chat-history" class="icon-button" type="button" aria-haspopup="menu">☰</button><button id="media-chat-more" class="icon-button" type="button" aria-haspopup="menu">⋯</button><button id="media-chat-close" class="icon-button" type="button">✕</button></header><div id="media-chat-menu" class="media-chat-menu" role="menu" hidden></div><div id="media-chat-content"></div></aside>
+      <aside id="media-chat-panel" aria-label="Media Assistant" hidden><div id="media-chat-resize" role="separator" aria-orientation="vertical" tabindex="0"></div><div id="media-chat-content"></div></aside>
     </div>
-    <div id="toast" role="alert" hidden></div>
     <dialog id="dialog">
       <form method="dialog">
         <button class="close" aria-label="Close">×</button>

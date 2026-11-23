@@ -275,6 +275,13 @@ def _compared(
     )
 
 
+def compare_candidate(
+    item: LocalItem, candidate: Candidate, meta: TorrentMeta, rules: MatchRules
+) -> CheckedCandidate:
+    """The Candidate's Match with the item, from a .torrent already in hand."""
+    return _compared(item, candidate, meta, rules)
+
+
 def unpack_and_reseed(
     qbit: Qbit,
     store: Store,

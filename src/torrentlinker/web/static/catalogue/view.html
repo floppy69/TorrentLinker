@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Catalogue</title><link rel="stylesheet" href="../panel/base.css"><link rel="stylesheet" href="../panel/toast.css" /><link rel="stylesheet" href="view.css"><script defer src="../panel/i18n.js"></script><script defer src="../panel/toast.js"></script><script defer src="../panel/transport.js"></script><script defer src="transport.js"></script><script defer src="view.js"></script></head><body>
+<header><h1>Catalogue</h1><div class="toolbar"><button id="catalogue-fetch" class="primary"></button><button id="catalogue-pause" hidden></button></div></header>
+<p id="catalogue-intro" class="muted"></p><p id="catalogue-status" role="status"></p>
+<section id="catalogue-progress" class="panel" hidden><p id="catalogue-phase"></p><progress id="catalogue-fraction" max="1"></progress><button id="catalogue-plan-now"></button></section>
+<div id="catalogue-error" role="alert" hidden></div><button id="catalogue-retry" hidden></button>
+<main id="catalogue-cards" aria-label="Catalogue"></main><p id="catalogue-empty" class="muted" hidden></p>
+</body></html>

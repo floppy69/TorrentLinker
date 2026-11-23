@@ -1,10 +1,13 @@
-from PySide6.QtCore import QObject, Signal
-from PySide6.QtWidgets import QMessageBox
+import threading
+from copy import deepcopy
+from types import SimpleNamespace
+
+from PySide6.QtCore import QObject
+from PySide6.QtWidgets import QMessageBox, QWidget
 
 from torrentlinker.config import Settings
 from torrentlinker.gui import main_window
-from torrentlinker.gui.library_workspace import FolderEditor
-from torrentlinker.gui.upload_view import UploadTab
+from torrentlinker.gui.upload_eligibility import UploadEligibility as UploadTab
 from torrentlinker.gui.zen_view import SeedingView
 from torrentlinker.store import Store
 
@@ -17,7 +20,7 @@ def test_existing_settings_without_key_do_not_start_network_work(qtbot, tmp_path
             main_window.MainWindow, method, lambda self, *args, **kw: calls.append("network")
         )
     monkeypatch.setattr(UploadTab, "refresh_drafts", lambda self: calls.append("drafts"))
-    monkeypatch.setattr(SeedingView, "refresh", lambda self, **kw: calls.append("seeding"))
+    monkeypatch.setattr(SeedingView, "reload", lambda self, **kw: calls.append("seeding"))
     settings = Settings()
     settings_path = tmp_path / "settings.json"
     settings.save(settings_path)
@@ -47,21 +50,18 @@ def test_profile_reads_no_torrent_client_before_setup(qtbot, tmp_path, monkeypat
 
 
 def test_media_layout_shortcut_is_restored_when_the_app_reopens(qtbot, tmp_path, monkeypatch):
-    from PySide6.QtWidgets import QComboBox
-
     window, calls, _ = setup_window(qtbot, tmp_path, monkeypatch)
-    selector = window.media_tab.findChild(QComboBox, "media-layout")
-    assert selector.currentData() == "cinematic"
-    selector.setCurrentIndex(selector.findData("focus"))
+    assert window.media_tab.media_layout == "cinematic"
+    # The shared view's layout choice reaches the host as a layout action.
+    window.media_tab._browser_action("layout", {"layout": "focus"})
     saved = Settings.load(window.settings_path)
     assert saved.media_layout == "focus"
 
     reopened = main_window.MainWindow(saved, window.settings_path, window.store)
     qtbot.addWidget(reopened)
-    restored = reopened.media_tab.findChild(QComboBox, "media-layout")
-    assert restored.currentData() == "focus"
-    restored.setCurrentIndex(restored.findData("collection"))
-    assert Settings.load(window.settings_path).media_layout == "collection"
+    assert reopened.media_tab.media_layout == "focus"
+    reopened.media_tab._browser_action("layout", {"layout": "horizon"})
+    assert Settings.load(window.settings_path).media_layout == "horizon"
     assert not calls
 
 
@@ -75,14 +75,14 @@ def test_media_center_hides_app_chrome_and_restores_window(qtbot, tmp_path, monk
     qtbot.mouseClick(window.media_tab.center_button, Qt.LeftButton)
     assert window.isFullScreen()
     assert not window.navigation.isVisible()
-    assert not window.page_title.isVisible()
-    assert window.media_tab.kind_tabs["video"].isVisible()
-    assert window.media_tab.chat.isVisible()
+    assert not window.app_header.isVisible()
+    assert window.media_tab.browser.isVisible()
     assert window.media_tab.player is player
     qtbot.mouseClick(window.media_tab.center_button, Qt.LeftButton)
     assert not window.isFullScreen()
     assert window.navigation.isVisible()
-    assert window.page_title.isVisible()
+    # Media has its own menu: the page header stays hidden there, and returns elsewhere.
+    assert not window.app_header.isVisible()
     qtbot.mouseClick(window.media_tab.center_button, Qt.LeftButton)
     qtbot.keyClick(window.media_tab.center_button, Qt.Key_Escape)
     qtbot.waitUntil(lambda: not window.isFullScreen())
@@ -94,8 +94,23 @@ def test_media_center_hides_app_chrome_and_restores_window(qtbot, tmp_path, monk
     qtbot.mouseClick(window.media_tab.center_button, Qt.LeftButton)
     window.tabs.setCurrentIndex(0)
     assert not window.media_center_active
+    assert window.app_header.isVisible()
     assert not window.isFullScreen()
     assert window.navigation.isVisible()
+
+
+class SettingsPageDouble(QWidget):
+    """Stands for the Settings page: its saved copy and nothing in flight."""
+
+    def __init__(self, parent, *, saved):
+        super().__init__()
+        self.setup = SimpleNamespace(settings=deepcopy(parent.settings))
+        self.saved = saved
+        self.agent_approvals = ()
+        self.view = SimpleNamespace(pending=0, close=lambda: None)
+
+    def show_section(self, section):
+        pass
 
 
 def setup_window(qtbot, tmp_path, monkeypatch, *, saved=True, key=""):
@@ -115,7 +130,7 @@ def setup_window(qtbot, tmp_path, monkeypatch, *, saved=True, key=""):
             lambda self, *args, _name=method, **kw: calls.append(_name),
         )
     monkeypatch.setattr(UploadTab, "refresh_drafts", lambda self: calls.append("drafts"))
-    monkeypatch.setattr(SeedingView, "refresh", lambda self, **kw: calls.append("seeding"))
+    monkeypatch.setattr(SeedingView, "reload", lambda self, **kw: calls.append("seeding"))
     settings = Settings(library_folders=[LibraryFolder(tmp_path)])
     path = tmp_path / "settings.json"
     if saved:
@@ -142,72 +157,61 @@ def test_configured_startup_loads_once_without_welcome(qtbot, tmp_path, monkeypa
     }
     assert not messages
     assert window.seeding_timer.isActive()
-    assert window.setup_notice.isHidden()
+    assert not window.setup_needed
 
 
 def test_cancelled_welcome_can_resume_after_saving_key(qtbot, tmp_path, monkeypatch):
     window, calls, secret = setup_window(qtbot, tmp_path, monkeypatch)
     messages, opened = [], []
-    save = [False]
     monkeypatch.setattr(QMessageBox, "information", lambda *args: messages.append(args[1]))
 
-    class Dialog(QObject):
-        diagnostics_requested = Signal()
-        agent_approvals = ()
-
-        def __init__(self, settings, parent):
-            super().__init__(parent)
+    class Page(SettingsPageDouble):
+        def __init__(self, parent, *, section):
+            super().__init__(parent, saved=False)
             opened.append(True)
-            self.folder_editor = FolderEditor(settings.library_folders, parent)
 
-        def exec(self):
-            if save[0]:
-                secret["key"] = "test-key"
-                return True
-            return False
-
-    monkeypatch.setattr(main_window, "SettingsDialog", Dialog)
+    monkeypatch.setattr(main_window, "SettingsPage", Page)
     window.startup()
     qtbot.wait(20)
     assert messages == ["Welcome to TorrentLinker"]
     assert opened == [True]
     assert not calls
     assert not window.seeding_timer.isActive()
-    assert not window.setup_notice.isHidden()
+    assert window.setup_needed
     assert window.tabs.isEnabled()
     assert window.tabs.isTabEnabled(window.tabs.indexOf(window.media_tab))
     assert not window.tabs.isTabEnabled(window.tabs.indexOf(window.search_tab))
-    save[0] = True
+    # The owner leaves Settings without a key, opens it again later and saves one.
+    window.close_settings()
+    assert window.setup_needed
     window.open_settings()
+    secret["key"] = "test-key"
+    window._settings_page.saved = True
+    window.close_settings()
     qtbot.waitUntil(lambda: len(calls) == 6)
     assert window.tabs.isEnabled()
-    assert window.setup_notice.isHidden()
+    assert not window.setup_needed
     assert window.seeding_timer.isActive()
 
 
 def test_first_launch_save_without_key_keeps_loading_paused(qtbot, tmp_path, monkeypatch):
     window, calls, secret = setup_window(qtbot, tmp_path, monkeypatch, saved=False, key="  ")
 
-    class Dialog(QObject):
-        diagnostics_requested = Signal()
-        agent_approvals = ()
+    class Page(SettingsPageDouble):
+        def __init__(self, parent, *, section):
+            super().__init__(parent, saved=True)
 
-        def __init__(self, settings, parent):
-            super().__init__(parent)
-            self.folder_editor = FolderEditor(settings.library_folders, parent)
-
-        def exec(self):
-            return True
-
-    monkeypatch.setattr(main_window, "SettingsDialog", Dialog)
+    monkeypatch.setattr(main_window, "SettingsPage", Page)
     window.startup()
     qtbot.wait(20)
+    window.close_settings()  # saved, but still without an indexer key
     assert window.settings_path.exists()
     assert not calls
     assert not window.seeding_timer.isActive()
-    assert not window.setup_notice.isHidden()
+    assert window.setup_needed
     secret["key"] = "test-key"
     window.open_settings()
+    window.close_settings()
     qtbot.waitUntil(lambda: len(calls) == 6)
     assert window._startup_complete
 
@@ -235,7 +239,7 @@ def test_restoring_searches_checks_upload_eligibility_once_per_item(qtbot, tmp_p
         window.upload_tab, "why_not", lambda entry: checked.append(entry) or "Not ready"
     )
     window._searches_restored([(entry, []) for entry in entries])
-    assert len(checked) == len(entries)
+    assert not checked  # Restoring candidates no longer rebuilds a hidden Upload table.
     assert len(window.review.cache) == len(entries)
     assert len(window.upload_tab.searched) == len(entries)
 
@@ -347,3 +351,38 @@ def test_first_web_panel_visit_keeps_the_native_window(qtbot, tmp_path, monkeypa
         wait_js(qtbot, panel, "document.body.dataset.blocked === 'yes'")
         assert js(qtbot, panel, "document.title") != "unbundled script executed"
         assert window.windowHandle() is native and not destroyed, panel
+
+
+def test_settings_open_during_background_work_and_keep_both_saves(qtbot, tmp_path, monkeypatch):
+    from PySide6.QtCore import QRunnable, QThreadPool
+
+    window, _, _ = setup_window(qtbot, tmp_path, monkeypatch)
+    window._startup_complete = True
+    release = threading.Event()
+
+    class Busy(QRunnable):
+        def run(self):
+            release.wait(10)
+
+    QThreadPool.globalInstance().start(Busy())  # a Catalogue update still running
+    qtbot.waitUntil(lambda: QThreadPool.globalInstance().activeThreadCount() > 0)
+    try:
+        window.open_settings()  # the first click opens it, background work or not
+        page = window._settings_page
+        assert page is not None and window.tabs.currentWidget() is page
+        assert window.shell_host.page() == "setup"
+        # The owner saves a section in Settings...
+        page.view.workspace.save(
+            "general", {**page.view.workspace.snapshot()["general"], "theme": "light"}
+        )
+        page.saved = True
+        # ...then a background task finishes and records what it measured.
+        window._speed_measured(42.0)
+        window.close_settings()
+    finally:
+        release.set()
+    assert window._settings_page is None
+    assert window.tabs.indexOf(page) == -1  # leaving removes the page
+    saved = Settings.load(window.settings_path)
+    assert (saved.theme, saved.download_speed) == ("light", 42.0)
+    assert (window.settings.theme, window.settings.download_speed) == ("light", 42.0)

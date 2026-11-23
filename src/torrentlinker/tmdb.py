@@ -71,3 +71,41 @@ class Tmdb:
             overview=str(data.get("overview") or ""),
             raw={**data, "media_type": media_type},
         )
+
+    def certifications(self, tmdb_id: str, media_type: str) -> list[tuple[str, str]]:
+        """Each country's age certification of a film (release dates) or series (content
+        ratings), for Age Ratings."""
+        if media_type == "movie":
+            data = self._get(f"/movie/{int(tmdb_id)}/release_dates", {})
+            return [
+                (str(r.get("iso_3166_1") or ""), str(d.get("certification") or ""))
+                for r in data.get("results") or []
+                for d in r.get("release_dates") or []
+            ]
+        if media_type == "tv":
+            data = self._get(f"/tv/{int(tmdb_id)}/content_ratings", {})
+            return [
+                (str(r.get("iso_3166_1") or ""), str(r.get("rating") or ""))
+                for r in data.get("results") or []
+            ]
+        return []
+
+    def videos(self, tmdb_id: str, media_type: str) -> list[dict]:
+        """Trailer links only. Media bytes are never requested or downloaded here."""
+        import re
+
+        if media_type not in {"movie", "tv"}:
+            return []
+        data = self._get(f"/{media_type}/{int(tmdb_id)}/videos", {"language": "fr-FR"})
+        return [
+            {
+                "key": row["key"],
+                "name": str(row.get("name", "Trailer"))[:150],
+                "language": str(row.get("iso_639_1", "")),
+                "official": bool(row.get("official")),
+            }
+            for row in data.get("results", [])
+            if row.get("site") == "YouTube"
+            and row.get("type") in {"Trailer", "Teaser"}
+            and re.fullmatch(r"[A-Za-z0-9_-]{11}", str(row.get("key", "")))
+        ]

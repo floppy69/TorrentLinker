@@ -4,57 +4,88 @@
 
 [Installation](#installation) · [Set up](#set-up) · [Your torrent client in Docker, on a NAS or on another computer](#your-torrent-client-in-docker-on-a-nas-or-on-another-computer) · [Proxy](#proxy) · [Finding your way around](#finding-your-way-around)
 
-Start by connecting your Indexer and torrent client, then add folders and choose a workflow.
-
-Screenshots use the English interface, dark theme and example data.
+Start with one Torrent Client and one folder. Once a small example works, add more folders or clients.
 
 ## Installation
 
 Download the Windows or Linux file from the [latest release](https://github.com/Vietnoirien/TorrentLinker/releases/latest). On Windows, run `TorrentLinker.exe`. On Linux, allow execution in the AppImage file properties, then open it.
 
-![Welcome screen before configuring an API key](../images/en/bienvenue.png)
+Compare the [client compatibility table](clients.md#client-compatibility) if you need partial Reseeds or preview while downloading.
 
-### AppImage GLX startup failure
+## What you need
 
-On systems with newer Mesa drivers, older AppImages can bundle a `libstdc++.so.6` that is too old for the system drivers. Startup fails with `Could not initialize GLX`. On Ubuntu x86_64, this workaround uses the system libraries for one launch:
+| Item | Where to get it | Used for |
+| --- | --- | --- |
+| Torrent Client address and login | Your client's Web UI or seedbox provider | Listing torrents and starting downloads or Reseeds |
+| Indexer URL and API key | Your c411 account | Searching and fetching torrent metadata |
+| Access to your existing files | A local folder or a mounted share | Library scans, Reseeds, Media and Upload preparation |
+| A writable Download Folder | A disk visible to TorrentLinker and the Torrent Client | New downloads and Plans |
+| Announce URL | Your tracker account | Creating Uploads; you can leave it unset for initial setup |
 
-```sh
-LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libgcc_s.so.1 ./TorrentLinker-x86_64.AppImage
-```
+In the Web UI, “local” means the computer running the TorrentLinker server. Choosing a folder does not upload files from your browser's computer.
 
-Do not disable GLX with `QT_XCB_GL_INTEGRATION=none`: Qt may then fail to create the window. The fix removes these two libraries from future AppImages. The system libraries must be at least compatible with Ubuntu 22.04, the build system.
+## First successful setup
+
+1. Open **Settings → Connections**. Select the Torrent Client type and enter its address and login. Click **Test connection**, then **Save**.
+2. In the Indexer card, enter the URL and API key. Click **Test Indexer**, then click **Save**. A successful torrent-client test does not test the Indexer.
+3. Open **Settings → Download Folders**. Set a default destination for the selected client. Add category overrides only if you need separate destinations.
+4. Open **Settings → Library Folders** and add one folder containing files you already own. Choose the Content Kind that matches those files.
+5. If the two applications see different paths to the same files, configure **Settings → Client Paths** using the examples below.
+6. Open **Torrents** to check the selected connection. Open **Library** and scan the folder. You should see Local Items; scanning alone does not start a download.
+
+![Current Connections settings for a Torrent Client](../images/en/settings-connections.png)
+
+Use the section’s **Save** button after editing. ReleaseScore has its own **Save ReleaseScore** button. Switching sections preserves a draft, but does not save it. After saving, check the status message. A saved secret may appear as an empty field marked **Saved; leave blank to keep**; do not re-enter it merely because it is hidden.
+
+## Which settings page do I need?
+
+| I want to… | Open | Check before leaving |
+| --- | --- | --- |
+| Connect or test a Torrent Client or Indexer | Connections | The relevant connection test succeeds and changes are saved |
+| Add a second NAS or seedbox | Clients | Give it a distinct name, then select it before editing its folders |
+| Find existing files | Library Folders | The folder is readable by the app or server |
+| Choose where new files go | Download Folders | The destination is writable and belongs to the intended client |
+| Translate a host path into a Docker/NAS path | Client Paths | Both paths refer to the same files |
+| Tune video preferences and equipment | ReleaseScore | Profiles, equipment and the score Media's tracker rows require |
+| Set seed hours, disk reserve and Zen assumptions | Zen | These are estimates used by Plans, not tracker account changes |
+| Set up a model for chat | Assistant | Test the selected provider before starting a conversation |
+| Pair the browser extension | Companion | The paired status appears after following the connection steps |
+
+![Download Folder settings for the selected client](../images/en/settings-downloads.png)
+
+A Library Folder describes files you already have. A Download Folder is a destination for new files. A Path Mapping translates a path; it does not copy, mount or synchronize files.
 
 ## Set up
 
 On first launch, or when no Indexer API key is saved, a welcome message opens connection settings. Automatic loading waits for setup. Saving the key starts loading your data without a restart. Cancelling or saving without a key leaves the app idle with a link back to Settings.
 
-1. Enable your torrent client's Web UI:
-   - **qBittorrent**: **Tools → Options → Web UI**.
-   - **Transmission** 4.x: turn on remote access in **Preferences → Remote**. Reseeds need **Append .part to incomplete files' names** off, or Transmission would rename your own files during a check: TorrentLinker offers to turn it off for you. Transmission renames file and folder names in place only, so a Match that needs other folders (a flattened folder, for example) cannot be Reseeded with it (see [ADR-0010](../../adr/0010-transmission-with-whole-file-names-and-in-place-renames.md)).
-   - **Deluge** 2.x: run its Web UI (`deluge-web`, port 8112 by default) connected to its daemon, and turn on the **Label** plugin in **Preferences → Plugins**. TorrentLinker labels the torrents it adds (`torrentlinker`, `torrentlinker-verifying`, `torrentlinker-partial`, `torrentlinker-zen`) to follow their Verification, as it tags them in qBittorrent.
-   - **rTorrent**: enter the XML-RPC address your seedbox or ruTorrent gives, often ending in `/RPC2`, with the web server's username and password, or rTorrent's own SCGI port as `scgi://host:port`. See [rTorrent](torrents.md#rtorrent).
-   - **µTorrent Classic / BitTorrent Classic**: enable **Preferences → Advanced → Web UI** and set a username and password. In Directories, choose a default download folder and enable **Don't start the download automatically**. Use the Web UI port shown in the client. TorrentLinker supports that folder and its subfolders. Full Reseeds and Upload seeding can require an explicit disk-rename confirmation; Partial Matches are unsupported. These options are experimental. BitTorrent Web is a different application and is not supported by this connection.
-2. Open TorrentLinker's **Settings → Connections**, choose your **Client** and enter its connection, then the Indexer URL/API key (and your Announce URL, for Uploads). qBittorrent takes a username/password or a Web UI API key where available; Deluge takes its Web UI address and password; Transmission its remote address, and a username and password if you set them.
-3. Register Library Folders to find files you can Reseed.
-4. Set Download Folders for the categories you want to plan, or choose a default folder. Categories without a resolved folder are excluded.
-5. If your torrent client runs in Docker, on a NAS or on another computer, set its paths in **Settings → Client Paths** (see below).
+Choose the connection method for your Torrent Client:
 
-![Connection settings](../images/en/connexions.png)
+| Torrent Client | Enable or obtain | Enter in Connections |
+| --- | --- | --- |
+| qBittorrent | **Tools → Options → Web UI** | Web UI address and its username/password, or its supported API key |
+| Transmission | Remote access in the client preferences | Remote address and the configured login |
+| Deluge | Its Web UI connected to the daemon; enable the Label plugin | Web UI address and password |
+| rTorrent | The XML-RPC or SCGI endpoint from your installation/provider | Endpoint such as `/RPC2`, or `scgi://host:port`, and any required credentials |
+| µTorrent Classic / BitTorrent Classic | **Preferences → Advanced → Web UI** | Web UI address, username and password |
+
+These are the client's remote-control credentials, not your tracker login. BitTorrent Web is a different application. Client-specific Reseed limitations and file-layout choices are covered in [Torrent management](torrents.md) and [Library and reseeding](library.md).
 
 ## Your torrent client in Docker, on a NAS or on another computer
 
-![Client path mappings](../images/en/chemins.png)
+![Current Client Paths settings](../images/en/settings-paths.png)
 
 The client then sees your folders under other paths than this computer does. For example, a Docker container sees `/data`, while this computer reaches the same files as `/mnt/nas` or `Z:\`. TorrentLinker needs to know the correspondence to find the client's torrents in your folders, to Reseed, and to send a Plan's downloads where the client can write them.
 
 In **Settings → Client Paths**:
 
-1. Fill in the client connection and your Library or Download Folders first.
-2. Click **Detect**. TorrentLinker reads a few torrents of each folder the client uses and looks for their files, by name and size, in your folders and the folders above them. It adds the paths that lead there, for example `/mnt/nas` ↔ `/data`, and says how many torrents each one found.
-3. **Check** counts, for each path, the client's torrents whose folder exists on this computer. It also warns about Download Folders that the client probably cannot reach.
-4. Save.
+1. Make sure the mounted folder is accessible on the TorrentLinker host. A mapping cannot create a mount.
+2. Enter **Folder on the TorrentLinker host**, for example `/mnt/nas/media`.
+3. Enter **Torrent Client path**, for example `/data`. This must be the path the client sees for those same files.
+4. Click **Test mapping** and read the result. Fix unreachable paths before proceeding.
+5. Click **Save folder**. Repeat for another mount if needed.
 
-You can also add a path by hand with **Add folder…**: choose the folder on this computer, then type how the client sees it. One path covers everything below it, and the longest matching path wins. Typical cases:
+**Detect mappings** can suggest paths by comparing existing client files with mounted files. Choose a suggestion, test it, then save. If no match is found, enter the two paths yourself. One mapping covers everything below it; the longest matching path wins. Typical cases:
 
 | Setup | On this computer | In the client |
 | --- | --- | --- |
@@ -75,12 +106,41 @@ To reach the internet through a proxy, enter it in **Settings → Connections �
 
 On a small screen, resize the window to fit. The workspace scrolls when its contents no longer fit, while navigation stays visible. Use its scrollbars to reach controls on the right or at the bottom.
 
-The 0.5.0 interface adds **Search** alongside **Zen**, **Library**, **Upload** and **Settings**. Zen separates **Seeding**, **Plan** and **Catalogue**; Upload separates preparing an Upload from reviewing your **Drafts**. **Settings → General → Theme** offers System, Light and Dark. System follows the desktop preference, including GNOME's explicit dark-mode setting; a saved theme change applies immediately. **Interface size** (75% to 200%) enlarges or shrinks the whole desktop interface on top of your desktop's scaling, for screens where that scaling does not suit; it applies after restarting the app.
+Use the main navigation to open **Search**, **Torrents**, **Library**, **Upload**, **RSS**, **Media**, **Zen**, **Assistant**, **Activity**, **Documentation** or **Settings**. On narrow screens, **Navigation** opens or collapses that menu.
 
-Click a results table's column header to sort, then click again to reverse it. Drag the divider between column headers to resize a column, or double-click it to fit its contents. Sizes, seeder counts and Zen estimates sort numerically. The Library and Seeding lists also have text filters. Library actions stay above the Library, with **Rescan everything** in the **Scan** menu. Use **Ctrl+1/2/3/4** to switch workspaces, **Ctrl+F** to focus Search or the Library filter, and **Ctrl+,** to open Settings.
+In a torrent list, click a sortable column heading to change the order. Use the search and category filters to reduce a large list before selecting rows. Check the target client before queueing or sending work.
+
+Use **Tab** to move between controls and **Enter** to activate the focused button. In the browser, its zoom controls enlarge the interface. Desktop sizing is under **Settings → General**. Start with a normal zoom level when learning a screen, then adjust it for comfortable reading.
+
+## What the app tells you
+
+Every action answers with a toast, and a button shows it is busy while it works. Known server errors appear as alerts in your language. A header bar holds navigation on a computer, a drawer on a phone. Media tracker rows say why they are empty, and **Activity** describes jobs in plain words.
+
+## If setup does not work
+
+| What you see | What to check next |
+| --- | --- |
+| Torrent Client connection fails | Open the same Web UI address from the TorrentLinker host; check its port and login |
+| Torrents appear but files are missing | Check the mount and Client Paths; an API connection alone does not give file access |
+| Plan has no destination | Choose the correct client and configure its default or category Download Folder |
+| Library scan finds no items | Check the folder, Content Kind and scan grouping; try one small folder first |
+| A saved password field looks empty | Look for the saved-secret hint before replacing the value |
+| A setting seems unchanged | Save the section and read the result message; changing pages does not save |
+
 
 
 [Documentation](../../README.md) · [Français](../fr/demarrage.md)
+
+### AppImage GLX startup failure
+
+On systems with newer Mesa drivers, older AppImages can bundle a `libstdc++.so.6` that is too old for the system drivers. Startup fails with `Could not initialize GLX`. On Ubuntu x86_64, this workaround uses the system libraries for one launch:
+
+```sh
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libgcc_s.so.1 ./TorrentLinker-x86_64.AppImage
+```
+
+Do not disable GLX with `QT_XCB_GL_INTEGRATION=none`: Qt may then fail to create the window. The fix removes these two libraries from future AppImages. The system libraries must be at least compatible with Ubuntu 22.04, the build system.
+
 
 ## Read guides inside the app
 

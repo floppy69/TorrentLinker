@@ -16,3 +16,5 @@ Most of the port maps directly. rTorrent checks a stopped torrent without starti
 
 - With rTorrent, Partial Matches cannot be Reseeded, and Reseeds with other names need a disk-rename confirmation, as with µTorrent. Disk-rename confirmations remain in the desktop application.
 - A seedbox whose rTorrent forbids `execute` commands cannot have download folders created for it; the error names the folder.
+
+Configured client workflows now use the per-client layout choice in ADR-0021. Existing layouts and recovery journals remain intact.

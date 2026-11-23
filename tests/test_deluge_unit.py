@@ -9,12 +9,12 @@ from tests.torrents import make_torrent
 from torrentlinker.deluge import (
     GUARD_SPEED,
     DelugeApi,
-    DelugeError,
     LabelPluginOff,
     _state,
     label_for,
     tags_of,
 )
+from torrentlinker.login_guard import LoginRefused
 from torrentlinker.qbit import AlreadyInClient
 from torrentlinker.torrent_meta import read_torrent
 
@@ -174,7 +174,7 @@ def test_check_logs_in_connects_the_daemon_and_returns_its_version(web: FakeWebU
 
 
 def test_a_wrong_password_is_reported(web: FakeWebUi) -> None:
-    with pytest.raises(DelugeError, match="password"):
+    with pytest.raises(LoginRefused, match="refused the login"):
         api_for(web, "wrong").check()
 
 

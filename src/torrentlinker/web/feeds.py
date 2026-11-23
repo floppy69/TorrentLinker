@@ -2,47 +2,29 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
 
+from torrentlinker.feed_workspace import (
+    FeedComparison,
+    FeedEnqueue,
+    FeedMark,
+    FeedSelection,
+    FeedWorkspace,
+    JudgeFeed,
+    SaveFeed,
+)
 from torrentlinker.feeds import Subscription, candidate, evaluate
-
-
-class SaveFeed(BaseModel):
-    subscription: Subscription
-    approve_automatic: bool = False
-
-
-class JudgeFeed(BaseModel):
-    subscription: Subscription
-    rows: list[dict] = Field(max_length=1000)
-
-
-class FeedSelection(BaseModel):
-    hashes: list[str] = Field(max_length=1000)
-    name: str = Field(default="RSS selection", max_length=100)
-
-
-class FeedMark(BaseModel):
-    hashes: list[str] = Field(max_length=1000)
-    feed_id: str = ""
-    action: Literal["read", "unread", "save", "unsave", "dismiss", "restore"] = "read"
-
-
-class FeedComparison(BaseModel):
-    client_ids: list[str] | None = Field(default=None, max_length=32)
-
-
-class FeedEnqueue(BaseModel):
-    client_id: str
-    folder: str
 
 
 def feed_routes(app: FastAPI, service):
     control = service.feed_control
     feeds = control.feeds
+
+    @app.post("/api/feeds/workspace")
+    def workspace(body: dict):
+        return FeedWorkspace(control).request(
+            body["path"], body.get("body"), body.get("method", "GET")
+        )
 
     @app.get("/api/feed-options")
     def options():

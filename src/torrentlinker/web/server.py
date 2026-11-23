@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import logging
 import os
 import sys
 from collections.abc import Mapping
@@ -40,6 +41,9 @@ def argument_parser() -> argparse.ArgumentParser:
         "--web-auth",
         choices=("password", "proxy"),
         default=os.getenv("TL_WEB_AUTH", "password"),
+    )
+    parser.add_argument(
+        "--members", choices=("on", "off"), default=os.getenv("TL_WEB_MEMBERS", "off")
     )
     parser.add_argument("--trusted-proxy", action="append", default=[])
     parser.add_argument("--root", action="append", type=Path, default=[])
@@ -126,9 +130,12 @@ def main() -> int:
                 roots=roots,
                 secret_files=secret_files,
                 secure_cookie=args.secure_cookie,
+                members_enabled=args.members == "on",
             )
         except (ValueError, OSError) as error:
             parser.error(f"Cannot initialize server: {error}")
+        # httpx logs each request URL at INFO, and Torznab URLs carry the API key.
+        logging.getLogger("httpx").setLevel(logging.WARNING)
         uvicorn.run(
             app,
             host=args.host,

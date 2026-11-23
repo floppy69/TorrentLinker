@@ -11,8 +11,12 @@ from torrentlinker.store import Store
 @pytest.mark.parametrize("language", ["en", "fr"])
 @pytest.mark.parametrize("size", [(1000, 650), (800, 560)])
 def test_small_window_keeps_every_workspace_action_reachable(
-    qtbot, qapp, tmp_path, monkeypatch, language, size
+    qtbot, qapp, tmp_path, monkeypatch, language, size, request
 ):
+    from tests.webengine_support import isolated_webengine_render
+
+    if isolated_webengine_render(request):
+        return
     monkeypatch.setattr("keyring.get_password", lambda *args: None)
     palette = qapp.palette()
     stylesheet = qapp.styleSheet()
@@ -24,10 +28,10 @@ def test_small_window_keeps_every_workspace_action_reachable(
         qtbot.addWidget(window)
         window.show()
         controls = [
-            window.zen_tab.seeding_view.refresh_button,
+            window.zen_tab.profile_view,
             window.review.reseed_button,
             window.upload_workspace,
-            window.search_tab.add_button,
+            window.search_tab.board,
         ]
         for index, control in enumerate(controls):
             window.tabs.setCurrentIndex(index)
@@ -40,10 +44,11 @@ def test_small_window_keeps_every_workspace_action_reachable(
             viewport = window.workspace_scroll.viewport()
             center = control.mapTo(viewport, control.rect().center())
             assert viewport.rect().contains(center), window.tabs.tabText(index)
-            if index == 2:
+            if index in {2, 3}:
                 assert control.isVisible()
                 assert window.workspace_scroll.verticalScrollBar().maximum() == 0
-            assert window.navigation.visibleRegion().boundingRect() == window.navigation.rect()
+            assert window.navigation.isVisible()
+            assert window.centralWidget().rect().contains(window.navigation.geometry())
         window.tabs.setCurrentIndex(0)
         assert window.workspace_scroll.horizontalScrollBar().value() == 0
         assert window.workspace_scroll.verticalScrollBar().value() == 0
@@ -59,8 +64,13 @@ def test_small_window_keeps_every_workspace_action_reachable(
         qapp.setStyleSheet(stylesheet)
 
 
-def test_initial_window_size_fits_available_screen(qtbot, qapp, tmp_path, monkeypatch):
+def test_initial_window_size_fits_available_screen(qtbot, qapp, tmp_path, monkeypatch, request):
     from PySide6.QtCore import QRect
+
+    from tests.webengine_support import isolated_webengine_render
+
+    if isolated_webengine_render(request):
+        return
 
     class Screen:
         def availableGeometry(self):

@@ -48,7 +48,7 @@ def finish(qtbot, window):
     assert window.reseed_all_action.isEnabled()
 
 
-def test_check_all_uses_untested_candidates_even_when_filtered_and_preserves_checked(
+def test_check_all_uses_untested_candidates_without_selection_and_preserves_checked(
     qtbot, tmp_path, monkeypatch
 ):
     window, _, entry, checked, data = setup(qtbot, tmp_path, monkeypatch)
@@ -56,7 +56,7 @@ def test_check_all_uses_untested_candidates_even_when_filtered_and_preserves_che
     rejected = CheckedCandidate(replace(checked.candidate, title="Rejected", infohash="bb" * 20))
     window.store.reject(entry.item.path, rejected.candidate.infohash, "user")
     window.review.remember(entry, [checked, pending, rejected])
-    window.library_search.setText("hidden by filter")
+    window.library_workspace.reseed.selected_paths = []
     calls = []
     monkeypatch.setattr(
         window,

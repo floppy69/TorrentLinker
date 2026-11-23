@@ -171,6 +171,10 @@ def test_web_shell_has_guided_setup_and_no_external_asset_dependencies(tmp_path:
         assert "setup" in response.text
         assert "frame-ancestors" in response.headers["content-security-policy"]
         assert browser.get("/static/app.js").status_code == 200
+        player = browser.get("/static/player/view.html")
+        assert player.status_code == 200
+        assert "frame-ancestors 'self'" in player.headers["content-security-policy"]
+        assert "default-src 'none'" in player.headers["content-security-policy"]
 
 
 def test_user_can_remove_a_library_folder_even_after_its_mount_disappears(tmp_path):

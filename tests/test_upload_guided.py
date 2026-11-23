@@ -103,12 +103,7 @@ def test_source_suggestions_distinguish_incompatible_candidates_from_compatible(
         }
 
 
-def test_native_specialised_editor_reopens_manual_source_and_preserves_workflow(qtbot, tmp_path):
-    from tests.fake_qbit import FakeQbit
-    from tests.test_upload_view import StubIndexer
-    from torrentlinker.gui.upload_view import UploadTab
-    from torrentlinker.matching import IgnoreList
-
+def test_preparation_tools_inspect_manual_models_and_refuse_other_paths(tmp_path):
     root = tmp_path / "media"
     root.mkdir()
     source = root / "Sculpture.stl"
@@ -116,34 +111,114 @@ def test_native_specialised_editor_reopens_manual_source_and_preserves_workflow(
     app = create_app(tmp_path / "config", password="test-password-long", roots=(root,))
     with TestClient(app) as browser:
         login(browser)
-        uploads = app.state.agent_service.for_client("").uploads
-        record = uploads.queue(
-            str(source),
-            UploadForm(
-                manual_source=True,
-                category=10,
-                workflow_step=3,
-                existing_reviewed=True,
-            ),
-            threading.Event(),
+        saved = browser.post(
+            "/api/upload/workspace/save",
+            json={
+                "path": str(source),
+                "form": {"manual_source": True, "category": 10},
+            },
+        ).json()
+        result = browser.post(
+            "/api/upload/workspace/model-inspect",
+            json={
+                "path": str(source),
+                "id": saved["id"],
+            },
         )
-        indexer = StubIndexer()
-        view = UploadTab(
-            uploads.setup.store,
-            lambda: indexer,
-            lambda: FakeQbit(),
-            IgnoreList.default,
-            lambda: "",
-            tmp_path / "uploads",
+        assert result.is_success, result.text
+        assert result.json()["models"][0]["file"] == "Sculpture.stl"
+        denied = browser.post(
+            "/api/upload/workspace/model-inspect",
+            json={
+                "path": str(tmp_path / "other.stl"),
+                "id": saved["id"],
+            },
         )
-        qtbot.addWidget(view)
-        view.edit_saved_details(record)
-        qtbot.waitUntil(lambda: bool(view.files))
-        assert view.entry.item.path == source
-        view.description.setPlainText("Présentation corrigée dans les outils avancés.")
-        view.queue_draft()
-        qtbot.waitUntil(lambda: uploads.setup.store.local_draft(record["id"])["revision"] == 2)
-        form = uploads.setup.store.local_draft(record["id"])["form"]
-        assert form["manual_source"]
-        assert form["workflow_step"] == 3
-        assert form["existing_reviewed"]
+        assert denied.status_code == 400
+
+
+def test_upload_archive_tools_require_review_and_keep_source(tmp_path):
+    import zipfile
+
+    root = tmp_path / "media"
+    root.mkdir()
+    archive = root / "Sculpture.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("model.stl", "solid sculpture\nendsolid sculpture\n")
+    app = create_app(tmp_path / "config", password="test-password-long", roots=(root,))
+    with TestClient(app) as browser:
+        login(browser)
+        saved = browser.post(
+            "/api/upload/workspace/save",
+            json={
+                "path": str(archive),
+                "form": {"manual_source": True, "category": 10},
+            },
+        ).json()
+        body = {"path": str(archive), "id": saved["id"]}
+        preview = browser.post("/api/upload/workspace/archive-preview", json=body)
+        assert preview.is_success, preview.text
+        denied = browser.post("/api/upload/workspace/archive-extract", json=body)
+        assert denied.status_code == 400
+        extracted = browser.post(
+            "/api/upload/workspace/archive-extract",
+            json={
+                **body,
+                **preview.json(),
+            },
+        )
+        assert extracted.is_success, extracted.text
+        assert archive.exists()
+        assert (root / "Sculpture" / "model.stl").is_file()
+        assert extracted.json()["draft"]["form"]["manual_source"]
+        assert extracted.json()["draft"]["id"] != saved["id"]
+
+
+def test_model_render_job_uses_selected_piece_and_returns_local_artwork(tmp_path):
+    import time
+
+    root = tmp_path / "media"
+    root.mkdir()
+    source = root / "Sculpture.obj"
+    source.write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\nf 1 2 3\nf 1 2 4\nf 1 3 4\nf 2 3 4\n")
+    app = create_app(tmp_path / "config", password="test-password-long", roots=(root,))
+    with TestClient(app) as browser:
+        login(browser)
+        saved = browser.post(
+            "/api/upload/workspace/save",
+            json={
+                "path": str(source),
+                "form": {"manual_source": True, "category": 10},
+            },
+        ).json()
+        body = {"path": str(source), "id": saved["id"]}
+        geometry = browser.post(
+            "/api/upload/workspace/model-geometry",
+            json={
+                **body,
+                "file": "Sculpture.obj",
+            },
+        )
+        assert geometry.is_success, geometry.text
+        assert len(geometry.json()["triangles"]) == 4
+        job = browser.post(
+            "/api/upload/workspace/tool-start",
+            json={
+                **body,
+                "tool": "model-render",
+                "files": ["Sculpture.obj"],
+                "cameras": {"Sculpture.obj": {"yaw": 90, "pitch": 45}},
+            },
+        )
+        assert job.is_success, job.text
+        for _ in range(200):
+            status = browser.post(
+                "/api/upload/workspace/tool-status", json={"job": job.json()["id"]}
+            ).json()
+            if status["status"] not in {"queued", "running"}:
+                break
+            time.sleep(0.05)
+        assert status["status"] == "completed", status
+        assert status["result"]["covered"] == ["Sculpture.obj"]
+        assert status["result"]["artifacts"][0]["asset_id"]
+        assert status["result"]["content"][0]["mimeType"] == "image/png"

@@ -1,0 +1,151 @@
+/* The approved Torrents list rows, shared with Plan and Seeding. */
+.torrent-list {
+  border-collapse: collapse;
+  width: 100%;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+.torrent-list th,
+.torrent-list td {
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+.torrent-list th {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.torrent-list td.name,
+.torrent-list td:has(.torrent-title) {
+  min-width: 235px;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.torrent-list tr.active {
+  background: var(--tint);
+}
+.torrent-list tbody tr:hover {
+  background: var(--hover);
+}
+.torrent-list td button.link,
+.torrent-list .torrent-title {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+}
+.torrent-list small {
+  color: var(--muted);
+}
+.torrent-list .torrent-path {
+  display: block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.torrent-list-scroll {
+  overflow: auto;
+  max-height: 62vh;
+  background: var(--panel);
+}
+
+/* Filter controls and sorting headers from the Torrents list. */
+.filters {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.filters input {
+  flex: 1;
+  min-width: 170px;
+}
+.sort-head {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  white-space: nowrap;
+}
+.sort-head {
+  min-height: 24px;
+}
+.sort-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+th[aria-sort]:not([aria-sort="none"]) {
+  color: var(--accent);
+}
+.metric-filters {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.metric-filters {
+  font-size: 13px;
+}
+.metric-filters summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.metric-grid label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.metric-grid input,
+.metric-grid select {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  min-width: 0;
+}
+.metric-value {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+.metric-value input {
+  flex: 1;
+  min-width: 0;
+}
+.unit-toggle {
+  margin-top: 5px;
+  padding: 4px 7px;
+  font-size: 12px;
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.filters select {
+  max-width: 100%;
+  min-width: 0;
+}
+.metric-grid label {
+  display: block;
+}
+.metric-filters {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}

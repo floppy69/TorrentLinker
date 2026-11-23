@@ -49,7 +49,9 @@ def smoke_checks() -> None:
     assert documentation.document_path("guide/images/zen.png").is_file()
     assert documentation.document_path("guide/images/en/zen.png").is_file()
     from torrentlinker.library_smoke import library_smoke_checks
+    from torrentlinker.webview_smoke import webview_smoke_checks
 
+    webview_smoke_checks()
     media_smoke_checks()
     library_smoke_checks()
     agent_smoke_checks()
@@ -180,9 +182,19 @@ def show_unexpected_errors() -> None:
     def hook(kind: type[BaseException], error: BaseException, tb: TracebackType | None) -> None:
         details = "".join(traceback.format_exception(kind, error, tb))
         logging.getLogger("torrentlinker").error("unexpected error\n%s", details)
+        if "--smoke-test" in sys.argv:
+            return
         box = QMessageBox(QMessageBox.Icon.Critical, "TorrentLinker", f"{kind.__name__}: {error}")
         box.setDetailedText(details)
+        report = box.addButton(
+            QCoreApplication.translate("CrashReport", "Report the problem"),
+            QMessageBox.ButtonRole.ActionRole,
+        )
         box.exec()
+        if box.clickedButton() is report:
+            from torrentlinker.gui.crash_reports import offer_report
+
+            offer_report(error)
 
     sys.excepthook = hook
 
@@ -214,6 +226,7 @@ def main() -> int:
     store = Store(data_dir() / "state.db")
     window = MainWindow(settings, settings_path, store)
     window.show()
+    cross_seed = None
     from torrentlinker.gui.stall_watchdog import install as watch_for_stalls
 
     watch_for_stalls(window)
@@ -238,10 +251,22 @@ def main() -> int:
             QTimer.singleShot(1000, window.check_for_updates)
             QTimer.singleShot(0, window.startup)
             QTimer.singleShot(2000, window.start_saved_agent_access)
+            from torrentlinker.crossseed_desktop import DesktopCrossSeed
+
+            cross_seed = DesktopCrossSeed(
+                settings_path,
+                store,
+                # the window is replaced when the settings change
+                lambda: list(getattr(app, "torrentlinker_window", window).library_model.entries),
+            )
+            app.aboutToQuit.connect(cross_seed.stop)
+            cross_seed.start()
         return app.exec()
     finally:
         from torrentlinker.gui.tasks import shutdown
 
+        if cross_seed is not None:
+            cross_seed.stop()
         window.close()
         shutdown()
 

@@ -1,0 +1,870 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway (ADR-0024, issue #151). The Cross-seed tab of the Reseed board: activity and review of
+     automatic Cross-seeds across many Indexers. Built from approved components: the shared palette
+     (panel/base.css) and the Reseed board's stylesheet (reseed/view.css), embedded below. Three layouts,
+     ?variant=A|B|C. Fictional Indexers and torrents; nothing is sent. -->
+<html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cross-seed · aperçu #151</title>
+<style>
+/* Embedded copy of src/torrentlinker/web/static/panel/base.css (approved), so the prototype opens anywhere. */
+/* Shared palette for Qt, the Web shell and bundled panels.
+   Keep these two token blocks literal: gui/theme.py reads their declarations.
+   Approved panel-specific light overrides remain in each panel's view.css. */
+:root {
+  color-scheme: dark;
+  --bg: #161d23;
+  --panel: #202932;
+  --raised: #26323c;
+  --line: #33404b;
+  --text: #e2e9ed;
+  --muted: #98aab7;
+  --accent: #80bdb6;
+  --accent-text: #102a2b;
+  --tint: #263e43;
+  --hover: #263e43;
+  --danger: #ff9c9c;
+  --warning: #edbf73;
+  --success: #4ad394;
+  --link: #64c9c0;
+  --shadow: none;
+  --ink: var(--text);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f6fa;
+  --panel: #ffffff;
+  --raised: #f7f9fc;
+  --line: #d5dfe9;
+  --text: #203047;
+  --muted: #5c6c80;
+  --accent: #087f76;
+  --accent-text: #ffffff;
+  --tint: #d8eeeb;
+  --hover: #e8f3f2;
+  --danger: #b42332;
+  --warning: #8a5800;
+  --success: #1f9d63;
+  --link: #087f76;
+  --shadow: 0 16px 60px #172b3e12;
+}
+</style><style>
+/* Embedded copy of src/torrentlinker/web/static/reseed/view.css (approved), so the prototype opens anywhere. */
+:root {
+  color-scheme: dark;
+  font: 14px/1.5 system-ui;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 9px 13px;
+}
+button {
+  cursor: pointer;
+}
+button:hover,
+button.on {
+  background: var(--tint);
+  border-color: var(--accent);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.primary {
+  background: var(--accent);
+  color: #14272a;
+  font-weight: 650;
+}
+small,
+.muted {
+  color: var(--muted);
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 28px;
+}
+h2 {
+  font-size: 23px;
+}
+h3 {
+  font-size: 16px;
+}
+.shell {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  min-height: 100vh;
+}
+.sidebar {
+  background: #1d2832;
+  border-right: 1px solid var(--line);
+  padding: 28px 18px;
+}
+.brand {
+  font-size: 17px;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 32px;
+}
+.nav {
+  padding: 12px;
+  border-radius: 8px;
+  margin: 8px 0;
+  color: var(--muted);
+}
+.nav.active {
+  background: #24454d;
+  color: var(--text);
+}
+main {
+  padding: 28px 32px 100px;
+  min-width: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.between {
+  justify-content: space-between;
+}
+.tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--line);
+  margin: 22px 0;
+}
+.tabs button {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 12px 0;
+}
+.tabs .on {
+  border-bottom: 2px solid var(--accent);
+  color: var(--accent);
+}
+.intro {
+  margin: 28px 0 20px;
+}
+.stages {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin: 22px 0;
+}
+.stage {
+  text-align: left;
+  display: block;
+  padding: 12px;
+  min-width: 0;
+}
+.stage b {
+  display: block;
+  font-size: 23px;
+  margin-bottom: 4px;
+}
+.stage small {
+  font-size: 11px;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 18px;
+  align-items: start;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  overflow: hidden;
+}
+.tools {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tools input {
+  flex: 1;
+  min-width: 160px;
+  background: var(--bg);
+}
+.torrent {
+  display: grid;
+  grid-template-columns: 22px 43px minmax(150px, 1fr) 155px;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 0.4s;
+}
+.torrent:hover {
+  background: #26343d;
+}
+.torrent.selected {
+  background: var(--tint);
+  box-shadow: inset 3px 0 var(--accent);
+}
+.cover {
+  height: 53px;
+  border-radius: 4px;
+  background: linear-gradient(140deg, #577d85, #25343b);
+  display: grid;
+  place-items: center;
+  color: #cfdfdf;
+  font-size: 12px;
+  font-weight: bold;
+}
+.title {
+  font-weight: 600;
+}
+.badge {
+  font-size: 11px;
+  color: #b9d5cf;
+  background: #2b4643;
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+.warn {
+  color: #e4c889;
+  background: #493f2c;
+}
+.blue {
+  background: #293f53;
+  color: #b4cde7;
+}
+.progress {
+  height: 3px;
+  background: #394750;
+  margin-top: 9px;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.9s linear;
+}
+.foot {
+  padding: 12px 16px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.inspector {
+  padding: 20px;
+}
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.detail-head {
+  margin: 20px 0;
+}
+.section {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin-top: 20px;
+}
+.steps {
+  padding: 0;
+  list-style: none;
+}
+.steps li {
+  padding: 8px 0;
+  color: var(--muted);
+}
+.steps li.current {
+  color: var(--accent);
+  font-weight: 600;
+}
+.callout {
+  background: var(--bg);
+  border-radius: 9px;
+  padding: 14px;
+  margin: 18px 0;
+}
+.callout button {
+  margin-top: 12px;
+  width: 100%;
+}
+.events {
+  font-size: 12px;
+  border-left: 1px solid #4f7775;
+  padding-left: 13px;
+  margin-top: 14px;
+}
+.events p {
+  margin: 10px 0;
+}
+.running {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 13px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 18px;
+  background: #1b272e;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  border-radius: 100%;
+  display: inline-block;
+  animation: pulse 1.5s infinite;
+  margin-right: 6px;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+.preview {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #10171e;
+  border: 1px solid #567575;
+  border-radius: 12px;
+  padding: 9px 14px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  box-shadow: 0 6px 25px #0008;
+  font-size: 12px;
+  z-index: 10;
+  white-space: nowrap;
+}
+.preview button {
+  padding: 5px 10px;
+}
+.empty {
+  padding: 40px;
+  color: var(--muted);
+  text-align: center;
+}
+.hidden {
+  display: none !important;
+}
+dialog {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  width: 450px;
+  padding: 25px;
+}
+dialog::backdrop {
+  background: #0008;
+}
+dialog p {
+  margin: 15px 0;
+}
+body[data-mode="desktop"] .sidebar {
+  width: 180px;
+}
+body[data-mode="web"] .brand:after {
+  content: " WEB";
+  font-size: 9px;
+  letter-spacing: 2px;
+}
+.close {
+  display: none;
+}
+@media (min-width: 1600px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) 410px;
+  }
+}
+@media (max-width: 1100px) {
+  .shell {
+    grid-template-columns: 145px 1fr;
+  }
+  main {
+    padding: 20px;
+  }
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  .inspector {
+    display: none;
+  }
+  .inspector.open {
+    display: block;
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 65px;
+    width: 360px;
+    overflow: auto;
+    z-index: 5;
+    box-shadow: -25px 0 70px #0009;
+  }
+  .close {
+    display: block;
+  }
+  .stages {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .preview {
+    max-width: 98%;
+    white-space: normal;
+  }
+}
+@media (max-width: 650px) {
+  .sidebar {
+    display: none;
+  }
+  .shell {
+    display: block;
+  }
+  .torrent {
+    grid-template-columns: 20px 1fr 120px;
+  }
+  .cover {
+    display: none;
+  }
+  .stages {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .intro,
+  .running {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .preview span {
+    display: none;
+  }
+  .inspector.open {
+    width: min(100%, 380px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.guided {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  margin: 20px 0;
+}
+.guided button {
+  flex: 1;
+  text-align: left;
+  justify-content: flex-start;
+  padding: 14px 18px;
+}
+.guided strong {
+  font-size: 20px;
+  color: var(--accent);
+  margin-right: 12px;
+}
+.guided small {
+  display: block;
+}
+.guided .hint {
+  align-self: center;
+  max-width: 280px;
+  font-size: 12px;
+  color: var(--muted);
+}
+dialog label {
+  display: block;
+  padding: 10px 0;
+}
+dialog .row {
+  margin-top: 18px;
+}
+@media (max-width: 650px) {
+  .guided {
+    flex-wrap: wrap;
+  }
+  .guided .hint {
+    max-width: none;
+  }
+}
+body {
+  padding: 0 16px 20px 0;
+}
+.tabs {
+  margin-top: 0;
+}
+dialog {
+  max-height: 90vh;
+  overflow: auto;
+}
+.error {
+  color: #ebaaaa;
+}
+button:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.candidate {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.5 system-ui;
+}
+.inspector {
+  position: sticky;
+  top: 0;
+}
+.torrent {
+  min-height: 86px;
+}
+.folder-list {
+  padding: 20px;
+}
+.notice {
+  padding: 10px;
+  color: var(--muted);
+}
+
+:root[data-theme="light"] {
+  --bg: #f4f7f8;
+  --panel: #fff;
+  --text: #182d35;
+  --muted: #526a75;
+  --line: #ccd9df;
+  --accent: #087c77;
+  --tint: #e1f3f0;
+}
+html,
+body {
+  min-width: 0;
+}
+button,
+input,
+select {
+  max-width: 100%;
+}
+button {
+  white-space: normal;
+}
+dialog {
+  max-width: calc(100vw - 30px);
+}
+.title {
+  overflow-wrap: anywhere;
+}
+.torrent {
+  grid-template-columns: 22px 43px minmax(0, 1fr) 155px;
+}
+.inspector {
+  min-width: 0;
+}
+input[type="checkbox"] {
+  width: auto;
+}
+.tabs {
+  overflow-x: auto;
+}
+.running {
+  flex-wrap: wrap;
+}
+.pulse {
+  animation: updated 0.8s ease-out;
+}
+@keyframes updated {
+  from {
+    background: #426b65;
+  }
+  to {
+    background: transparent;
+  }
+}
+@media (max-width: 650px) {
+  .torrent {
+    grid-template-columns: 20px minmax(0, 1fr) 100px;
+    padding: 12px;
+    gap: 8px;
+  }
+  .tools input {
+    min-width: 0;
+    width: 100%;
+  }
+  .guided button {
+    min-width: 180px;
+  }
+  .inspector.open {
+    bottom: 0;
+  }
+  .running > div {
+    min-width: 0;
+  }
+  .guided .hint {
+    display: none;
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="light"] .running {
+  background: #eaf1f3;
+}
+:root[data-theme="light"] .primary {
+  color: #fff;
+}
+:root[data-theme="light"] .torrent:hover {
+  background: #eaf1f3;
+}
+.detail-head small {
+  overflow-wrap: anywhere;
+}
+.torrent small {
+  overflow-wrap: anywhere;
+}
+.inspector {
+  max-height: calc(100vh - 20px);
+  overflow: auto;
+}
+
+
+#dialog.folder-dialog{width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 48px);padding:24px;overflow:auto;box-sizing:border-box}
+#dialog.folder-dialog label{padding:0;display:block;margin:16px 0 6px}#dialog.folder-dialog input:not([type=checkbox]),#dialog.folder-dialog select{width:100%;min-width:0;background:var(--bg)}
+#dialog.folder-dialog .row{margin:0}#dialog.folder-dialog .row input{flex:1}.folder-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.folder-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+#dialog.folder-dialog .callout{margin:20px 0 0}#dialog.folder-dialog .callout p{margin:7px 0}.sample-list{list-style:none;padding:0;margin:12px 0 0}.sample-list li{padding:6px 0;border-top:1px solid var(--line);font-size:13px}.sample-list small{display:block}
+.folder-entry{display:flex;align-items:center;gap:12px;padding:18px 0;border-bottom:1px solid var(--line)}.folder-entry:first-child{padding-top:0}.folder-entry>div{flex:1;min-width:0}.folder-entry b{overflow-wrap:anywhere}.folder-entry small{display:block}.folder-entry button{padding:6px 10px}.fixture-note{font-size:11px;color:var(--muted);margin-top:14px!important}
+@media(max-width:650px){.folder-grid{grid-template-columns:1fr;gap:0}.folder-entry{flex-wrap:wrap}.folder-entry>div{flex-basis:100%}#dialog.folder-dialog{padding:18px}.folder-actions{flex-wrap:wrap}}
+
+.folder-list{margin-top:22px;padding:22px}.folder-list>p{margin-top:20px}
+.folder-entry small{display:block}
+
+/* Approved Local Items controls; the workspace layout remains shared. */
+.tools select{max-width:220px;min-width:0}
+.pack-toggle{padding:2px 7px;margin-right:5px;border:0;background:transparent}
+.episode{padding-left:38px;background:color-mix(in srgb,var(--bg) 26%,var(--panel))}
+.episode .cover{height:36px;font-size:10px}
+.episode .title{font-weight:450}
+.title{overflow-wrap:anywhere}
+#combine-form input{width:100%}
+#combine-form li{padding:5px 0;overflow-wrap:anywhere}
+
+.review-tabs{display:flex;flex-wrap:wrap;gap:5px;margin:18px 0 12px}.review-tabs button{font-size:12px;padding:6px 9px}.review-field{display:block;width:100%;margin:8px 0 14px;min-width:0}.review-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.review-facts div{padding:9px;background:var(--bg);border-radius:7px}.review-facts small{display:block}.review-content{font-size:13px;overflow-wrap:anywhere}.review-content h3{margin:14px 0 8px}.review-content p{margin:10px 0}.review-content pre{white-space:pre-wrap;background:var(--bg);padding:12px;font-size:11px}.review-file{padding:12px 0;border-bottom:1px solid var(--line)}.review-file small{display:block;margin-top:5px}.review-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.review-actions button{flex:1;font-size:12px}.review-message{font-size:12px;color:var(--accent);margin-top:10px}.review-content .callout{margin:12px 0}.review-header select{max-width:100%}.inspector h2{overflow-wrap:anywhere}.review-content details{margin-top:15px}.review-content summary{cursor:pointer;color:var(--accent)}
+
+.review-description{max-width:100%;overflow-wrap:anywhere}.review-description img{max-width:100%}.review-upload{display:block;margin:12px 0}.review-upload input{width:100%;min-width:0;margin-top:8px}.inspector{min-width:0}.review-message{overflow-wrap:anywhere}
+/* The approved wide inspector shares the page scroll; only the narrow drawer scrolls itself. */
+@media(min-width:1101px){.inspector{max-height:none;overflow:visible;position:static}}
+
+#recovery-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  padding: 24px;
+}
+#recovery-dialog h2 {
+  margin-top: 6px;
+}
+#recovery-dialog p {
+  margin: 10px 0;
+}
+#recovery-dialog small,
+.recovery-history small {
+  display: block;
+}
+#recovery-dialog .review-facts {
+  margin: 18px 0;
+}
+#repair-path {
+  min-width: 0;
+  flex: 1;
+}
+.recovery-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 20px 0;
+}
+.recovery-steps div {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.recovery-steps .on {
+  border-color: var(--accent);
+  background: var(--tint);
+}
+.recovery-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.recovery-path {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.recovery-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 18px;
+}
+.recovery-check input {
+  margin-top: 5px;
+}
+.recovery-history button {
+  width: 100%;
+  text-align: left;
+  margin: 6px 0;
+}
+#recovery-dialog progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--accent);
+}
+#recovery-confirm,
+#recovery-folder {
+  width: min(530px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+}
+#recovery-folder button {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) {
+  #recovery-dialog {
+    padding: 18px;
+  }
+  .recovery-steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .recovery-actions button {
+    flex: 1;
+  }
+}
+</style>
+<style>
+/* Only what the Reseed board has no equivalent for yet. */
+.badge.ok{color:var(--success);border-color:var(--success)}.badge.bad{color:var(--danger);border-color:var(--danger)}
+.idx{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin-left:6px;color:var(--muted)}
+.coverage{height:6px;border-radius:3px;background:var(--line);margin:8px 0 4px;position:relative}.coverage i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:var(--accent)}.coverage b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--warning)}
+.files{font-size:12px;margin:8px 0;max-height:180px;overflow:auto}.files div{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px solid var(--line)}.files .miss{color:var(--warning)}
+.review-card{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel);margin-bottom:12px}.review-card h3{margin:0 0 4px}.review-card .row{gap:8px;flex-wrap:wrap;margin-top:10px}
+.feed p{display:flex;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}.feed small{min-width:44px}
+.two{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:18px;margin-top:16px}
+.idx-tiles .stage small{display:block}
+@media (max-width:900px){.two{grid-template-columns:1fr}}
+#switcher{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:#0d1216;color:#fff;border:1px solid #ffffff40;border-radius:22px;padding:6px 8px;box-shadow:0 10px 40px #0008;z-index:50;font-size:13px;max-width:calc(100vw - 32px);flex-wrap:wrap;justify-content:center}
+#switcher button{background:#ffffff14;border-color:#ffffff30;color:#fff;border-radius:999px;padding:4px 12px}#switcher b{min-width:140px;text-align:center}
+body{padding:18px 22px 110px}
+</style>
+<nav class="tabs">
+ <button data-tab="reseed">Remise en seed</button><button class="on" data-tab="cross">Cross-seed</button><button data-tab="folders">Dossiers</button><button data-tab="activity">Activité</button><button style="margin-left:auto">Actualiser</button>
+</nav>
+<div id="content"></div>
+<div id="switcher"><button id="prev" aria-label="Variante précédente">←</button><b id="label"></b><button id="next" aria-label="Variante suivante">→</button>
+ <button id="complete">Simuler un téléchargement terminé</button><button id="pause">Tout suspendre</button><button id="theme">Thème</button></div>
+<script>
+/* Fictional Indexers and torrents. pace: what the Indexer's own limits allow right now. */
+const INDEXERS=[
+ {id:"c411",name:"c411",pace:"budget 12/20 cette heure · Catalogue d'abord",on:true},
+ {id:"nebula",name:"Nebula",pace:"libre",on:true},
+ {id:"orion",name:"Orion",pace:"limité par l'indexeur · reprise dans 40 s",on:true},
+ {id:"vega",name:"Vega",pace:"libre",on:true},
+];
+const STATES={searching:["Recherche","blue"],queued:["En attente","" ],added:["Ajouté","ok"],verifying:["Vérification","blue"],review:["À vérifier","warn"],failed:["Échec","bad"],orphan:["Données disparues","bad"]};
+const THRESHOLD=95;
+let items=[
+ {id:1,name:"Dune.Part.Two.2024.MULTi.1080p.WEB.x264",from:"c411",to:"nebula",state:"added",cov:100,kind:"Full",size:"7,1 Go",when:"il y a 3 min",why:"Correspondance complète, vérifiée à 100 %."},
+ {id:2,name:"Dune.Part.Two.2024.MULTi.1080p.WEB.x264",from:"c411",to:"vega",state:"added",cov:97,kind:"Partial",size:"7,1 Go",when:"il y a 3 min",why:"97 % présents : NFO et sample ignorés, jamais téléchargés.",missing:["Dune.sample.mkv · 48 Mo","Dune.nfo · 4 Ko"]},
+ {id:3,name:"The.Bear.S03.FRENCH.1080p.WEB",from:"nebula",to:"c411",state:"review",cov:88,kind:"Partial",size:"14,6 Go",when:"il y a 12 min",why:"88 % présents, sous le seuil de 95 % : 2 épisodes manquent.",missing:["S03E09 · 1,4 Go","S03E10 · 1,6 Go"]},
+ {id:4,name:"Le.Comte.de.Monte-Cristo.2024.FRENCH.2160p",from:"bibliothèque",to:"c411",state:"review",cov:100,kind:"Archive",size:"21,8 Go",when:"il y a 20 min",why:"Les fichiers sont dans une archive .rar : la décompresser d'abord."},
+ {id:5,name:"Oppenheimer.2023.MULTi.2160p.HDR",from:"c411",to:"orion",state:"queued",cov:0,kind:"",size:"31,2 Go",when:"en attente",why:"Orion limite les recherches ; reprise dans 40 s."},
+ {id:6,name:"Anora.2024.VOSTFR.1080p",from:"c411",to:"nebula",state:"failed",cov:100,kind:"Full",size:"5,4 Go",when:"il y a 1 h",why:"Vérification à 92 % : les fichiers diffèrent. Torrent retiré, données intactes. Il ne sera plus proposé, sauf si vous réessayez."},
+ {id:7,name:"Sirat.2025.FRENCH.1080p",from:"orion",to:"c411",state:"verifying",cov:100,kind:"Full",size:"6,0 Go",when:"en cours",why:"Ajouté arrêté, vérification par le client."},
+ {id:8,name:"Vice-Versa.2.2024.MULTi.1080p",from:"c411",to:"vega",state:"orphan",cov:100,kind:"Full",size:"4,3 Go",when:"il y a 2 j",why:"Le torrent d'origine a été supprimé avec ses fichiers ; ce cross-seed n'a plus de données."},
+];
+let variant=new URLSearchParams(location.search).get("variant")||"A",filter="all",selected=3,idxFilter="all",paused=false,next=100;
+const variants=[["A","Flux"],["B","Par indexeur"],["C","Revue d'abord"]];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const idx=id=>id==="bibliothèque"?"Bibliothèque":(INDEXERS.find(i=>i.id===id)||{name:id}).name;
+const count=s=>items.filter(i=>s==="all"||i.state===s).length;
+const badge=i=>`<span class="badge ${STATES[i.state][1]}">${STATES[i.state][0]}</span>`;
+const route=i=>`<small>${esc(idx(i.from))} → <b>${esc(idx(i.to))}</b> · ${i.size}${i.kind?` · ${i.kind==="Full"?"complète":i.kind==="Partial"?i.cov+" %":"archive"}`:""}</small>`;
+const coverage=i=>i.kind?`<div class="coverage" title="Seuil ${THRESHOLD} %"><i style="width:${i.cov}%"></i><b style="left:${THRESHOLD}%"></b></div><small>${i.cov} % présents · seuil d'ajout automatique ${THRESHOLD} %</small>`:"";
+const decide=i=>i.state==="review"?(i.kind==="Archive"?`<button class="primary" data-accept="${i.id}">Décompresser et remettre en seed</button><button data-reject="${i.id}">Écarter</button>`:`<button class="primary" data-accept="${i.id}">Ajouter sans les fichiers manquants</button><button data-reject="${i.id}">Écarter</button>`)
+ :i.state==="failed"?`<button data-retry="${i.id}">Réessayer</button>`:i.state==="orphan"?`<button data-remove="${i.id}">Retirer du client (garder les données)</button>`:"";
+
+function running(){const busy=items.filter(i=>["searching","verifying"].includes(i.state)).length;
+ return `<div class="running"><span><i class="dot" style="animation-play-state:${paused?"paused":"running"}"></i>${paused?"Cross-seed suspendu":"Cross-seed actif"}</span><small>${busy} en cours · ${count("review")} à vérifier · ajout automatique : complètes et partielles ≥ ${THRESHOLD} %</small><small style="margin-left:auto">${INDEXERS.length} indexeurs · tag « cross-seed »</small></div>`}
+function row(i){return `<div class="torrent ${selected===i.id?"selected":""}" data-item="${i.id}" role="button" tabindex="0"><input type="checkbox" aria-label="Sélectionner ${esc(i.name)}"><div class="cover">${esc(idx(i.to)).slice(0,2).toUpperCase()}</div><div><div class="title">${esc(i.name)}</div>${route(i)}</div><div>${badge(i)}${["searching","verifying"].includes(i.state)?`<div class="progress"><i style="width:${i.state==="verifying"?62:30}%"></i></div>`:""}<small style="display:block;text-align:right">${i.when}</small></div></div>`}
+function inspector(){const i=items.find(x=>x.id===selected)||items[0];
+ return `<aside class="panel inspector"><div class="eyebrow">LE CROSS-SEED SÉLECTIONNÉ</div><div class="detail-head"><h2>${esc(i.name)}</h2>${route(i)}</div>${badge(i)}
+ <div class="callout"><b>${i.state==="review"?"Votre décision":i.state==="added"?"Ajouté automatiquement":STATES[i.state][0]}</b><p class="muted">${esc(i.why)}</p>${coverage(i)}${i.missing?`<div class="files">${i.missing.map(m=>`<div class="miss"><span>${esc(m)}</span><span>absent · ignoré</span></div>`).join("")}</div>`:""}${decide(i)}</div>
+ <div class="section"><b>Dans le client</b><p class="muted" style="margin-top:6px">Tags « cross-seed » et « ${esc(idx(i.to))} » · même catégorie et même dossier que l'original · disposition : renommage dans le torrent.</p></div>
+ <div class="section"><b>Son parcours</b><ol class="steps">${["Recherché sur "+idx(i.to),"Correspondance "+({Full:"complète",Partial:"partielle",Archive:"dans une archive"}[i.kind]||"…"),"Ajouté arrêté","Vérifié à 100 %","En partage"].map((n,k)=>{const at={queued:0,searching:0,review:1,failed:3,verifying:3,added:4,orphan:4}[i.state];return `<li class="${k===at?"current":""}">${k<at?"✓":k===at?"●":"○"}　${esc(n)}</li>`}).join("")}</ol></div></aside>`}
+
+/* A · Flux: counters by state, one list of every cross-seed, the inspector. */
+function A(){const list=items.filter(i=>filter==="all"||i.state===filter);
+ return running()+`<div class="stages">${[["all","Tous"],["review","À vérifier"],["added","Ajoutés"],["queued","En attente"],["failed","Échecs"],["orphan","Données disparues"]].map(([s,l])=>`<button class="stage ${filter===s?"on":""}" data-filter="${s}"><b>${count(s)}</b>${l}</button>`).join("")}</div>
+ <div class="workspace"><section class="panel"><div class="tools"><input placeholder="Rechercher un torrent…" aria-label="Rechercher"></div>${list.map(row).join("")||`<div class="empty">Rien dans cet état.</div>`}<div class="foot">${list.length} affichés · ${count("added")} en partage grâce au cross-seed</div></section>${inspector()}</div>`}
+
+/* B · Par indexeur: one tile per Indexer with its pace, then that Indexer's cross-seeds. */
+function B(){const list=items.filter(i=>idxFilter==="all"||i.to===idxFilter||i.from===idxFilter);
+ return running()+`<div class="stages idx-tiles"><button class="stage ${idxFilter==="all"?"on":""}" data-idx="all"><b>${items.length}</b>Tous les indexeurs<small>${count("review")} à vérifier</small></button>${INDEXERS.map(x=>`<button class="stage ${idxFilter===x.id?"on":""}" data-idx="${x.id}"><b>${items.filter(i=>i.to===x.id).length}</b>${esc(x.name)}<small>${esc(x.pace)}</small></button>`).join("")}</div>
+ <div class="workspace"><section class="panel"><div class="tools"><input placeholder="Rechercher un torrent…" aria-label="Rechercher"><select aria-label="État"><option>Tous les états</option><option>À vérifier</option><option>Ajoutés</option><option>Échecs</option></select></div>${list.map(row).join("")}<div class="foot">${list.length} affichés</div></section>${inspector()}</div>`}
+
+/* C · Revue d'abord: what needs you as cards, the rest as a short feed. */
+function C(){const need=items.filter(i=>["review","failed","orphan"].includes(i.state)),rest=items.filter(i=>!need.includes(i));
+ return running()+`<div class="two"><section><h3 style="margin-bottom:10px">À décider (${need.length})</h3>${need.map(i=>`<div class="review-card"><div class="row between"><h3>${esc(i.name)}</h3>${badge(i)}</div>${route(i)}<p class="muted" style="margin-top:6px">${esc(i.why)}</p>${coverage(i)}${i.missing?`<div class="files">${i.missing.map(m=>`<div class="miss"><span>${esc(m)}</span><span>ignoré</span></div>`).join("")}</div>`:""}<div class="row">${decide(i)}</div></div>`).join("")||`<div class="empty">Rien à décider : tout ce qui correspond est ajouté seul.</div>`}</section>
+ <section class="panel" style="padding:16px"><h3>Le reste se fait seul</h3><p class="muted" style="margin:4px 0 10px">${count("added")} ajoutés · ${items.filter(i=>["queued","searching","verifying"].includes(i.state)).length} en cours</p><div class="feed">${rest.map(i=>`<p><small>${i.when}</small><span>${badge(i)} ${esc(i.name)}<br>${route(i)}</span></p>`).join("")}</div>
+ <div class="section"><b>Indexeurs</b>${INDEXERS.map(x=>`<p class="muted" style="margin:4px 0">${esc(x.name)} · ${esc(x.pace)}</p>`).join("")}</div></section></div>`}
+
+function render(){document.getElementById("content").innerHTML=({A,B,C})[variant]();document.getElementById("label").textContent=`${variant} — ${variants.find(v=>v[0]===variant)[1]}`;document.getElementById("pause").textContent=paused?"Tout reprendre":"Tout suspendre"}
+function set(id,state,extra={}){const i=items.find(x=>x.id===id);Object.assign(i,{state},extra);render()}
+document.addEventListener("click",e=>{const t=e.target.closest("button,[data-item]");if(!t||t.closest("#switcher"))return;const d=t.dataset;
+ if(d.filter){filter=d.filter;render()}else if(d.idx){idxFilter=d.idx;render()}else if(d.item){selected=+d.item;render()}
+ else if(d.accept){set(+d.accept,"verifying",{when:"en cours",why:"Ajouté arrêté après votre accord ; vérification par le client."});setTimeout(()=>set(+d.accept,"added",{when:"à l'instant",why:"Vérifié à 100 % sur les fichiers présents, en partage."}),1800)}
+ else if(d.reject){items=items.filter(x=>x.id!==+d.reject);selected=items[0].id;render()}
+ else if(d.retry){set(+d.retry,"verifying",{when:"en cours"})}
+ else if(d.remove){items=items.filter(x=>x.id!==+d.remove);selected=items[0].id;render()}});
+document.getElementById("complete").onclick=()=>{const id=next++;items.unshift({id,name:"Le.Garcon.et.le.Heron.2023.MULTi.1080p",from:"c411",to:"nebula",state:"searching",cov:0,kind:"",size:"8,2 Go",when:"à l'instant",why:"Téléchargement terminé : recherche sur les autres indexeurs."});selected=id;render();
+ setTimeout(()=>set(id,"verifying",{kind:"Full",cov:100,why:"Correspondance complète sur Nebula : ajouté arrêté, vérification."}),1500);setTimeout(()=>set(id,"added",{when:"à l'instant",why:"Vérifié à 100 %, en partage sur Nebula."}),3200)};
+document.getElementById("pause").onclick=()=>{paused=!paused;render()};
+document.getElementById("theme").onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="light"?"dark":"light"};
+function go(n){const k=variants.findIndex(v=>v[0]===variant);variant=variants[(k+n+variants.length)%variants.length][0];const u=new URL(location);u.searchParams.set("variant",variant);history.replaceState(null,"",u);render()}
+document.getElementById("prev").onclick=()=>go(-1);document.getElementById("next").onclick=()=>go(1);
+document.addEventListener("keydown",e=>{if(e.target.closest("input,select"))return;if(e.key==="ArrowLeft")go(-1);if(e.key==="ArrowRight")go(1)});
+if(!variants.some(v=>v[0]===variant))variant="A";render();
+</script>

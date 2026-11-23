@@ -610,3 +610,115 @@ input[type="checkbox"] {
 
 .folder-list{margin-top:22px;padding:22px}.folder-list>p{margin-top:20px}
 .folder-entry small{display:block}
+
+/* Approved Local Items controls; the workspace layout remains shared. */
+.tools select{max-width:220px;min-width:0}
+.pack-toggle{padding:2px 7px;margin-right:5px;border:0;background:transparent}
+.episode{padding-left:38px;background:color-mix(in srgb,var(--bg) 26%,var(--panel))}
+.episode .cover{height:36px;font-size:10px}
+.episode .title{font-weight:450}
+.title{overflow-wrap:anywhere}
+#combine-form input{width:100%}
+#combine-form li{padding:5px 0;overflow-wrap:anywhere}
+
+.review-tabs{display:flex;flex-wrap:wrap;gap:5px;margin:18px 0 12px}.review-tabs button{font-size:12px;padding:6px 9px}.review-field{display:block;width:100%;margin:8px 0 14px;min-width:0}.review-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.review-facts div{padding:9px;background:var(--bg);border-radius:7px}.review-facts small{display:block}.review-content{font-size:13px;overflow-wrap:anywhere}.review-content h3{margin:14px 0 8px}.review-content p{margin:10px 0}.review-content pre{white-space:pre-wrap;background:var(--bg);padding:12px;font-size:11px}.review-file{padding:12px 0;border-bottom:1px solid var(--line)}.review-file small{display:block;margin-top:5px}.review-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.review-actions button{flex:1;font-size:12px}.review-message{font-size:12px;color:var(--accent);margin-top:10px}.review-content .callout{margin:12px 0}.review-header select{max-width:100%}.inspector h2{overflow-wrap:anywhere}.review-content details{margin-top:15px}.review-content summary{cursor:pointer;color:var(--accent)}
+
+.review-description{max-width:100%;overflow-wrap:anywhere}.review-description img{max-width:100%}.review-upload{display:block;margin:12px 0}.review-upload input{width:100%;min-width:0;margin-top:8px}.inspector{min-width:0}.review-message{overflow-wrap:anywhere}
+/* The approved wide inspector shares the page scroll; only the narrow drawer scrolls itself. */
+@media(min-width:1101px){.inspector{max-height:none;overflow:visible;position:static}}
+
+#recovery-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  padding: 24px;
+}
+#recovery-dialog h2 {
+  margin-top: 6px;
+}
+#recovery-dialog p {
+  margin: 10px 0;
+}
+#recovery-dialog small,
+.recovery-history small {
+  display: block;
+}
+#recovery-dialog .review-facts {
+  margin: 18px 0;
+}
+#repair-path {
+  min-width: 0;
+  flex: 1;
+}
+.recovery-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 20px 0;
+}
+.recovery-steps div {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.recovery-steps .on {
+  border-color: var(--accent);
+  background: var(--tint);
+}
+.recovery-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.recovery-path {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.recovery-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 18px;
+}
+.recovery-check input {
+  margin-top: 5px;
+}
+.recovery-history button {
+  width: 100%;
+  text-align: left;
+  margin: 6px 0;
+}
+#recovery-dialog progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--accent);
+}
+#recovery-confirm,
+#recovery-folder {
+  width: min(530px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+}
+#recovery-folder button {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) {
+  #recovery-dialog {
+    padding: 18px;
+  }
+  .recovery-steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .recovery-actions button {
+    flex: 1;
+  }
+}

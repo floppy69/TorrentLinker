@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 import pytest
 
+from tests.shell_support import shell_navigate
 from tests.test_community import H
 from tests.test_profile import PROFILE
 from tests.test_web_profile import prepared, snapshot
@@ -270,17 +271,18 @@ def test_webui_to_real_extension_and_durable_receipt(tmp_path, monkeypatch):
             page.goto(f"http://127.0.0.1:{port}/")
             page.locator("#login-password").fill("test-password-long")
             page.locator("#login-form button").click()
-            page.locator("#language").select_option("en")
-            page.locator("[data-view=setup]").first.click()
-            page.locator("[data-settings-section=companion]").click()
-            page.locator("#profile-pair").click()
+            page.frame_locator("#shell-navigation-frame").locator("#language").select_option("en")
+            shell_navigate(page, "setup")
+            settings = page.frame_locator("#settings-frame")
+            settings.get_by_role("button", name="Companion", exact=True).click()
+            settings.get_by_role("button", name="Connect companion", exact=True).click()
             for _ in range(100):
                 if w.state()["paired"]:
                     break
                 page.wait_for_timeout(100)
             assert w.state()["paired"]
             worker = context.service_workers[0]
-            page.locator("[data-view=zen]").first.click()
+            shell_navigate(page, "zen")
             page.locator("#zen-community-tab").click()
             ui = page.frame_locator("#community-frame")
             expect(ui.locator("#community-library")).to_be_visible()
@@ -301,7 +303,7 @@ def test_webui_to_real_extension_and_durable_receipt(tmp_path, monkeypatch):
             expect(ui.locator("#drawer")).not_to_be_visible()
             ui.locator("#community-content").fill("Merci pour ce partage bien utile  \n")
             ui.get_by_role("button", name="Schedule", exact=True).click()
-            expect(ui.locator("#toast")).to_contain_text("Action scheduled")
+            expect(ui.locator(".tl-toast", has_text="Action scheduled").first).to_be_visible()
             # Fail the first receipt ACK, after the app already committed it.
             original = w.community.receipt
             failures = [1]
@@ -363,7 +365,7 @@ def test_webui_to_real_extension_and_durable_receipt(tmp_path, monkeypatch):
                     ui.locator("[data-kind=vote]").click()
                     ui.locator("#community-vote").select_option("approve")
                 ui.get_by_role("button", name="Schedule", exact=True).click()
-                expect(ui.locator("#toast")).to_contain_text("Action scheduled")
+                expect(ui.locator(".tl-toast", has_text="Action scheduled").first).to_be_visible()
                 worker.evaluate(
                     "chrome.alarms.create('companion-commands', {delayInMinutes: 0.001})"
                 )
@@ -380,7 +382,7 @@ def test_webui_to_real_extension_and_durable_receipt(tmp_path, monkeypatch):
             # Language changes preserve the owner's unsaved draft.
             ui.locator("[data-tab=chat]").click()
             ui.locator("#chat-content").fill("Un brouillon à conserver sans aucune modification")
-            page.locator("#language").select_option("fr")
+            page.frame_locator("#shell-navigation-frame").locator("#language").select_option("fr")
             expect(ui.get_by_role("button", name="Brouillon", exact=True)).to_be_visible()
             expect(ui.locator("#chat-content")).to_have_value(
                 "Un brouillon à conserver sans aucune modification"
@@ -403,7 +405,7 @@ def test_webui_to_real_extension_and_durable_receipt(tmp_path, monkeypatch):
                 {**observation(), "candidates": [{"hash": "d" * 40, "title": "Future release"}]},
             )
             page.set_viewport_size({"width": 1280, "height": 1000})
-            page.locator("#language").select_option("en")
+            page.frame_locator("#shell-navigation-frame").locator("#language").select_option("en")
             ui.get_by_role("button", name="Community settings", exact=True).click()
             ui.locator("#community-enabled").uncheck()
             ui.get_by_role("button", name="Save settings", exact=True).click()
@@ -413,6 +415,11 @@ def test_webui_to_real_extension_and_durable_receipt(tmp_path, monkeypatch):
             ui.locator("#community-auto-comment").check()
             ui.locator("#auto-template").fill("Merci pour le partage de {titre}")
             ui.get_by_role("button", name="Apply to calendar", exact=True).click()
+            # A Sunday run can schedule the next available slot in the following week.
+            for _ in range(4):
+                if "Future release" in ui.locator("#community-calendar").inner_text():
+                    break
+                ui.get_by_role("button", name="Next period", exact=True).click()
             expect(ui.locator("#community-calendar")).to_contain_text("Future release")
             expect(ui.locator(".calendar-cell")).to_have_count(7)
             ui.get_by_role("button", name="Month", exact=True).click()
@@ -459,8 +466,8 @@ def test_webui_to_real_extension_and_durable_receipt(tmp_path, monkeypatch):
             assert not errors, errors
             ui.locator("[data-tab=queue]").click()
             page.screenshot(path=str(target / "tl-community-calendar-built.png"), full_page=True)
-            page.locator("#language").select_option("fr")
-            page.locator("#theme").select_option("dark")
+            page.frame_locator("#shell-navigation-frame").locator("#language").select_option("fr")
+            page.frame_locator("#shell-navigation-frame").locator("#theme").select_option("dark")
             expect(ui.locator("html")).to_have_attribute("data-theme", "dark")
             ui.locator("[data-tab=torrents]").click()
             page.screenshot(path=str(target / "tl-community-library-final.png"), full_page=True)
@@ -473,7 +480,7 @@ def test_webui_to_real_extension_and_durable_receipt(tmp_path, monkeypatch):
                     break
                 page.wait_for_timeout(100)
             assert delayed
-            page.locator("#logout").click()
+            page.frame_locator("#shell-navigation-frame").locator("#logout").click()
             expect(page.locator("#login-screen")).to_be_visible()
             for route in delayed:
                 route.fulfill(json=snapshot)

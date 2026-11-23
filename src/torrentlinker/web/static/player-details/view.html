@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Now playing</title>
+    <link rel="stylesheet" href="../panel/base.css" /><link rel="stylesheet" href="../panel/toast.css" />
+    <link rel="stylesheet" href="view.css" />
+    <script defer src="../panel/i18n.js"></script><script defer src="../panel/toast.js"></script>
+    <script defer src="../panel/transport.js"></script>
+    <script defer src="../panel/media-flags.js"></script>
+    <script defer src="view.js"></script>
+  </head>
+  <body>
+    <article id="details" hidden>
+      <div id="poster" class="poster" aria-hidden="true">
+        <span id="poster-title"></span>
+      </div>
+      <div class="body">
+        <h1 id="title"></h1>
+        <p id="original" hidden></p>
+        <p id="meta" class="meta"></p>
+        <div class="columns">
+          <div class="story">
+            <p id="tagline" hidden></p>
+            <p id="plot" hidden></p>
+            <dl id="people" hidden></dl>
+          </div>
+          <div class="file">
+            <section id="flags-section" hidden>
+              <h2 id="flags-label"></h2>
+              <ul id="flags"></ul>
+            </section>
+            <section id="audio-section" hidden>
+              <h2 id="audio-label"></h2>
+              <div id="audio" class="chips"></div>
+            </section>
+            <section id="subtitle-section" hidden>
+              <h2 id="subtitle-label"></h2>
+              <div id="subtitles" class="chips"></div>
+            </section>
+            <p id="error" role="alert" data-toast="bad" hidden></p>
+          </div>
+        </div>
+      </div>
+    </article>
+  </body>
+</html>

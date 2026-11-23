@@ -503,3 +503,10 @@ def test_web_combined_overview_and_same_hash_actions_are_isolated(cluster, tmp_p
         overview = browser.get("/api/torrents?client_id=all&limit=200").json()
         assert overview["client_errors"]
         assert {r["client_name"] for r in overview["rows"]} >= {"qbit-b", "deluge", "transmission"}
+
+
+@pytest.mark.parametrize("name", IMAGES)
+def test_tracker_updates_keep_tiers_and_private_keys(cluster, name):
+    from tests.tracker_support import check_tracker_updates
+
+    check_tracker_updates(cluster.clients[name], cluster.folder(name))

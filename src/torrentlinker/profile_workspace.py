@@ -41,6 +41,7 @@ COMPANION_ROUTES = {
         "commands",
         "result",
         "actions-demand",
+        "creation",
         "actions-observe",
         "actions-claim",
         "actions-receipt",
@@ -217,6 +218,7 @@ class ProfileWorkspace:
         self.history = history
         self.downloads = CompanionDownloads(lambda: self.clock())
         self.community = CommunityActions(directory, lambda: self.clock())
+        self.creation_handler: Callable[[str, dict], dict] | None = None
         self.lock = threading.RLock()
         self.data: dict[str, Any] = {}
         try:
@@ -416,6 +418,32 @@ class ProfileWorkspace:
     def receive(
         self, route: str, origin: str, authorization: str, body: dict[str, Any]
     ) -> dict[str, Any]:
+        if route == "/api/companion/creation":
+            with self.lock:
+                digest = hashlib.sha256(authorization.encode()).hexdigest()
+                account = (self.data.get("api") or {}).get("account_id")
+                if (
+                    not extension_origin(origin)
+                    or not self._pair
+                    or origin != self._pair[1]
+                    or not hmac.compare_digest(digest, self._pair[0])
+                    or body.get("accountId") != account
+                ):
+                    raise PermissionError("Pair again from the Profile tab.")
+                handler = getattr(self, "creation_handler", None)
+                if handler is None:
+                    raise ValueError("Open Community linking in TorrentLinker first.")
+                action, value = body.get("operation"), body.get("value", {})
+                if action not in {"prepare", "publish", "cancel"}:
+                    raise ValueError("Unknown creation operation.")
+                if action == "prepare" and value.get("kind") not in {
+                    "rss",
+                    "release-score",
+                    "prompt",
+                }:
+                    raise ValueError("Use Studio or the pre-roll library for media sharing.")
+            # Site I/O must not hold the tracker-profile lock.
+            return handler("items-" + action, value)
         with self.lock:
             if not extension_origin(origin):
                 raise PermissionError("Use the paired browser extension.")
@@ -473,7 +501,7 @@ class ProfileWorkspace:
                 limit = body.get("limit", 1)
                 if not self.session_downloads:
                     self.downloads.last_poll = self.clock()  # the tab is still there
-                    return {"command": None, "commands": [], "concurrency": 1}
+                    return self.downloads.poll(str(account), 1, reads_only=True)
                 return self.downloads.poll(str(account), limit if type(limit) is int else 1)
             if route == "/api/companion/result":
                 if body.get("accountId") != account:
@@ -590,6 +618,46 @@ class ProfileWorkspace:
         finally:
             with self.lock:
                 self.downloads.take(job["id"])
+
+    @property
+    def can_read(self) -> bool:
+        """The companion is paired and its signed-in c411 tab answered recently."""
+        with self.lock:
+            return bool(self._pair) and self.downloads.state()["available"]
+
+    def read_json(self, path: str, timeout: float = 60.0) -> dict[str, Any]:
+        """One fixed c411 page through the browser session; blocks. Never uses the API key."""
+        with self.lock:
+            if not self._pair:
+                raise SessionFetchError("Connect the companion first.")
+            try:
+                job = self.downloads.submit_read(path)
+            except ValueError as error:
+                raise SessionFetchError(str(error)) from error
+        deadline = time.monotonic() + timeout
+        try:
+            while True:
+                with self.lock:
+                    job = self.downloads.get(job["id"], "app")
+                    if job["status"] == "complete":
+                        data = self.downloads.take_json(job["id"])
+                        if data is not None:
+                            return data
+                        raise SessionFetchError("The page was not kept.")
+                    if job["status"] == "failed":
+                        raise SessionFetchError(
+                            job.get("error") or "Session read failed.",
+                            int(job.get("http_status") or 0),
+                            int(job.get("retry_after") or 0),
+                        )
+                if time.monotonic() > deadline:
+                    raise SessionFetchError("The browser did not answer in time.")
+                time.sleep(0.1)
+        except ValueError as error:  # the job expired
+            raise SessionFetchError(str(error)) from error
+        finally:
+            with self.lock:
+                self.downloads.take_json(job["id"])
 
     def set_download_concurrency(self, value: int) -> int:
         with self.lock:

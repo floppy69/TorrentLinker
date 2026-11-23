@@ -179,8 +179,13 @@ def profile_routes(app: FastAPI, setup: Setup, torrent_clients: TorrentClients) 
     def extension(request: Request) -> Response:
         from torrentlinker.companion import extension_zip
 
+        origin = str(request.base_url)
+        # Behind an HTTPS reverse proxy this server speaks plain HTTP; a Secure cookie means
+        # browsers reach it over HTTPS, which is the address the extension must allow.
+        if request.app.state.secure_cookie and origin.startswith("http://"):
+            origin = "https://" + origin.removeprefix("http://")
         return Response(
-            extension_zip(str(request.base_url)),
+            extension_zip(origin),
             media_type="application/zip",
             headers={"Content-Disposition": 'attachment; filename="torrentlinker-companion.zip"'},
         )

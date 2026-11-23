@@ -4,28 +4,18 @@ from torrentlinker.app import apply_ui_scale
 from torrentlinker.config import Settings, ui_scale
 
 
-def test_the_interface_size_is_saved_and_old_settings_keep_the_system_size(
-    tmp_path, qtbot, monkeypatch
-):  # type: ignore[no-untyped-def]
-    from PySide6.QtWidgets import QMessageBox
-
-    from torrentlinker.gui.settings_dialog import SettingsDialog
+def test_the_interface_size_is_saved_and_old_settings_keep_the_system_size(tmp_path, qtbot):
+    from tests.settings_support import edit_field, save_group, settings_page
+    from tests.test_community_interfaces import js
 
     path = tmp_path / "settings.json"
     path.write_text("{}")
     settings = Settings.load(path)
     assert settings.ui_scale == 1.0
-    told: list[str] = []
-    monkeypatch.setattr(QMessageBox, "information", lambda *args: told.append(args[2]))
-    dialog = SettingsDialog(settings)
-    qtbot.addWidget(dialog)
-    assert dialog.ui_scale.currentText() == "100%"
-    dialog.ui_scale.setCurrentIndex(dialog.ui_scale.findData(1.25))
-    dialog._save()
-
-    assert settings.ui_scale == 1.25
-    assert told == ["Restart TorrentLinker to apply the new interface size."]
-    settings.save(path)
+    dialog = settings_page(qtbot, tmp_path, settings, section="general")
+    assert "Restart TorrentLinker" in js(qtbot, dialog.view, "document.body.textContent")
+    edit_field(qtbot, dialog.view, "Interface size", "1.25")
+    save_group(qtbot, dialog)
     assert Settings.load(path).ui_scale == 1.25
 
 

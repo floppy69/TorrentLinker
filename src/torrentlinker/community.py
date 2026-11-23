@@ -893,8 +893,11 @@ class CommunityActions:
                                 )
                             )
                             seen.add(normalized(message))
+            # New proposals all start now against the same reservations: once one finds no
+            # slot this week, none will. Trying thousands of candidates froze video playback.
+            full = False
             for identifier, subject, payload in proposals:
-                if active >= MAX_ITEMS and not identifier:
+                if (active >= MAX_ITEMS or full) and not identifier:
                     break
                 earliest = (
                     max(now, next(i["due"] for i in items if i["id"] == identifier))
@@ -903,6 +906,7 @@ class CommunityActions:
                 )
                 slot = next_slot(earliest, reservations, cap, interval, config)
                 if slot is None or slot >= now + 7 * 86400:
+                    full = full or not identifier
                     continue
                 if identifier:
                     db.execute(

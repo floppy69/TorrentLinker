@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="../panel/base.css" />
+    <link rel="stylesheet" href="../panel/toast.css" />
+    <link rel="stylesheet" href="view.css" />
+    <link rel="stylesheet" href="details.css" />
+    <script src="../panel/i18n.js" defer></script>
+    <script src="../panel/toast.js" defer></script>
+    <script src="../panel/transport.js" defer></script>
+    <script src="transport.js" defer></script>
+    <script src="release-score.js" defer></script>
+    <script src="view.js" defer></script>
+    <script src="results.js" defer></script>
+    <script src="queue.js" defer></script>
+    <script src="details.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <nav id="detail-tabs" hidden></nav>
+      <section id="detail-pages" hidden></section>
+      <section id="results">
+        <div class="search-head">
+          <label class="release-score-selector"
+            >ReleaseScore
+            <select
+              id="release-score-profile"
+              aria-label="ReleaseScore profile"
+            ></select
+          ></label>
+          <span class="search-tools">
+            <button
+              type="button"
+              id="search-density-compact"
+              class="chip"
+              aria-pressed="false"
+              data-en="Compact"
+              data-fr="Compact"
+            >
+              Compact
+            </button>
+            <button
+              type="button"
+              id="search-density-comfortable"
+              class="chip"
+              aria-pressed="true"
+              data-en="Comfortable"
+              data-fr="Confortable"
+            >
+              Comfortable
+            </button>
+            <button
+              type="button"
+              id="search-posters"
+              class="chip"
+              aria-pressed="true"
+              data-en="Posters"
+              data-fr="Affiches"
+              title=""
+            >
+              Posters
+            </button>
+            <button type="button" id="search-queue-link" class="quiet">
+              Download queue
+            </button>
+          </span>
+        </div>
+        <form id="search-form" class="search-bar">
+          <input
+            id="search-query"
+            placeholder="Title, original title, release name…"
+            aria-label="Search c411"
+            maxlength="200"
+          />
+          <button
+            type="button"
+            id="search-crew"
+            class="chip"
+            aria-pressed="false"
+            hidden
+            data-en="Cast &amp; crew"
+            data-fr="Casting &amp; équipe"
+          >
+            Cast &amp; crew
+          </button>
+          <button class="primary" data-en="Search" data-fr="Rechercher">
+            Search
+          </button>
+        </form>
+        <div
+          id="search-pills"
+          class="search-pills"
+          role="group"
+          aria-label="Categories"
+        ></div>
+        <div class="search-row">
+          <select
+            id="search-category"
+            class="chip"
+            aria-label="Sub-category"
+            hidden
+          >
+          </select>
+          <button
+            type="button"
+            id="search-exclusive"
+            class="chip"
+            aria-pressed="false"
+            hidden
+          >
+            ☆ Exclusive
+          </button>
+          <button
+            type="button"
+            id="search-palliative"
+            class="chip"
+            aria-pressed="false"
+            hidden
+          >
+            ♡ Soins palliatifs
+          </button>
+          <span class="spacer"></span>
+          <button
+            type="button"
+            id="subscribe-search"
+            class="quiet"
+            data-en="Subscribe to RSS"
+            data-fr="S’abonner au RSS"
+          >
+            Subscribe to RSS
+          </button>
+          <button
+            type="button"
+            id="search-clear"
+            class="quiet"
+            data-en="Clear all"
+            data-fr="Tout effacer"
+          >
+            Clear all
+          </button>
+        </div>
+        <div id="search-facets" class="search-facets"></div>
+        <div id="search-chosen" class="search-facets" hidden></div>
+        <div
+          id="search-pages-top"
+          class="search-pages"
+          aria-label="Pages"
+        ></div>
+        <div class="results-card">
+          <div class="results-head">
+            <h2 data-en="Search results" data-fr="Résultats de recherche">
+              Search results
+            </h2>
+            <span id="search-summary" class="muted"></span>
+          </div>
+          <div class="results-sort">
+            <span class="muted" data-en="SORT" data-fr="TRIER">SORT</span>
+            <span
+              id="search-sort"
+              class="search-sort"
+              role="group"
+              aria-label="Sort"
+            ></span>
+          </div>
+          <div id="search-table" class="search-results"></div>
+        </div>
+        <div
+          id="search-pages-bottom"
+          class="search-pages"
+          aria-label="Pages"
+        ></div>
+        <p id="search-status" class="muted" role="status"></p>
+        <div id="search-selection" class="selection-bar" hidden>
+          <span id="search-selected-count"></span>
+          <span class="spacer"></span>
+          <button
+            type="button"
+            id="search-details"
+            class="quiet"
+            data-en="Details"
+            data-fr="Détails"
+          >
+            Details
+          </button>
+          <button
+            type="button"
+            id="queue-search"
+            class="primary"
+            data-en="Queue selected"
+            data-fr="Ajouter la sélection à la file"
+          >
+            Queue selected
+          </button>
+        </div>
+      </section>
+      <section id="queue" hidden>
+        <div class="row between">
+          <button
+            id="queue-refresh"
+            type="button"
+            data-en="Refresh"
+            data-fr="Actualiser"
+          >
+            Refresh
+          </button>
+          <button
+            id="back-results"
+            class="quiet"
+            data-en="← Back to results"
+            data-fr="← Retour aux résultats"
+          ></button
+          ><button
+            id="queue-torrents"
+            class="quiet"
+            data-en="Open in Torrents"
+            data-fr="Ouvrir dans Torrents"
+          ></button>
+        </div>
+        <h2 data-en="Download queue" data-fr="File de téléchargement"></h2>
+        <p
+          class="muted"
+          data-en="Start sends torrents to the client. Pause stops further sends; existing downloads continue."
+          data-fr="Démarrer envoie les torrents au client. Pause arrête les prochains envois ; les téléchargements déjà lancés continuent."
+        ></p>
+        <p id="queue-summary" role="status"></p>
+        <section class="panel queue-table" id="queue-table"></section>
+        <div class="toolbar queue-foot">
+          <button
+            id="start-queue"
+            data-en="Start queue"
+            data-fr="Démarrer la file"
+            class="primary"
+          ></button
+          ><button
+            id="pause-queue"
+            data-en="Pause"
+            data-fr="Pause"
+            class=""
+          ></button
+          ><button
+            id="start-selected-queue"
+            data-en="Start selected"
+            data-fr="Démarrer la sélection"
+            class=""
+          ></button
+          ><button
+            id="retry-queue"
+            data-en="Retry selected"
+            data-fr="Réessayer la sélection"
+            class=""
+          ></button
+          ><button
+            id="remove-queue"
+            data-en="Remove selected"
+            data-fr="Retirer la sélection"
+            class=""
+          ></button
+          ><button
+            id="clear-sent-queue"
+            data-en="Clear sent"
+            data-fr="Retirer les envoyés"
+            class=""
+          ></button>
+        </div>
+        <p id="queue-progress" class="muted" role="status"></p>
+      </section>
+    </main>
+    <dialog id="folder-dialog"></dialog>
+    <dialog id="picker"></dialog>
+    <div id="queue-menu" class="context" hidden></div>
+  </body>
+</html>

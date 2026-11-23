@@ -12,6 +12,7 @@ restent dans **Zen → Profil**.
 
 | Fonction | Fonctionnement |
 | --- | --- |
+| Lire les résultats XXX | Avec **Afficher le contenu XXX** activé, Recherche lit la catégorie XXX par votre session c411. Mettez l’extension à jour pour cela. La première lecture peut prendre environ 30 secondes. |
 | Synchroniser les statistiques du compte | Actualise l'identité, le solde Zen, la Classe, le niveau, les transferts, la durée totale de seed, les uploads validés et le nombre de seeds actifs toutes les deux minutes. |
 | Compléter l'historique Zen | Toutes les six heures, lit environ trois mois de votre historique Zen c411 (la date et le montant de chaque opération, jamais leur motif) pour que la courbe Zen du Profil couvre les jours antérieurs aux relevés de TorrentLinker. Les jours relevés par l'API ne sont jamais remplacés. |
 | Récupérer les fichiers `.torrent` avec la session navigateur | Facultatif et désactivé par défaut. Utilise le compte c411 connecté lorsque TorrentLinker demande les métadonnées d'un torrent, notamment pour vérifier des candidats de la Bibliothèque ou envoyer une file ou un Plan. |

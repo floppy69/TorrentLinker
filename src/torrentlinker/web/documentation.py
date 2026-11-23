@@ -45,6 +45,7 @@ def render(name: str, *, standalone: bool = False, root_path: str = "") -> str:
                 child.attrSet("rel", "noopener noreferrer")
                 continue
             if child.type == "image":
+                child.attrSet("data-guide-image", relative)
                 child.attrSet(
                     "src",
                     (

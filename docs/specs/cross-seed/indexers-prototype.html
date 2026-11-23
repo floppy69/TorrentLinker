@@ -1,0 +1,496 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway (ADR-0024, issue #151). Paramètres → Indexeurs: many Indexers, import from Prowlarr or
+     Jackett, and the Cross-seed rules. Built from approved components: the shared palette (panel/base.css) and
+     the Settings page's stylesheet (settings/view.css), embedded below. Three layouts, ?variant=A|B|C.
+     Fictional Indexers; nothing is sent. -->
+<html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Indexeurs · aperçu #151</title>
+<style>
+/* Embedded copy of src/torrentlinker/web/static/panel/base.css (approved), so the prototype opens anywhere. */
+/* Shared palette for Qt, the Web shell and bundled panels.
+   Keep these two token blocks literal: gui/theme.py reads their declarations.
+   Approved panel-specific light overrides remain in each panel's view.css. */
+:root {
+  color-scheme: dark;
+  --bg: #161d23;
+  --panel: #202932;
+  --raised: #26323c;
+  --line: #33404b;
+  --text: #e2e9ed;
+  --muted: #98aab7;
+  --accent: #80bdb6;
+  --accent-text: #102a2b;
+  --tint: #263e43;
+  --hover: #263e43;
+  --danger: #ff9c9c;
+  --warning: #edbf73;
+  --success: #4ad394;
+  --link: #64c9c0;
+  --shadow: none;
+  --ink: var(--text);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f6fa;
+  --panel: #ffffff;
+  --raised: #f7f9fc;
+  --line: #d5dfe9;
+  --text: #203047;
+  --muted: #5c6c80;
+  --accent: #087f76;
+  --accent-text: #ffffff;
+  --tint: #d8eeeb;
+  --hover: #e8f3f2;
+  --danger: #b42332;
+  --warning: #8a5800;
+  --success: #1f9d63;
+  --link: #087f76;
+  --shadow: 0 16px 60px #172b3e12;
+}
+</style><style>
+/* Embedded copy of src/torrentlinker/web/static/settings/view.css (approved), so the prototype opens anywhere. */
+.settings-layout {
+  align-items: start;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 24px;
+}
+#settings-navigation {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+#settings-navigation button {
+  text-align: left;
+  justify-content: flex-start;
+}
+#settings-navigation [aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--tint);
+}
+main,
+.settings-layout > * {
+  min-width: 0;
+}
+.settings-form {
+  align-content: start;
+  display: grid;
+  gap: 16px;
+}
+.settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.settings-field {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+.settings-field input,
+.settings-field select,
+.settings-field textarea {
+  width: 100%;
+}
+.settings-field input[type="checkbox"] {
+  width: auto;
+}
+.settings-form fieldset {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+}
+.settings-form legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.client-card {
+  border: 1px solid var(--line);
+  padding: 18px;
+  border-radius: 10px;
+  background: var(--panel);
+}
+.client-card h3 {
+  margin: 0;
+}
+#settings-error {
+  color: var(--danger);
+  white-space: pre-wrap;
+}
+#settings-error:empty,
+#settings-status:empty {
+  display: none;
+}
+@media (max-width: 720px) {
+  .settings-layout,
+  .settings-fields {
+    grid-template-columns: 1fr;
+  }
+  #settings-navigation {
+    display: flex;
+    overflow: auto;
+    padding: 3px 0 8px;
+  }
+  #settings-navigation button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  padding: 20px;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+h1 {
+  font-size: 26px;
+  margin: 0 0 22px;
+}
+h2 {
+  font-size: 20px;
+  margin: 0;
+}
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  min-width: 0;
+}
+button {
+  cursor: pointer;
+}
+button:hover {
+  background: var(--raised);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+small,
+.muted {
+  color: var(--muted);
+}
+
+.settings-form h3 {
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+.settings-form .card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  margin: 16px 0;
+  background: var(--panel);
+}
+.assistant-dialog {
+  width: min(720px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 22px;
+}
+.assistant-dialog form,
+.assistant-dialog label {
+  display: grid;
+  gap: 8px;
+}
+.assistant-dialog form {
+  gap: 16px;
+}
+.assistant-dialog input[type="checkbox"] {
+  justify-self: start;
+}
+.assistant-dialog::backdrop {
+  background: #0008;
+}
+.settings-form .toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.settings-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  background: var(--panel);
+}
+.settings-card h3 {
+  margin: 0 0 16px;
+}
+.settings-fields > button {
+  align-self: end;
+}
+.settings-check {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.settings-check input[type="checkbox"] {
+  width: auto;
+  flex: 0 0 auto;
+}
+.settings-check textarea {
+  flex-basis: 100%;
+}
+.settings-form > .settings-actions:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.file-access-status {
+  color: var(--accent);
+  font-weight: 600;
+}
+.file-access-address {
+  overflow-wrap: anywhere;
+}
+.file-access-capabilities {
+  width: 100%;
+  border-collapse: collapse;
+}
+.file-access-capabilities th,
+.file-access-capabilities td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.file-access-capabilities th {
+  width: 35%;
+  font-weight: 500;
+}
+.file-access-capabilities td {
+  padding-left: 20px;
+}
+.file-access-note {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  padding: 12px;
+}
+.settings-error {
+  color: var(--danger);
+}
+.file-access-confirm {
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  width: min(560px, 90vw);
+  padding: 24px;
+}
+/* Paramètres → Utilisateurs: member cards, their Permission tags and the locked Owner. */
+.member-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.member-head p {
+  margin: 4px 0 0;
+}
+.member-tags {
+  margin-top: 10px;
+}
+.member-tag {
+  display: inline-block;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 7px;
+  margin: 0 6px 4px 0;
+  color: var(--muted);
+}
+.member-tag.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.member-locked {
+  opacity: 0.7;
+}
+.member-locked input {
+  cursor: not-allowed;
+}
+.member-editor {
+  margin-top: 16px;
+}
+.member-kinds {
+  padding-left: 26px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 14px;
+}
+.member-cap input[type="number"] {
+  width: 90px;
+}
+.member-danger {
+  color: var(--danger);
+}
+
+/* An invitation or password link: its QR code beside the link to copy. */
+.member-link {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.member-link-side {
+  flex: 1;
+  min-width: 240px;
+  display: grid;
+  gap: 8px;
+}
+.member-qr {
+  width: 168px;
+  height: 168px;
+  background: #fff;
+  fill: #102a2b;
+  border-radius: 8px;
+}
+
+.score-section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}
+.score-section-heading h3{margin:0}.score-community-menu{position:relative;flex-shrink:0}
+.score-community-menu summary{cursor:pointer;border:1px solid var(--line);border-radius:7px;padding:8px 12px;font-size:13px;color:var(--muted)}
+.score-community-menu[open] summary{color:var(--ink);border-color:var(--accent)}
+.score-community-actions{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:220px;display:grid;gap:4px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 24px #0004}
+.score-community-actions button{text-align:left;white-space:normal}
+.score-section-heading~.settings-actions{margin:14px 0 20px;gap:8px}
+</style>
+<style>
+/* Only what the Settings page has no equivalent for yet. */
+.idx-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.idx-head p{margin:4px 0 0}
+.tag{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;margin:0 6px 4px 0;color:var(--muted)}
+.tag.on{color:var(--accent);border-color:var(--accent)}.tag.bad{color:var(--danger);border-color:var(--danger)}.tag.warn{color:var(--warning);border-color:var(--warning)}
+.client-card.locked{border-style:dashed}
+.matrix th,.matrix td{padding:8px 10px!important;vertical-align:middle!important}.matrix td{text-align:center}.matrix td:first-child,.matrix th:first-child{text-align:left}
+.import-list label{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}.import-list small{margin-left:auto}
+.steps-nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.steps-nav button[aria-current=step]{border-color:var(--accent);background:var(--tint)}
+input[type=range]{padding:0;border:0;background:none}
+#switcher{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:#0d1216;color:#fff;border:1px solid #ffffff40;border-radius:22px;padding:6px 8px;box-shadow:0 10px 40px #0008;z-index:50;font-size:13px;max-width:calc(100vw - 32px);flex-wrap:wrap;justify-content:center}
+#switcher button{background:#ffffff14;border-color:#ffffff30;color:#fff;border-radius:999px;padding:4px 12px}#switcher b{min-width:130px;text-align:center}
+</style>
+<h1>Paramètres</h1>
+<div class="settings-layout">
+ <nav id="settings-navigation" aria-label="Sections des paramètres"></nav>
+ <main><p id="settings-status" role="status"></p><div id="settings-body"></div></main>
+</div>
+<dialog class="assistant-dialog" id="dialog"></dialog>
+<div id="switcher"><button id="prev" aria-label="Variante précédente">←</button><b id="label"></b><button id="next" aria-label="Variante suivante">→</button><button id="theme">Thème</button></div>
+<script>
+/* Fictional Indexers. caps: which id searches the Indexer's Torznab caps advertise. */
+let indexers=[
+ {id:"c411",name:"c411",url:"https://c411.org/api/torznab",source:"Intégré",on:true,state:"ok",caps:["IMDb","TMDb"],pace:"budget de 20 recherches/heure, Catalogue d'abord",locked:true},
+ {id:"nebula",name:"Nebula",url:"http://prowlarr:9696/3/api",source:"Prowlarr",on:true,state:"ok",caps:["IMDb","TVDB"],pace:"limites de l'indexeur respectées"},
+ {id:"orion",name:"Orion",url:"http://prowlarr:9696/7/api",source:"Prowlarr",on:true,state:"limited",caps:["IMDb"],pace:"limité par l'indexeur · reprise dans 40 s"},
+ {id:"vega",name:"Vega",url:"https://vega.example/api/torznab",source:"Ajouté à la main",on:false,state:"error",caps:[],pace:"désactivé",error:"Clé API refusée (401)."},
+];
+let arr={kind:"prowlarr",url:"http://prowlarr:9696",synced:"il y a 2 h",available:[["Nebula",true],["Orion",true],["Lyra",false],["Altair",false]]};
+let rules={auto:true,threshold:95,paused:false};
+const variants=[["A","Cartes"],["B","Tableau"],["C","Étapes"]];
+let variant=new URLSearchParams(location.search).get("variant")||"A",step=0;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const status=t=>{document.getElementById("settings-status").textContent=t};
+const stateTag=x=>x.state==="ok"?`<span class="tag on">Connecté</span>`:x.state==="limited"?`<span class="tag warn">Limité</span>`:`<span class="tag bad">Erreur</span>`;
+const nav=()=>["Connexions","Clients","Général","ReleaseScore","Indexeurs","Utilisateurs","Notifications"].map(s=>`<button ${s==="Indexeurs"?'aria-current="page"':""}>${s}</button>`).join("");
+const intro=`<p class="muted">Les indexeurs où TorrentLinker cherche des correspondances pour la remise en seed et le cross-seed. Les recherches respectent les limites de chaque indexeur ; c411 garde son budget horaire.</p>`;
+const actions=`<div class="settings-actions"><button class="primary" data-save>Enregistrer</button><button data-discard>Annuler les modifications</button></div>`;
+
+/* Prowlarr or Jackett: connect once, pick indexers, re-sync. Shared by the three layouts. */
+function arrCard(){return `<section class="settings-card"><h3>Importer depuis Prowlarr ou Jackett</h3>
+ <div class="settings-fields"><label class="settings-field">Service<select data-arr-kind><option value="prowlarr" ${arr.kind==="prowlarr"?"selected":""}>Prowlarr</option><option value="jackett" ${arr.kind==="jackett"?"selected":""}>Jackett</option></select></label>
+ <label class="settings-field">Adresse<input value="${esc(arr.url)}" data-arr-url></label><label class="settings-field">Clé API<input type="password" placeholder="Enregistrée ; laisser vide pour la garder"></label></div>
+ <div class="import-list" style="margin-top:12px">${arr.available.map(([n,imp])=>`<label class="settings-check"><input type="checkbox" ${imp?"checked disabled":""} data-import="${esc(n)}"> ${esc(n)}<small>${imp?"déjà importé":"disponible"}</small></label>`).join("")}</div>
+ <div class="settings-actions" style="margin-top:12px"><button data-import-go>Importer la sélection</button><button data-sync>Resynchroniser</button><small class="muted">Dernière synchronisation ${arr.synced}</small></div></section>`}
+function rulesCard(){return `<section class="settings-card"><h3>Cross-seed</h3>
+ <label class="settings-check"><input type="checkbox" data-auto ${rules.auto?"checked":""}> Ajouter automatiquement les correspondances sûres</label>
+ <label class="settings-field" style="margin-top:10px"><span>Ajout automatique d'une correspondance partielle à partir de <b data-th-value>${rules.threshold} %</b> des fichiers présents</span><input type="range" min="80" max="100" value="${rules.threshold}" data-threshold ${rules.auto?"":"disabled"}></label>
+ <p class="muted" style="margin:8px 0 0">Toujours ajouté arrêté, vérifié à 100 % puis démarré ; les fichiers manquants sont ignorés, jamais téléchargés. En dessous du seuil, et pour les archives, la correspondance attend votre décision dans Bibliothèque → Cross-seed.</p>
+ <p class="muted" style="margin:6px 0 0">Sources : tous les torrents du client une fois terminés, et tous les éléments de la bibliothèque. Disposition : celle choisie pour chaque client dans la remise en seed.</p>
+ <div class="settings-actions" style="margin-top:10px"><button data-pause>${rules.paused?"Reprendre le cross-seed":"Suspendre le cross-seed"}</button></div></section>`}
+function card(x){return `<section class="client-card ${x.locked?"locked":""}"><div class="idx-head"><div><h3>${esc(x.name)}</h3><p class="muted">${esc(x.source)} · ${esc(x.url)}</p></div><div>${stateTag(x)}${x.caps.map(c=>`<span class="tag">${c}</span>`).join("")}</div></div>
+ <p class="muted" style="margin:8px 0 0">${esc(x.pace)}</p>${x.error?`<p class="settings-error" style="margin:6px 0 0">${esc(x.error)}</p>`:""}
+ <div class="settings-actions" style="margin-top:10px"><label class="settings-check"><input type="checkbox" data-on="${x.id}" ${x.on?"checked":""}> Chercher sur cet indexeur</label><button data-test="${x.id}">Tester</button>${x.locked?"":`<button data-edit="${x.id}">Modifier</button><button data-remove="${x.id}">Retirer</button>`}</div></section>`}
+
+/* A · Cartes: one Clients-style card per Indexer, then import and rules. */
+function A(){return `<div class="settings-form"><h2>Indexeurs</h2>${intro}<div class="settings-actions"><button class="primary" data-add>Ajouter un indexeur Torznab</button></div>${indexers.map(card).join("")}${arrCard()}${rulesCard()}${actions}</div>`}
+
+/* B · Tableau: Indexers as rows of one table; import and rules below. */
+function B(){return `<div class="settings-form"><h2>Indexeurs</h2>${intro}<section class="settings-card" style="overflow:auto"><table class="file-access-capabilities matrix"><thead><tr><th>Indexeur</th><th>Actif</th><th>État</th><th>Recherche par id</th><th>Rythme</th><th>Source</th><th></th></tr></thead><tbody>
+ ${indexers.map(x=>`<tr><th>${esc(x.name)}<br><small class="muted">${esc(x.url)}</small></th><td><input type="checkbox" data-on="${x.id}" ${x.on?"checked":""} aria-label="Actif : ${esc(x.name)}"></td><td>${stateTag(x)}</td><td>${x.caps.join(", ")||"—"}</td><td><small>${esc(x.pace)}</small></td><td><small>${esc(x.source)}</small></td><td style="white-space:nowrap"><button data-test="${x.id}">Tester</button>${x.locked?"":` <button data-edit="${x.id}">…</button>`}</td></tr>`).join("")}
+ </tbody></table><div class="settings-actions" style="margin-top:12px"><button class="primary" data-add>Ajouter un indexeur Torznab</button></div></section>${arrCard()}${rulesCard()}${actions}</div>`}
+
+/* C · Étapes: where indexers come from, which to use, then the rules. */
+function C(){const names=["D'où viennent vos indexeurs","Lesquels utiliser","Règles du cross-seed"];
+ return `<div class="settings-form"><h2>Indexeurs</h2>${intro}<div class="steps-nav">${names.map((n,i)=>`<button data-step="${i}" ${i===step?'aria-current="step"':""}>${i+1}. ${n}</button>`).join("")}</div>
+ ${step===0?arrCard()+`<section class="settings-card"><h3>Ou à la main</h3><p class="muted">Une adresse Torznab et sa clé API, pour un tracker hors de Prowlarr ou Jackett.</p><div class="settings-actions" style="margin-top:10px"><button data-add>Ajouter un indexeur Torznab</button></div></section>`
+ :step===1?indexers.map(card).join(""):rulesCard()}
+ <div class="settings-actions">${step?`<button data-step="${step-1}">Retour</button>`:""}${step<2?`<button class="primary" data-step="${step+1}">Continuer</button>`:`<button class="primary" data-save>Enregistrer</button>`}</div></div>`}
+
+function render(){document.getElementById("settings-navigation").innerHTML=nav();document.getElementById("settings-body").innerHTML=({A,B,C})[variant]();document.getElementById("label").textContent=`${variant} — ${variants.find(v=>v[0]===variant)[1]}`}
+function addDialog(x){const d=document.getElementById("dialog");d.innerHTML=`<form method="dialog"><h2>${x?"Modifier "+esc(x.name):"Ajouter un indexeur Torznab"}</h2><div class="settings-fields">
+ <label class="settings-field">Nom<input value="${x?esc(x.name):""}" placeholder="Lyra" data-new-name></label><label class="settings-field">Adresse Torznab<input value="${x?esc(x.url):""}" placeholder="https://tracker.example/api/torznab" data-new-url></label>
+ <label class="settings-field">Clé API<input type="password" placeholder="${x?"Enregistrée ; laisser vide pour la garder":""}"></label></div><p class="muted" id="caps-line" style="margin:10px 0 0">« Tester » lit aussi ses capacités (recherche par IMDb, TMDb, TVDB).</p>
+ <div class="settings-actions" style="margin-top:12px"><button type="button" data-dialog-test>Tester</button><button class="primary" value="ok" data-dialog-save>${x?"Enregistrer":"Ajouter"}</button><button value="cancel">Annuler</button></div></form>`;d.showModal()}
+document.addEventListener("change",e=>{const d=e.target.dataset;if(d.import||"threshold" in d)return;
+ if(d.on){indexers.find(x=>x.id===d.on).on=e.target.checked}else if("auto" in d){rules.auto=e.target.checked}else if(d.arrKind!==undefined){arr.kind=e.target.value}
+ status("Modifications non enregistrées");render()});
+document.addEventListener("input",e=>{if("threshold" in e.target.dataset){rules.threshold=+e.target.value;document.querySelector("[data-th-value]").textContent=rules.threshold+" %";status("Modifications non enregistrées")}});
+document.addEventListener("click",e=>{const t=e.target.closest("button");if(!t||t.closest("#switcher"))return;const d=t.dataset;
+ if("save" in d)status("Indexeurs enregistrés");else if("discard" in d)status("Modifications annulées");
+ else if(d.test){const x=indexers.find(i=>i.id===d.test);status(x.state==="error"?`${x.name} : ${x.error}`:`${x.name} répond · recherche par ${x.caps.join(", ")||"nom"}`)}
+ else if("add" in d)addDialog();else if(d.edit)addDialog(indexers.find(i=>i.id===d.edit));
+ else if(d.remove){indexers=indexers.filter(i=>i.id!==d.remove);status("Indexeur retiré ; ses cross-seeds restent dans le client");render()}
+ else if("dialogTest" in d){document.getElementById("caps-line").textContent="Répond · recherche par IMDb et TMDb."}
+ else if("dialogSave" in d){const n=document.querySelector("[data-new-name]").value||"Lyra";if(!indexers.some(i=>i.name===n))indexers.push({id:n.toLowerCase(),name:n,url:document.querySelector("[data-new-url]").value||"https://tracker.example/api/torznab",source:"Ajouté à la main",on:true,state:"ok",caps:["IMDb","TMDb"],pace:"limites de l'indexeur respectées"});status("Modifications non enregistrées");setTimeout(render,0)}
+ else if("importGo" in d){const picked=[...document.querySelectorAll("[data-import]:checked:not(:disabled)")].map(i=>i.dataset.import);picked.forEach(n=>{arr.available.find(a=>a[0]===n)[1]=true;indexers.push({id:n.toLowerCase(),name:n,url:`${arr.url}/${indexers.length+2}/api`,source:arr.kind==="prowlarr"?"Prowlarr":"Jackett",on:true,state:"ok",caps:["IMDb"],pace:"limites de l'indexeur respectées"})});status(picked.length?`${picked.length} indexeur(s) importé(s)`:"Cochez des indexeurs à importer");render()}
+ else if("sync" in d){arr.synced="à l'instant";status("Resynchronisé : rien de nouveau");render()}
+ else if("pause" in d){rules.paused=!rules.paused;status(rules.paused?"Cross-seed suspendu":"Cross-seed repris");render()}
+ else if(d.step!==undefined){step=+d.step;render()}});
+function go(n){const k=variants.findIndex(v=>v[0]===variant);variant=variants[(k+n+variants.length)%variants.length][0];step=0;const u=new URL(location);u.searchParams.set("variant",variant);history.replaceState(null,"",u);render()}
+document.getElementById("prev").onclick=()=>go(-1);document.getElementById("next").onclick=()=>go(1);
+document.getElementById("theme").onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="light"?"dark":"light"};
+document.addEventListener("keydown",e=>{if(e.target.closest("input,select,dialog"))return;if(e.key==="ArrowLeft")go(-1);if(e.key==="ArrowRight")go(1)});
+if(!variants.some(v=>v[0]===variant))variant="A";render();
+</script>

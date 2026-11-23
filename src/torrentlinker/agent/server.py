@@ -1429,6 +1429,77 @@ def make_server(service: AgentService):
         """
         return service.manage_selection(ACTOR.get(), request_id, selection_id, action)
 
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True), structured_output=True)
+    @safe
+    def audit_torrents(
+        action: Literal["start", "list", "report", "stop", "export"],
+        client_ids: list[str] | None = None,
+        tag: str = "",
+        report_id: str = "",
+        offset: Page = 0,
+        limit: Limit = 100,
+        format: Literal["json", "csv"] = "json",
+    ) -> dict[str, object]:
+        """Audit c411 tracker torrents without changing any client. No permission required.
+
+        Start with explicit client IDs or ["all"], then poll report with its id.
+        A tag only narrows tracker-selected torrents. Deleted requires two 404s at
+        least 60 seconds apart. Other errors are unknown. Reports persist and can
+        be exported. This tool never pauses, removes, retags or edits torrents.
+        """
+        return service.torrents_workspace.request(
+            "audit-" + action,
+            {
+                "client_ids": client_ids,
+                "tag": tag,
+                "id": report_id,
+                "offset": offset,
+                "limit": limit,
+                "format": format,
+            },
+        )
+
+    @mcp.tool(structured_output=True)
+    @safe
+    def update_c411_trackers(
+        request_id: str,
+        client_ids: list[str],
+        action: Literal["replace-host", "add-backup", "update-passkey"],
+        source_host: str = "",
+        target_host: str = "tk.c411.tw",
+        passkey_groups: list[str] | None = None,
+        preview_id: str = "",
+    ) -> dict[str, object]:
+        """Preview or propose bulk c411 tracker updates under controls permission.
+
+        Supply host names and preview passkey fingerprints, never announce URLs or
+        passkeys. With no preview_id, poll the returned job for counts and groups.
+        Resubmit the same intent and preview_id to apply. Replace-host and
+        update-passkey always wait for owner approval. Add-backup follows the
+        agent's controls policy and retains each torrent's existing passkey.
+        """
+        from torrentlinker.tracker_updates import host_name
+
+        if not client_ids or len(client_ids) > 32:
+            raise ValueError("Choose between 1 and 32 Torrent Clients.")
+        if source_host:
+            source_host = host_name(source_host)
+        target_host = host_name(target_host)
+        return service.request(
+            ACTOR.get(),
+            request_id,
+            AgentRequest(
+                kind="tracker-update" if preview_id else "tracker-preview",
+                client_id=client_ids[0],
+                client_ids=client_ids,
+                tracker_action=action,
+                tracker_source_host=source_host,
+                tracker_target_host=target_host,
+                tracker_groups=passkey_groups or [],
+                tracker_preview_id=preview_id,
+            ),
+        )
+
     @mcp.tool(structured_output=True)
     def propose_action(request_id: str, operation: AgentRequest) -> dict[str, object]:
         """Propose an operation. Read/preview jobs run now; changes require owner policy/approval.

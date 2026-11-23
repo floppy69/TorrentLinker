@@ -24,6 +24,7 @@ import httpx
 from torrentlinker import net
 from torrentlinker.client_folders import ClientFolder
 from torrentlinker.domain import Torrent, TorrentFile
+from torrentlinker.login_guard import LoginGuard
 from torrentlinker.qbit import AlreadyInClient
 
 GUARD_SPEED = 0.001  # KiB/s, Deluge's unit: 1 byte/s; -1 is unlimited
@@ -114,6 +115,7 @@ class DelugeApi:
             base = "http://" + base
         self._url = base + "/json"
         self._password = password
+        self._guard = LoginGuard("deluge", base, "", password)
         self._http = http or net.client(
             torrent_client=True, timeout=httpx.Timeout(30, connect=5), verify=False
         )
@@ -131,8 +133,9 @@ class DelugeApi:
         return dict(response.json())
 
     def _open(self) -> None:
+        self._guard.check()  # a refused password is not sent again until it changes
         if not self._post("auth.login", [self._password]).get("result"):
-            raise DelugeError("Deluge refused the Web UI password")
+            raise self._guard.refuse()
         if self._post("web.connected", []).get("result"):
             return
         hosts = self._post("web.get_hosts", []).get("result") or []
@@ -146,6 +149,7 @@ class DelugeApi:
         raise DelugeError("Deluge's Web UI could not connect to its daemon")
 
     def _call(self, method: str, *params: Any) -> Any:
+        self._guard.check()
         if not self._ready:
             with self._lock:
                 if not self._ready:
@@ -162,11 +166,28 @@ class DelugeApi:
             raise DelugeError(str(error.get("message", error)))
         return reply.get("result")
 
+    def announce_entries(self, hash: str):
+        from torrentlinker.tracker_updates import Announce
+
+        row = self._call("core.get_torrent_status", hash, ["trackers"])
+        return [Announce(str(r["url"]), int(r["tier"])) for r in row["trackers"]]
+
+    def apply_announces(self, hash: str, before, after) -> None:
+        self._call(
+            "core.set_torrent_trackers",
+            hash,
+            [{"url": entry.url, "tier": entry.tier} for entry in after],
+        )
+
+    def reannounce(self, hash: str) -> None:
+        self._call("core.force_reannounce", [hash])
+
     def check(self) -> str:
         """Log in, connect to the daemon and return Deluge's version.
 
         Refused when the Label plugin is off: Reseeds need it.
         """
+        self._guard.rearm()  # the user pressed Test
         with self._lock:
             self._open()
             self._ready = True

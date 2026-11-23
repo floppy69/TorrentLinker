@@ -1,0 +1,13 @@
+# Read-only c411 torrent audit
+
+Issue #121 adds Audit c411 to the shared Torrents toolbar and the `audit_torrents` MCP tool. Owners can audit one client or all enabled clients and narrow by the current tag filter. Search, category and metric filters do not change the audit scope; the launch dialog states this explicitly.
+
+Selection requires a c411 announce host in the current tracker or full tracker list, including `tk.c411.tw`. A TorrentLinker tag alone never selects a torrent. Each distinct infohash is read once across the selected clients. A 200 response means Present. One 404 means Suspect; a second 404 at least 60 seconds later means Deleted (confirmed). Authentication failures, rate limits, timeouts and server/network failures mean Unknown with a reason. Cancellation before a confirmation request retains the first 404 as Suspect.
+
+Lookups use the existing background queue, yielding to foreground searches and respecting the shared account budget. The audit does not retry a rate-limit refusal. Stop interrupts queue acquisition and confirmation waits; an already-sent HTTP request uses the existing network timeout. It never modifies, pauses, retags, edits trackers or removes client torrents. No live c411 request is made by tests.
+
+Reports contain counts per class and client plus paginated torrent names, hashes, clients and tags. Only tracker hosts are retained. Announce paths, passkeys and raw exception text are excluded. JSON and CSV export use the same normalized report; CSV guards against spreadsheet formulas in names. Desktop export uses a native file picker. Web export downloads a file. MCP can start, list, read, stop and export without execution permission or owner approval.
+
+Reports are saved under the configuration directory's `torrent-audits` folder. The selected rows are saved before lookups; progress is checkpointed every 30 seconds and saved at completion. After a restart, unfinished work is marked interrupted. Progress snapshots are bounded to four per second and page reads to 200 rows, so a 10,000-torrent audit does not write the full report for every lookup. Failed saves release the running slot and retain an explicit failure result in memory when possible.
+
+Validation covers duplicate hashes, alternate trackers, tag-only exclusion, two timed 404s, every Unknown category, real rate-limit queue cancellation, restart/export parity, failed persistence, a 10,000-torrent run, authentication/CSRF, MCP/Web parity and native export. The browser workflow covers English/French, JSON download, light/dark styles, a 390px viewport and dismissal during a delayed report response. No release was published as part of this implementation.
